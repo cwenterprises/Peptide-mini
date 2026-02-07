@@ -1,0 +1,9 @@
+{
+  "name": "Peptide Tracker",
+  "short_name": "Tracker",
+  "start_url": "./peptide-tracker.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "icon-mini.svg", "sizes": "any", "type": "
