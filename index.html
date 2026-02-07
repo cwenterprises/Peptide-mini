@@ -71,6 +71,29 @@
 
       <div class="card grid">
         <h2>Planner (recurring)</h2>
+
+        <!-- ✅ Manage peptides (NEW) -->
+        <div class="card" style="border-style:dashed;">
+          <b>Manage Peptides</b>
+          <div class="muted" style="margin-top:6px;">Add/remove peptides in the dropdown (saved on this device).</div>
+
+          <div class="row" style="margin-top:10px;">
+            <label>New peptide name
+              <input id="newPeptide" placeholder="e.g., BPC-157" />
+            </label>
+            <label>&nbsp;
+              <button id="addPeptideBtn">Add peptide</button>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="resetPeptidesBtn" class="small">Reset to default list</button>
+          </div>
+
+          <div class="muted" style="margin-top:6px;">Current list (tap x to remove):</div>
+          <div id="peptideChips" class="actions" style="margin-top:8px;"></div>
+        </div>
+
         <div class="row">
           <label>Day
             <select id="pDay">
@@ -203,8 +226,15 @@
   const store = {
     get(){
       const raw = localStorage.getItem(KEY);
-      if(!raw) return {peptides:PEPTIDES, planner:[], vials:[], logs:[], weekStart:null};
-      try{return JSON.parse(raw)}catch{return {peptides:PEPTIDES, planner:[], vials:[], logs:[], weekStart:null};}
+      if(!raw) return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+      try{
+        const parsed = JSON.parse(raw);
+        // Backstop in case peptides missing
+        if(!parsed.peptides || !Array.isArray(parsed.peptides) || parsed.peptides.length===0) parsed.peptides=[...PEPTIDES];
+        return parsed;
+      }catch{
+        return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+      }
     },
     set(d){localStorage.setItem(KEY, JSON.stringify(d));}
   };
@@ -270,6 +300,38 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
+  // ✅ Render removable chips for peptide list
+  function renderPeptideChips(data){
+    const wrap = $("peptideChips");
+    if(!wrap) return;
+
+    wrap.innerHTML = data.peptides.map(p =>
+      `<span class="tag">${p} <button class="small" data-rmp="${p}" style="padding:2px 8px;margin-left:6px;">x</button></span>`
+    ).join("");
+
+    wrap.querySelectorAll("button[data-rmp]").forEach(btn=>{
+      btn.onclick = ()=>{
+        const name = btn.getAttribute("data-rmp");
+        const d = store.get();
+
+        // Block removal if in use
+        const used =
+          d.planner.some(x=>x.peptide===name) ||
+          d.logs.some(x=>x.peptide===name) ||
+          d.vials.some(x=>x.peptide===name);
+
+        if(used){
+          alert("That peptide is already used in your planner/logs/vials. Remove those entries first if you want to delete it.");
+          return;
+        }
+
+        d.peptides = d.peptides.filter(x => x !== name);
+        store.set(d);
+        refresh();
+      };
+    });
+  }
+
   function refresh(){
     const data=store.get();
 
@@ -280,15 +342,22 @@
     const opts = `<option value="">Select…</option>` + data.peptides.map(p=>`<option>${p}</option>`).join("");
     $("peptide").innerHTML=opts;
     $("pPeptide").innerHTML=opts;
-    $("vPeptide").innerHTML=opts.replace('value=""','value=""');
+    $("vPeptide").innerHTML=opts;
+
+    // peptide chips
+    renderPeptideChips(data);
 
     // vials select filtered by peptide
     const curPep=$("peptide").value;
     const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
-    $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
-      const rem=remMcg(data,v.id);
-      return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
-    }).join("");
+    $("vial").innerHTML = `<option value="">None</option>` + vilsToOpts(vials, data);
+
+    function vilsToOpts(vs, dataAll){
+      return vs.map(v=>{
+        const rem=remMcg(dataAll,v.id);
+        return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
+      }).join("");
+    }
 
     // planner table
     const planner=[...data.planner].sort((a,b)=>a.day-b.day || (a.time||"99:99").localeCompare(b.time||"99:99"));
@@ -422,6 +491,35 @@
   $("weekStart").addEventListener("change", ()=>{
     const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
   });
+
+  // ✅ Add peptide button
+  $("addPeptideBtn").onclick = () => {
+    const name = ($("newPeptide").value || "").trim();
+    if(!name) return;
+
+    const d = store.get();
+    const exists = d.peptides.some(p => p.toLowerCase() === name.toLowerCase());
+    if(exists){
+      $("newPeptide").value = "";
+      return alert("That peptide is already in the list.");
+    }
+
+    d.peptides.push(name);
+    d.peptides.sort((a,b)=>a.localeCompare(b));
+    store.set(d);
+
+    $("newPeptide").value = "";
+    refresh();
+  };
+
+  // ✅ Reset peptide list to defaults
+  $("resetPeptidesBtn").onclick = () => {
+    if(!confirm("Reset peptide dropdown to the default list?")) return;
+    const d = store.get();
+    d.peptides = [...PEPTIDES];
+    store.set(d);
+    refresh();
+  };
 
   $("addPlan").onclick=()=>{
     const d=store.get();
