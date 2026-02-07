@@ -71,6 +71,27 @@
 
       <div class="card grid">
         <h2>Planner (recurring)</h2>
+        <div class="card" style="border-style:dashed;">
+  <b>Manage Peptides</b>
+  <div class="muted" style="margin-top:6px;">Add peptides to the dropdown (saved on this device).</div>
+  <div class="row" style="margin-top:10px;">
+    <label>New peptide name
+      <input id="newPeptide" placeholder="e.g., BPC-157" />
+    </label>
+    <label>&nbsp;
+      <button id="addPeptideBtn">Add peptide</button>
+    </label>
+  </div>
+
+  <div class="actions">
+    <button id="resetPeptidesBtn" class="small">Reset to default list</button>
+  </div>
+
+  <div class="muted" style="margin-top:6px;">
+    Current list:
+  </div>
+  <div id="peptideChips" class="actions" style="margin-top:8px;"></div>
+</div>
         <div class="row">
           <label>Day
             <select id="pDay">
