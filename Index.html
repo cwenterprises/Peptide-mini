@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Peptide Mini</title>
+
+  <!-- Home screen / PWA-ish -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Peptide Mini">
+  <meta name="theme-color" content="#ffffff">
+
+  <style>
+    body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:14px;max-width:980px}
+    h1{margin:0 0 8px}
+    h2{margin:16px 0 8px}
+    .muted{color:#666;font-size:13px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:12px}
+    .grid{display:grid;gap:12px}
+    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;align-items:start}
+    @media(max-width:900px){.split{grid-template-columns:1fr}}
+    label{display:grid;gap:6px;font-size:14px}
+    input,select,textarea,button{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px}
+    textarea{min-height:56px}
+    button{cursor:pointer}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .small{font-size:13px;padding:8px 10px}
+    .tag{display:inline-block;padding:2px 8px;border:1px solid #eee;border-radius:999px;font-size:12px;background:#fafafa}
+    .status{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #ddd;background:#fafafa}
+    .done{border-color:#bde5d2;background:#f1fbf6;color:#0a7}
+    .pending{border-color:#ffe2b8;background:#fff8ed;color:#b26a00}
+    .planItem{border:1px solid #eee;border-radius:10px;padding:8px;display:grid;gap:6px}
+    .weekGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+    .dayCol{border:1px solid #eee;border-radius:12px;padding:10px;min-height:160px}
+    .dayTop{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+    .dayName{font-weight:700}
+    .dayDate{color:#777;font-size:12px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top}
+    th{background:#fff;position:sticky;top:0}
+    .right{text-align:right}
+  </style>
+</head>
+<body>
+  <h1>Peptide Mini</h1>
+  <div class="muted">Local-only tracker: planner → today → log → done/pending. Saves to this device.</div>
+
+  <div class="split">
+    <!-- LEFT -->
+    <div class="grid">
+      <div class="card grid">
+        <div class="actions" style="justify-content:space-between;">
+          <h2 style="margin:0;">Today</h2>
+          <span class="muted" id="todaySummary"></span>
+        </div>
+        <div id="todayList" class="grid"></div>
+      </div>
+
+      <div class="card grid">
+        <div class="actions" style="justify-content:space-between;">
+          <h2 style="margin:0;">Week</h2>
+          <label class="muted" style="gap:4px;">
+            Week starts
+            <input id="weekStart" type="date" />
+          </label>
+        </div>
+        <div id="weekGrid" class="weekGrid"></div>
+      </div>
+
+      <div class="card grid">
+        <h2>Planner (recurring)</h2>
+        <div class="row">
+          <label>Day
+            <select id="pDay">
+              <option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option>
+              <option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
+            </select>
+          </label>
+          <label>Time (optional)
+            <input id="pTime" type="time" />
+          </label>
+        </div>
+        <div class="row3">
+          <label>Peptide
+            <select id="pPeptide"></select>
+          </label>
+          <label>Route
+            <select id="pRoute"><option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option></select>
+          </label>
+          <label>Dose (number)
+            <input id="pDose" type="number" step="0.01" placeholder="e.g., 250" />
+          </label>
+        </div>
+        <div class="row">
+          <label>Unit
+            <select id="pUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
+          </label>
+          <label>Note (optional)
+            <input id="pNote" placeholder="bedtime, fasted, etc." />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="addPlan">Add</button>
+          <button id="clearPlan" class="small" style="border-color:#f2b;color:#b00020;">Clear planner</button>
+        </div>
+        <div style="overflow:auto;">
+          <table>
+            <thead><tr><th>Day</th><th>Time</th><th>Peptide</th><th>Dose</th><th class="right">Del</th></tr></thead>
+            <tbody id="planTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="grid">
+      <div class="card grid">
+        <h2>Log dose</h2>
+        <div class="row">
+          <label>Peptide
+            <select id="peptide"></select>
+          </label>
+          <label>Date/Time
+            <input id="takenAt" type="datetime-local" />
+          </label>
+        </div>
+        <div class="row3">
+          <label>Route
+            <select id="route"><option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option></select>
+          </label>
+          <label>Dose
+            <input id="doseValue" type="number" step="0.01" />
+          </label>
+          <label>Unit
+            <select id="doseUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Vial (optional for mL/IU)
+            <select id="vial"></select>
+          </label>
+          <div class="card" style="border-style:dashed;">
+            <div><b>Draw math</b></div>
+            <div id="math" class="muted" style="margin-top:6px;">Select a vial + mcg/mg dose.</div>
+          </div>
+        </div>
+        <label>Notes
+          <textarea id="notes" placeholder="optional…"></textarea>
+        </label>
+        <div class="actions">
+          <button id="saveDose">Save</button>
+          <button id="deleteLast" class="small">Delete last</button>
+        </div>
+      </div>
+
+      <div class="card grid">
+        <h2>Vials</h2>
+        <div class="row3">
+          <label>Peptide
+            <select id="vPeptide"></select>
+          </label>
+          <label>Vial mg
+            <input id="vMg" type="number" step="0.01" placeholder="e.g., 10" />
+          </label>
+          <label>Diluent mL
+            <input id="vMl" type="number" step="0.01" placeholder="e.g., 2" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="addVial">Add vial</button>
+          <button id="export" class="small">Export</button>
+          <button id="reset" class="small" style="border-color:#f2b;color:#b00020;">Reset all</button>
+        </div>
+        <div style="overflow:auto;">
+          <table>
+            <thead><tr><th>Peptide</th><th>Conc</th><th>Rem</th><th class="right">Del</th></tr></thead>
+            <tbody id="vialTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card grid">
+        <h2>Logs</h2>
+        <div style="overflow:auto;">
+          <table>
+            <thead><tr><th>Time</th><th>Peptide</th><th>Dose</th><th>mL/IU</th></tr></thead>
+            <tbody id="logTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const PEPTIDES = ["Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31"];
+  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const KEY = "peptide_mini_v1";
+  const $ = (id)=>document.getElementById(id);
+
+  const store = {
+    get(){
+      const raw = localStorage.getItem(KEY);
+      if(!raw) return {peptides:PEPTIDES, planner:[], vials:[], logs:[], weekStart:null};
+      try{return JSON.parse(raw)}catch{return {peptides:PEPTIDES, planner:[], vials:[], logs:[], weekStart:null};}
+    },
+    set(d){localStorage.setItem(KEY, JSON.stringify(d));}
+  };
+
+  const pad2 = (x)=>String(x).padStart(2,"0");
+  const ymd = (d)=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  const nowDT = ()=>{
+    const d=new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  };
+  const addDays = (date, n)=>{ const d=new Date(date); d.setDate(d.getDate()+n); return d; };
+
+  function toMcg(v,u){
+    const n=Number(v); if(!Number.isFinite(n)) return null;
+    if(u==="mcg") return n;
+    if(u==="mg") return n*1000;
+    return null;
+  }
+  function mathFor(vial, doseValue, doseUnit){
+    if(!vial) return null;
+    const mg=Number(vial.mg), ml=Number(vial.ml);
+    const mcg=toMcg(doseValue,doseUnit);
+    if(!Number.isFinite(mg)||!Number.isFinite(ml)||!mcg) return null;
+    const conc=(mg*1000)/ml;
+    const vol=mcg/conc;
+    const iu=vol*100;
+    return {conc, vol, iu, mcg};
+  }
+  function remMcg(data, vialId){
+    const vial=data.vials.find(v=>v.id===vialId);
+    if(!vial) return null;
+    const start=Number(vial.mg)*1000;
+    const used=data.logs.filter(l=>l.vialId===vialId && Number.isFinite(Number(l.doseMcg))).reduce((s,l)=>s+Number(l.doseMcg),0);
+    return start-used;
+  }
+  const approx = (a,b,p=0.02)=>Math.abs(a-b)/Math.max(Math.abs(b),1e-9) <= p;
+
+  function logsForDay(data, dayYmd){
+    const start=new Date(dayYmd+"T00:00:00");
+    const end=new Date(dayYmd+"T23:59:59.999");
+    return data.logs.filter(l=>{ const t=new Date(l.takenAt); return t>=start && t<=end; });
+  }
+  function planMatched(planItem, logs){
+    const pv=Number(planItem.doseValue);
+    return logs.some(l=>{
+      if(l.peptide!==planItem.peptide) return false;
+      if(l.route!==planItem.route) return false;
+      if(l.doseUnit!==planItem.unit) return false;
+      const lv=Number(l.doseValue);
+      return Number.isFinite(pv)&&Number.isFinite(lv)&&approx(lv,pv,0.02);
+    });
+  }
+
+  function setLogFromPlan(planItem, dayYmd){
+    $("peptide").value=planItem.peptide;
+    $("route").value=planItem.route;
+    $("doseValue").value=planItem.doseValue;
+    $("doseUnit").value=planItem.unit;
+    let hh=pad2(new Date().getHours()), mi=pad2(new Date().getMinutes());
+    if(planItem.time){ const [h,m]=planItem.time.split(":"); hh=pad2(h); mi=pad2(m); }
+    $("takenAt").value=`${dayYmd}T${hh}:${mi}`;
+    refresh();
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  function refresh(){
+    const data=store.get();
+
+    if(!data.weekStart) data.weekStart=ymd(new Date());
+    $("weekStart").value=data.weekStart;
+
+    // selects
+    const opts = `<option value="">Select…</option>` + data.peptides.map(p=>`<option>${p}</option>`).join("");
+    $("peptide").innerHTML=opts;
+    $("pPeptide").innerHTML=opts;
+    $("vPeptide").innerHTML=opts.replace('value=""','value=""');
+
+    // vials select filtered by peptide
+    const curPep=$("peptide").value;
+    const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
+    $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
+      const rem=remMcg(data,v.id);
+      return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
+    }).join("");
+
+    // planner table
+    const planner=[...data.planner].sort((a,b)=>a.day-b.day || (a.time||"99:99").localeCompare(b.time||"99:99"));
+    $("planTable").innerHTML = planner.map(p=>`
+      <tr>
+        <td>${DAYS[p.day]}</td>
+        <td>${p.time||"—"}</td>
+        <td>${p.peptide}</td>
+        <td>${p.doseValue} ${p.unit}</td>
+        <td class="right"><button class="small" data-delp="${p.id}">X</button></td>
+      </tr>
+    `).join("");
+    document.querySelectorAll("button[data-delp]").forEach(b=>b.onclick=()=>{
+      const id=b.getAttribute("data-delp");
+      const d=store.get(); d.planner=d.planner.filter(x=>x.id!==id); store.set(d); refresh();
+    });
+
+    // vials table
+    $("vialTable").innerHTML = data.vials.map(v=>{
+      const conc=(Number(v.mg)*1000)/Number(v.ml);
+      const rem=remMcg(data,v.id);
+      return `<tr>
+        <td>${v.peptide}</td>
+        <td>${conc.toFixed(0)} mcg/mL</td>
+        <td>${Math.max(rem,0).toFixed(0)} mcg</td>
+        <td class="right"><button class="small" data-delv="${v.id}">X</button></td>
+      </tr>`;
+    }).join("");
+    document.querySelectorAll("button[data-delv]").forEach(b=>b.onclick=()=>{
+      const id=b.getAttribute("data-delv");
+      const d=store.get();
+      d.vials=d.vials.filter(x=>x.id!==id);
+      d.logs=d.logs.map(l=>l.vialId===id?{...l,vialId:null,volumeMl:null,iu:null}:l);
+      store.set(d); refresh();
+    });
+
+    // logs table
+    const logs=[...data.logs].sort((a,b)=>(b.takenAt||"").localeCompare(a.takenAt||""));
+    $("logTable").innerHTML = logs.slice(0,80).map(l=>{
+      const m = (l.volumeMl!=null && l.iu!=null) ? `${Number(l.volumeMl).toFixed(3)} / ${Number(l.iu).toFixed(1)}` : "";
+      return `<tr>
+        <td>${new Date(l.takenAt).toLocaleString()}</td>
+        <td>${l.peptide} <span class="muted">• ${l.route}</span></td>
+        <td>${l.doseValue} ${l.doseUnit}</td>
+        <td>${m}</td>
+      </tr>`;
+    }).join("");
+
+    // today
+    const t=new Date(); const dow=t.getDay(); const todayYmd=ymd(t);
+    const todaysPlan=data.planner.filter(p=>p.day===dow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
+    const todaysLogs=logsForDay(data,todayYmd);
+    const done=todaysPlan.filter(p=>planMatched(p,todaysLogs)).length;
+    $("todaySummary").textContent = todaysPlan.length?`Planned ${todaysPlan.length} • Done ${done} • Pending ${todaysPlan.length-done}`:"No planner items";
+    $("todayList").innerHTML = todaysPlan.length ? todaysPlan.map(p=>{
+      const matched=planMatched(p,todaysLogs);
+      return `<div class="planItem">
+        <div class="actions">
+          <span class="status ${matched?"done":"pending"}">${matched?"DONE":"PENDING"}</span>
+          <span class="tag">${p.time||"anytime"}</span>
+          <b>${p.peptide}</b><span class="muted">• ${p.route}</span>
+          <span class="muted">• ${p.doseValue} ${p.unit}</span>
+          ${p.note?`<span class="muted">• ${p.note}</span>`:""}
+        </div>
+        <div class="actions" style="justify-content:flex-end;">
+          ${matched?"":`<button class="small" data-log="${p.id}">Log</button>`}
+        </div>
+      </div>`;
+    }).join("") : `<div class="muted">Add planner items below.</div>`;
+
+    document.querySelectorAll("button[data-log]").forEach(b=>b.onclick=()=>{
+      const id=b.getAttribute("data-log");
+      const item=store.get().planner.find(x=>x.id===id);
+      if(item) setLogFromPlan(item, todayYmd);
+    });
+
+    // week grid
+    const start=new Date(data.weekStart+"T00:00:00");
+    $("weekGrid").innerHTML = Array.from({length:7},(_,i)=>{
+      const d=addDays(start,i);
+      const dayYmd=ymd(d);
+      const dayDow=d.getDay();
+      const plan=data.planner.filter(p=>p.day===dayDow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
+      const dayLogs=logsForDay(data,dayYmd);
+      const doneCount=plan.filter(p=>planMatched(p,dayLogs)).length;
+      const items = plan.length ? plan.map(p=>{
+        const matched=planMatched(p,dayLogs);
+        return `<div class="planItem">
+          <div class="actions">
+            <span class="status ${matched?"done":"pending"}">${matched?"DONE":"PENDING"}</span>
+            <span class="tag">${p.time||"anytime"}</span>
+            <b>${p.peptide}</b>
+          </div>
+          <div class="muted">${p.route} • ${p.doseValue} ${p.unit}${p.note?` • ${p.note}`:""}</div>
+          <div class="actions" style="justify-content:flex-end;">
+            ${matched?"":`<button class="small" data-wlog="${p.id}" data-ymd="${dayYmd}">Log</button>`}
+          </div>
+        </div>`;
+      }).join("") : `<div class="muted" style="margin-top:10px;">No planned items.</div>`;
+      return `<div class="dayCol">
+        <div class="dayTop">
+          <div><div class="dayName">${DAYS[dayDow]}</div><div class="dayDate">${dayYmd}</div></div>
+          <div class="muted">Planned ${plan.length}<br>Done ${doneCount}</div>
+        </div>
+        ${items}
+      </div>`;
+    }).join("");
+
+    document.querySelectorAll("button[data-wlog]").forEach(b=>b.onclick=()=>{
+      const id=b.getAttribute("data-wlog");
+      const dayYmd=b.getAttribute("data-ymd");
+      const item=store.get().planner.find(x=>x.id===id);
+      if(item && dayYmd) setLogFromPlan(item, dayYmd);
+    });
+
+    // math preview
+    const vialId=$("vial").value || null;
+    const vial=vialId?data.vials.find(v=>v.id===vialId):null;
+    const m = mathFor(vial, $("doseValue").value, $("doseUnit").value);
+    $("math").innerHTML = m ? `Conc <b>${m.conc.toFixed(0)}</b> mcg/mL<br>Draw <b>${m.vol.toFixed(3)}</b> mL ≈ <b>${m.iu.toFixed(1)}</b> IU` : "Select a vial + mcg/mg dose.";
+  }
+
+  // init inputs
+  $("takenAt").value=nowDT();
+
+  // events
+  ["peptide","vial","doseValue","doseUnit"].forEach(id=>{
+    $(id).addEventListener("change", refresh);
+    $(id).addEventListener("input", refresh);
+  });
+  $("weekStart").addEventListener("change", ()=>{
+    const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
+  });
+
+  $("addPlan").onclick=()=>{
+    const d=store.get();
+    const peptide=$("pPeptide").value; if(!peptide) return alert("Pick peptide");
+    const doseValue=Number($("pDose").value); if(!Number.isFinite(doseValue)||doseValue<=0) return alert("Dose > 0");
+    d.planner.push({
+      id: crypto.randomUUID(),
+      day: Number($("pDay").value),
+      time: $("pTime").value || "",
+      peptide,
+      route: $("pRoute").value,
+      doseValue,
+      unit: $("pUnit").value,
+      note: $("pNote").value || ""
+    });
+    store.set(d);
+    $("pTime").value=""; $("pDose").value=""; $("pNote").value="";
+    refresh();
+  };
+
+  $("clearPlan").onclick=()=>{
+    if(!confirm("Clear all planner items?")) return;
+    const d=store.get(); d.planner=[]; store.set(d); refresh();
+  };
+
+  $("addVial").onclick=()=>{
+    const d=store.get();
+    const peptide=$("vPeptide").value; if(!peptide) return alert("Pick peptide");
+    const mg=Number($("vMg").value), ml=Number($("vMl").value);
+    if(!Number.isFinite(mg)||mg<=0) return alert("mg > 0");
+    if(!Number.isFinite(ml)||ml<=0) return alert("mL > 0");
+    d.vials.push({id:crypto.randomUUID(), peptide, mg, ml});
+    store.set(d);
+    $("vMg").value=""; $("vMl").value="";
+    refresh();
+  };
+
+  $("saveDose").onclick=()=>{
+    const d=store.get();
+    const peptide=$("peptide").value; if(!peptide) return alert("Pick peptide");
+    const route=$("route").value;
+    const doseValue=Number($("doseValue").value); if(!Number.isFinite(doseValue)||doseValue<=0) return alert("Dose > 0");
+    const doseUnit=$("doseUnit").value;
+    const takenAt = $("takenAt").value ? new Date($("takenAt").value).toISOString() : new Date().toISOString();
+    const vialId=$("vial").value || null;
+    const vial=vialId?d.vials.find(v=>v.id===vialId):null;
+    const m=mathFor(vial, doseValue, doseUnit);
+    d.logs.push({
+      id:crypto.randomUUID(),
+      takenAt, peptide, route, doseValue, doseUnit,
+      doseMcg: m?m.mcg:null, volumeMl: m?m.vol:null, iu: m?m.iu:null,
+      vialId, notes: $("notes").value||""
+    });
+    store.set(d);
+    $("doseValue").value=""; $("notes").value="";
+    refresh();
+  };
+
+  $("deleteLast").onclick=()=>{
+    const d=store.get(); if(!d.logs.length) return;
+    d.logs.pop(); store.set(d); refresh();
+  };
+
+  $("export").onclick=()=>{
+    const d=store.get();
+    const esc=s=>{s=String(s??""); return (s.includes(",")||s.includes("\"")||s.includes("\n"))?`"${s.replaceAll("\"","\"\"")}"`:s;};
+    const csv=(rows)=>rows.length?[Object.keys(rows[0]).join(","),...rows.map(r=>Object.keys(rows[0]).map(k=>esc(r[k])).join(","))].join("\n"):"";
+    const bundle =
+`# PLANNER\n${csv(d.planner.map(p=>({day:DAYS[p.day],time:p.time,peptide:p.peptide,route:p.route,doseValue:p.doseValue,unit:p.unit,note:p.note})))}\n
+# VIALS\n${csv(d.vials)}\n
+# LOGS\n${csv(d.logs)}\n`;
+    const blob=new Blob([bundle],{type:"text/plain;charset=utf-8"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="peptide_mini_export.csv.txt"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  };
+
+  $("reset").onclick=()=>{
+    if(!confirm("Delete ALL data on this device?")) return;
+    localStorage.removeItem(KEY);
+    $("takenAt").value=nowDT();
+    refresh();
+  };
+
+  // boot
+  refresh();
+})();
+</script>
+</body>
+</html>
