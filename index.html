@@ -525,7 +525,55 @@
     $("takenAt").value=nowDT();
     refresh();
   };
+function renderPeptideChips(data){
+  const wrap = $("peptideChips");
+  if(!wrap) return;
+  wrap.innerHTML = data.peptides.map(p =>
+    `<span class="tag">${p} <button class="small" data-rmp="${p}" style="padding:2px 8px;margin-left:6px;">x</button></span>`
+  ).join("");
 
+  wrap.querySelectorAll("button[data-rmp]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const name = btn.getAttribute("data-rmp");
+      const d = store.get();
+
+      // Prevent deleting peptides that are used in planner/logs unless you want to allow it
+      const used = d.planner.some(x=>x.peptide===name) || d.logs.some(x=>x.peptide===name) || d.vials.some(x=>x.peptide===name);
+      if(used){
+        alert("That peptide is already used in your planner/logs/vials. Remove those entries first if you want to delete it.");
+        return;
+      }
+
+      d.peptides = d.peptides.filter(x => x !== name);
+      store.set(d);
+     $("addPeptideBtn").onclick = () => {
+  const name = ($("newPeptide").value || "").trim();
+  if(!name) return;
+
+  const d = store.get();
+  // avoid duplicates (case-insensitive)
+  const exists = d.peptides.some(p => p.toLowerCase() === name.toLowerCase());
+  if(exists) { $("newPeptide").value = ""; return alert("Already in the list."); }
+
+  d.peptides.push(name);
+  // keep alphabetical if you want
+  d.peptides.sort((a,b)=>a.localeCompare(b));
+  store.set(d);
+
+  $("newPeptide").value = "";
+  refresh();
+};
+
+$("resetPeptidesBtn").onclick = () => {
+  if(!confirm("Reset peptide dropdown to the default list?")) return;
+  const d = store.get();
+  d.peptides = PEPTIDES.slice(); // PEPTIDES is your default constant
+  store.set(d);
+  refresh()renderPeptideChips(data);;
+}; refresh();
+    };
+  });
+}
   // boot
   refresh();
 })();
