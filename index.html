@@ -72,7 +72,7 @@
       <div class="card grid">
         <h2>Planner (recurring)</h2>
 
-        <!-- ✅ Manage peptides (NEW) -->
+        <!-- Manage peptides -->
         <div class="card" style="border-style:dashed;">
           <b>Manage Peptides</b>
           <div class="muted" style="margin-top:6px;">Add/remove peptides in the dropdown (saved on this device).</div>
@@ -194,8 +194,15 @@
         <div class="actions">
           <button id="addVial">Add vial</button>
           <button id="export" class="small">Export</button>
+
+          <!-- iCloud Drive manual backup/restore -->
+          <button id="backupJson" class="small">Backup (JSON)</button>
+          <button id="restoreJson" class="small">Restore (JSON)</button>
+          <input id="restoreFile" type="file" accept="application/json,.json" style="display:none" />
+
           <button id="reset" class="small" style="border-color:#f2b;color:#b00020;">Reset all</button>
         </div>
+        <div class="muted">Tip: On iPhone, after Backup tap “Save to Files” → iCloud Drive.</div>
         <div style="overflow:auto;">
           <table>
             <thead><tr><th>Peptide</th><th>Conc</th><th>Rem</th><th class="right">Del</th></tr></thead>
@@ -229,8 +236,10 @@
       if(!raw) return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
       try{
         const parsed = JSON.parse(raw);
-        // Backstop in case peptides missing
         if(!parsed.peptides || !Array.isArray(parsed.peptides) || parsed.peptides.length===0) parsed.peptides=[...PEPTIDES];
+        if(!Array.isArray(parsed.planner)) parsed.planner=[];
+        if(!Array.isArray(parsed.vials)) parsed.vials=[];
+        if(!Array.isArray(parsed.logs)) parsed.logs=[];
         return parsed;
       }catch{
         return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
@@ -300,11 +309,10 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
-  // ✅ Render removable chips for peptide list
+  // Manage peptide chips
   function renderPeptideChips(data){
     const wrap = $("peptideChips");
     if(!wrap) return;
-
     wrap.innerHTML = data.peptides.map(p =>
       `<span class="tag">${p} <button class="small" data-rmp="${p}" style="padding:2px 8px;margin-left:6px;">x</button></span>`
     ).join("");
@@ -313,8 +321,6 @@
       btn.onclick = ()=>{
         const name = btn.getAttribute("data-rmp");
         const d = store.get();
-
-        // Block removal if in use
         const used =
           d.planner.some(x=>x.peptide===name) ||
           d.logs.some(x=>x.peptide===name) ||
@@ -344,20 +350,15 @@
     $("pPeptide").innerHTML=opts;
     $("vPeptide").innerHTML=opts;
 
-    // peptide chips
     renderPeptideChips(data);
 
     // vials select filtered by peptide
     const curPep=$("peptide").value;
     const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
-    $("vial").innerHTML = `<option value="">None</option>` + vilsToOpts(vials, data);
-
-    function vilsToOpts(vs, dataAll){
-      return vs.map(v=>{
-        const rem=remMcg(dataAll,v.id);
-        return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
-      }).join("");
-    }
+    $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
+      const rem=remMcg(data,v.id);
+      return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
+    }).join("");
 
     // planner table
     const planner=[...data.planner].sort((a,b)=>a.day-b.day || (a.time||"99:99").localeCompare(b.time||"99:99"));
@@ -420,7 +421,7 @@
           <span class="tag">${p.time||"anytime"}</span>
           <b>${p.peptide}</b><span class="muted">• ${p.route}</span>
           <span class="muted">• ${p.doseValue} ${p.unit}</span>
-          ${p.note?`<span class="muted">• ${p.note}</span>`:""}
+          ${p.note?`<span class="muted">• ${p.note}`:""}
         </div>
         <div class="actions" style="justify-content:flex-end;">
           ${matched?"":`<button class="small" data-log="${p.id}">Log</button>`}
@@ -492,7 +493,7 @@
     const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
   });
 
-  // ✅ Add peptide button
+  // Add peptide
   $("addPeptideBtn").onclick = () => {
     const name = ($("newPeptide").value || "").trim();
     if(!name) return;
@@ -512,7 +513,7 @@
     refresh();
   };
 
-  // ✅ Reset peptide list to defaults
+  // Reset peptide list
   $("resetPeptidesBtn").onclick = () => {
     if(!confirm("Reset peptide dropdown to the default list?")) return;
     const d = store.get();
@@ -595,6 +596,59 @@
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="peptide_mini_export.csv.txt"; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),500);
   };
+
+  // iCloud Drive backup/restore (JSON)
+  function downloadJson(filename, obj){
+    const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json;charset=utf-8"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 500);
+  }
+
+  function isValidBackup(data){
+    if(!data || typeof data !== "object") return false;
+    if(!Array.isArray(data.peptides)) return false;
+    if(!Array.isArray(data.planner)) return false;
+    if(!Array.isArray(data.vials)) return false;
+    if(!Array.isArray(data.logs)) return false;
+    return true;
+  }
+
+  $("backupJson").onclick = () => {
+    const d = store.get();
+    const date = ymd(new Date());
+    downloadJson(`peptide-mini-backup-${date}.json`, d);
+  };
+
+  $("restoreJson").onclick = () => {
+    $("restoreFile").value = "";
+    $("restoreFile").click();
+  };
+
+  $("restoreFile").addEventListener("change", async () => {
+    const file = $("restoreFile").files && $("restoreFile").files[0];
+    if(!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      if(!isValidBackup(parsed)) {
+        alert("That file doesn’t look like a valid Peptide Mini backup.");
+        return;
+      }
+
+      if(!confirm("Restore this backup? This will overwrite the current data on this device.")) return;
+
+      store.set(parsed);
+      alert("Restore complete.");
+      refresh();
+    } catch (e) {
+      alert("Could not read that file. Make sure it’s a valid JSON backup.");
+    }
+  });
 
   $("reset").onclick=()=>{
     if(!confirm("Delete ALL data on this device?")) return;
