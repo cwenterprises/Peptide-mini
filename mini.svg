@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g fill="none" stroke="#111" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <!-- barrel -->
+    <path d="M180 230 L320 370"/>
+    <path d="M220 190 L360 330"/>
+    <!-- plunger -->
+    <path d="M340 170 L410 240"/>
+    <path d="M365 145 L435 215"/>
+    <!-- needle -->
+    <path d="M145 265 L80 330"/>
+    <!-- small tick -->
+    <path d="M245 270 L275 300"/>
+  </g>
+
+  <!-- droplet -->
+  <path fill="#111" d="M70 360c0 18 14 32 32 32s32-14 32-32c0-21-32-55-32-55s-32 34-32 55z"/>
+</svg>
