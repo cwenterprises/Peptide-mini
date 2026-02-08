@@ -8,7 +8,12 @@
   <!-- Home screen / PWA-ish -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Peptide Mini">
+
+  <!-- ✅ Dark mode support -->
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0f">
 
   <style>
     body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:14px;max-width:980px}
@@ -66,6 +71,46 @@
     .card.collapsed > h2,
     .card.collapsed > .minBtn{ display:block; }
     .card.collapsed{ padding:12px; }
+
+    /* ✅ Dark mode */
+    :root{ color-scheme: light dark; }
+
+    @media (prefers-color-scheme: dark){
+      body{
+        background:#0b0b0f;
+        color:#f2f2f6;
+      }
+
+      .muted{ color:#a8a8b3; }
+
+      .card{
+        background:#14141a;
+        border-color:#2a2a33;
+      }
+
+      input,select,textarea,button{
+        background:#101015;
+        color:#f2f2f6;
+        border-color:#2a2a33;
+      }
+
+      .tag, .status{
+        background:#101015;
+        border-color:#2a2a33;
+        color:#f2f2f6;
+      }
+
+      .planItem, .dayCol{
+        background:#121218;
+        border-color:#2a2a33;
+      }
+
+      table{ color:#f2f2f6; }
+      th,td{ border-bottom-color:#2a2a33; }
+      th{ background:#14141a; }
+
+      button{ background:#1a1a22; }
+    }
   </style>
 </head>
 <body>
@@ -366,7 +411,7 @@
     });
   }
 
-  // ---------- UI: collapse cards (no lock) ----------
+  // ---------- UI: collapse cards ----------
   const UIKEY = "peptide_mini_ui_v2";
   function loadUIState(){
     try { return JSON.parse(localStorage.getItem(UIKEY) || "{}"); }
@@ -544,7 +589,7 @@
           <span class="tag">${p.time||"anytime"}</span>
           <b>${p.peptide}</b><span class="muted">• ${p.route}</span>
           <span class="muted">• ${p.doseValue} ${p.unit}</span>
-          ${p.note?`<span class="muted">• ${p.note}`:""}
+          ${p.note?`<span class="muted">• ${p.note}</span>`:""}
         </div>
         <div class="actions" style="justify-content:flex-end;">
           ${matched?"":`<button class="small" data-log="${p.id}">Log</button>`}
