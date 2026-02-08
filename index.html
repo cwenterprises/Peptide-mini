@@ -46,12 +46,12 @@
     .card h2{
       cursor:pointer;
       user-select:none;
-      padding-right:92px; /* room for lock + chevron */
+      padding-right:44px; /* room for chevron */
     }
     .card h2:hover{ opacity:0.75; }
     .card h2:active{ transform:scale(0.99); }
 
-    /* Buttons: lock + chevron */
+    /* Chevron button */
     .minBtn{
       position:absolute;
       top:10px; right:10px;
@@ -60,20 +60,11 @@
       line-height:1;
       border-radius:10px;
     }
-    .lockBtn{
-      position:absolute;
-      top:10px; right:54px;
-      padding:6px 10px;
-      font-size:16px;
-      line-height:1;
-      border-radius:10px;
-    }
 
-    /* Collapsed: hide everything except first h2 and the buttons */
+    /* Collapsed: hide everything except first h2 and the button */
     .card.collapsed > *{ display:none; }
     .card.collapsed > h2,
-    .card.collapsed > .minBtn,
-    .card.collapsed > .lockBtn{ display:block; }
+    .card.collapsed > .minBtn{ display:block; }
     .card.collapsed{ padding:12px; }
   </style>
 </head>
@@ -375,8 +366,8 @@
     });
   }
 
-  // ---------- UI: collapse/lock cards ----------
-  const UIKEY = "peptide_mini_ui_v1";
+  // ---------- UI: collapse cards (no lock) ----------
+  const UIKEY = "peptide_mini_ui_v2";
   function loadUIState(){
     try { return JSON.parse(localStorage.getItem(UIKEY) || "{}"); }
     catch { return {}; }
@@ -389,35 +380,13 @@
     const title = h2 ? h2.textContent.trim() : `card-${index}`;
     return `${title}`.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || `card-${index}`;
   }
-  function isLocked(state, id){
-    return !!(state.locks && state.locks[id]);
-  }
-  function setLocked(state, id, locked){
-    if(!state.locks) state.locks = {};
-    state.locks[id] = !!locked;
-    saveUIState(state);
-  }
-  function applyButtonsUI(card, state){
-    const id = card.getAttribute("data-card-id");
-    const locked = isLocked(state, id);
-
-    const lockBtn = card.querySelector(":scope > .lockBtn");
-    if(lockBtn) lockBtn.innerHTML = locked ? "🔒" : "🔓";
-
-    const minBtn = card.querySelector(":scope > .minBtn");
-    if(minBtn){
-      const collapsed = card.classList.contains("collapsed");
-      minBtn.innerHTML = collapsed ? "▸" : "▾";
-      minBtn.disabled = locked;
-      minBtn.style.opacity = locked ? "0.45" : "1";
-    }
-
-    card.style.outline = locked ? "2px solid #eee" : "none";
+  function applyChevronUI(card){
+    const btn = card.querySelector(":scope > .minBtn");
+    if(!btn) return;
+    btn.innerHTML = card.classList.contains("collapsed") ? "▸" : "▾";
   }
   function setCardCollapsed(card, collapsed, state){
     const id = card.getAttribute("data-card-id");
-    if(isLocked(state, id)) collapsed = false;
-
     if (collapsed) card.classList.add("collapsed");
     else card.classList.remove("collapsed");
 
@@ -425,13 +394,12 @@
     state.collapsed[id] = !!collapsed;
     saveUIState(state);
 
-    applyButtonsUI(card, state);
+    applyChevronUI(card);
   }
 
   function addMinimizeButtons(){
     const state = loadUIState();
     if(!state.collapsed) state.collapsed = {};
-    if(!state.locks) state.locks = {};
 
     document.querySelectorAll(".card").forEach((card, i) => {
       if (!card.getAttribute("data-card-id")) {
@@ -439,31 +407,6 @@
       }
       const id = card.getAttribute("data-card-id");
 
-      // LOCK button
-      if (!card.querySelector(":scope > .lockBtn")) {
-        const lockBtn = document.createElement("button");
-        lockBtn.type = "button";
-        lockBtn.className = "lockBtn small";
-        lockBtn.innerHTML = isLocked(state, id) ? "🔒" : "🔓";
-
-        lockBtn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const st = loadUIState();
-          const nowLocked = !isLocked(st, id);
-          setLocked(st, id, nowLocked);
-
-          if(nowLocked){
-            setCardCollapsed(card, false, st);
-          } else {
-            applyButtonsUI(card, st);
-          }
-        };
-
-        card.prepend(lockBtn);
-      }
-
-      // CHEVRON button
       if (!card.querySelector(":scope > .minBtn")) {
         const btn = document.createElement("button");
         btn.type = "button";
@@ -474,40 +417,22 @@
           e.preventDefault();
           e.stopPropagation();
           const st = loadUIState();
-          if(isLocked(st, id)) return;
           const collapsedNow = !card.classList.contains("collapsed");
           setCardCollapsed(card, collapsedNow, st);
         };
 
         card.prepend(btn);
 
-        // Title toggles too (unless locked)
         const title = card.querySelector("h2");
-        if (title) {
-          title.onclick = () => {
-            const st = loadUIState();
-            if(isLocked(st, id)) return;
-            btn.click();
-          };
-        }
+        if (title) title.onclick = () => btn.click();
       }
 
-      // Apply saved state (obey locks)
-      const locked = isLocked(state, id);
       const collapsed = !!state.collapsed[id];
-
-      if(locked){
-        card.classList.remove("collapsed");
-      } else if(collapsed){
-        card.classList.add("collapsed");
-      } else {
-        card.classList.remove("collapsed");
-      }
-
-      applyButtonsUI(card, state);
+      if(collapsed) card.classList.add("collapsed");
+      else card.classList.remove("collapsed");
+      applyChevronUI(card);
     });
 
-    // Top buttons
     const collapseAllBtn = document.getElementById("collapseAll");
     const expandAllBtn = document.getElementById("expandAll");
 
@@ -516,14 +441,9 @@
         const st = loadUIState();
         document.querySelectorAll(".card").forEach((card, i) => {
           if (!card.getAttribute("data-card-id")) card.setAttribute("data-card-id", getCardId(card, i));
-          const id = card.getAttribute("data-card-id");
-          if(isLocked(st, id)) return;
-
-          // "Big sections only": skip Today card by title
           const h2 = card.querySelector("h2");
           const title = h2 ? h2.textContent.trim().toLowerCase() : "";
-          if(title === "today") return;
-
+          if(title === "today") return; // keep Today open
           setCardCollapsed(card, true, st);
         });
       };
