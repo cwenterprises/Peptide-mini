@@ -48,43 +48,32 @@
     .right{text-align:right}
 
     /* Clickable title */
-    .card h2{
-      cursor:pointer;
-      user-select:none;
-      padding-right:44px; /* room for chevron */
-    }
-    .card h2:hover{ opacity:0.75; }
-    .card h2:active{ transform:scale(0.99); }
+    .card h2{cursor:pointer;user-select:none;padding-right:44px}
+    .card h2:hover{opacity:0.75}
+    .card h2:active{transform:scale(0.99)}
 
     /* Chevron button */
-    .minBtn{
-      position:absolute;
-      top:10px; right:10px;
-      padding:6px 10px;
-      font-size:16px;
-      line-height:1;
-      border-radius:10px;
-    }
+    .minBtn{position:absolute;top:10px;right:10px;padding:6px 10px;font-size:16px;line-height:1;border-radius:10px}
 
     /* Collapsed: hide everything except first h2 and the button */
-    .card.collapsed > *{ display:none; }
+    .card.collapsed > *{display:none}
     .card.collapsed > h2,
-    .card.collapsed > .minBtn{ display:block; }
-    .card.collapsed{ padding:12px; }
+    .card.collapsed > .minBtn{display:block}
+    .card.collapsed{padding:12px}
 
     /* Dark mode */
-    :root{ color-scheme: light dark; }
+    :root{color-scheme: light dark}
     @media (prefers-color-scheme: dark){
-      body{ background:#0b0b0f; color:#f2f2f6; }
-      .muted{ color:#a8a8b3; }
-      .card{ background:#14141a; border-color:#2a2a33; }
-      input,select,textarea,button{ background:#101015; color:#f2f2f6; border-color:#2a2a33; }
-      .tag, .status{ background:#101015; border-color:#2a2a33; color:#f2f2f6; }
-      .planItem, .dayCol{ background:#121218; border-color:#2a2a33; }
-      table{ color:#f2f2f6; }
-      th,td{ border-bottom-color:#2a2a33; }
-      th{ background:#14141a; }
-      button{ background:#1a1a22; }
+      body{background:#0b0b0f;color:#f2f2f6}
+      .muted{color:#a8a8b3}
+      .card{background:#14141a;border-color:#2a2a33}
+      input,select,textarea,button{background:#101015;color:#f2f2f6;border-color:#2a2a33}
+      .tag,.status{background:#101015;border-color:#2a2a33;color:#f2f2f6}
+      .planItem,.dayCol{background:#121218;border-color:#2a2a33}
+      table{color:#f2f2f6}
+      th,td{border-bottom-color:#2a2a33}
+      th{background:#14141a}
+      button{background:#1a1a22}
     }
   </style>
 </head>
@@ -179,7 +168,6 @@
           </label>
         </div>
 
-        <!-- Info readout for planner peptide -->
         <div id="pPepInfo" class="muted"></div>
 
         <div class="actions">
@@ -210,7 +198,6 @@
           </label>
         </div>
 
-        <!-- Info readout for selected peptide -->
         <div id="pepInfo" class="muted"></div>
 
         <div class="row3">
@@ -302,20 +289,21 @@
     "Sermorelin","Cerebrolysin","Dihexa","DSIP"
   ];
 
-  // "Information" library (non-prescriptive tracker notes; no dosing guidance)
+  // Info library (non-prescriptive tracker notes; no dosing guidance)
   const PEPTIDE_INFO = {
     "Klow": { category:"Blend", unit:"mg/mcg", notes:"Track route + dose + any sides. If it’s a blend, note what’s inside." },
-    "Glutathione": { category:"Antioxidant", unit:"mg", notes:"Track route (IM/SubQ) and any reaction at injection site." },
-    "KPV": { category:"Peptide", unit:"mcg/mg", notes:"Track route and timing (e.g., with meals / bedtime)." },
+    "Glutathione": { category:"Antioxidant", unit:"mg", notes:"Track route and any reaction at injection site." },
+    "KPV": { category:"Peptide", unit:"mcg/mg", notes:"Track route and timing (with meals / bedtime)." },
     "Semax": { category:"Peptide", unit:"mcg", notes:"Often tracked as nasal or injection depending on product. Note delivery method." },
     "Selank": { category:"Peptide", unit:"mcg", notes:"Often tracked as nasal or injection depending on product. Note delivery method." },
     "Oxytocin": { category:"Peptide", unit:"IU/mcg", notes:"Track route (nasal vs injection) and timing/context." },
     "ARA-290": { category:"Peptide", unit:"mcg", notes:"Track cycle days and response notes." },
     "Lipo-C": { category:"Injectable blend", unit:"mL/mg", notes:"If multi-ingredient, note brand/formula and injection volume." },
-    "NAD+": { category:"Coenzyme", unit:"mg", notes:"Track concentration + route (IM/SubQ/IV if applicable) + how you felt." },
+    "NAD+": { category:"Coenzyme", unit:"mg", notes:"Track concentration + route + how you felt." },
     "PE-22-28": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add subjective notes." },
     "SS-31": { category:"Peptide", unit:"mg/mcg", notes:"Track route and day/time; add energy/recovery notes." },
-"5-amino-1mq": { category:"Small molecule", unit:"mg", notes:"Track oral vs other, time of day, and any appetite/energy notes." },
+
+    "5-amino-1mq": { category:"Small molecule", unit:"mg", notes:"Track time of day and any appetite/energy notes." },
     "Adalank": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add a short note on goal." },
     "Adamax": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add a short note on goal." },
     "BPC-157": { category:"Peptide", unit:"mcg", notes:"Track site/location if localized; track route and response." },
@@ -326,24 +314,24 @@
     "TB-500": { category:"Peptide", unit:"mcg", notes:"Track cycle schedule and injection site notes." },
     "CJC-195/IPA": { category:"Stack", unit:"mcg", notes:"Track each component in notes if your product doesn’t separate them." },
     "Wolverine": { category:"Blend/stack", unit:"mcg", notes:"If it’s a blend, note the ingredient list and dose form." },
-    "GHK-CU": { category:"Peptide", unit:"mg", notes:"Often topical/other; track form (serum/cream/injectable) and area used." },
+    "GHK-CU": { category:"Peptide", unit:"mg", notes:"Often topical/other; track form and area used." },
     "Glow": { category:"Blend/stack", unit:"mg/mcg", notes:"If it’s branded, track formula details and dose." },
-    "Tesamorelin": { category:"Peptide", unit:"mg", notes:"Track dosing days, time of day, and any lab/waist notes you want." },
-    "PT-141": { category:"Peptide", unit:"mcg", notes:"Track route and timing relative to use; keep notes private/short." },
+    "Tesamorelin": { category:"Peptide", unit:"mg", notes:"Track dosing days and time of day." },
+    "PT-141": { category:"Peptide", unit:"mcg", notes:"Track route and timing; keep notes short." },
     "Retatrutide": { category:"Peptide", unit:"mg", notes:"Track injection day, side effects, appetite, and weight trend." },
     "MOTS-C": { category:"Peptide", unit:"mg/mcg", notes:"Track training days vs rest days and energy notes." },
-    "IGF-1 LR3": { category:"Peptide", unit:"mcg", notes:"Track timing, training, and blood glucose notes if relevant." },
-    "SLU-PP-332": { category:"Small molecule", unit:"mg", notes:"Track oral timing and cardio/training notes." },
-    "Thymosin Alpha-1": { category:"Peptide", unit:"mg/mcg", notes:"Track schedule and general wellness notes." },
-    "VIP": { category:"Peptide", unit:"mcg", notes:"Track route and symptoms/response notes." },
-    "LL-37": { category:"Peptide", unit:"mcg", notes:"Track route and tolerance; add short response notes." },
-    "Kisspeptin": { category:"Peptide", unit:"mcg", notes:"Track schedule and any measurable markers you care about." },
+    "IGF-1 LR3": { category:"Peptide", unit:"mcg", notes:"Track timing and training notes." },
+    "SLU-PP-332": { category:"Small molecule", unit:"mg", notes:"Track timing and training notes." },
+    "Thymosin Alpha-1": { category:"Peptide", unit:"mg/mcg", notes:"Track schedule and wellness notes." },
+    "VIP": { category:"Peptide", unit:"mcg", notes:"Track route and response notes." },
+    "LL-37": { category:"Peptide", unit:"mcg", notes:"Track route and tolerance notes." },
+    "Kisspeptin": { category:"Peptide", unit:"mcg", notes:"Track schedule and any markers you care about." },
     "Epithalon": { category:"Peptide", unit:"mg/mcg", notes:"Track cycle start/end and sleep notes." },
-    "AOD-9604": { category:"Peptide", unit:"mcg", notes:"Track day/time, appetite, and bodyweight notes." },
-    "AICAR": { category:"Peptide", unit:"mg", notes:"Track workout pairing and any endurance notes." },
+    "AOD-9604": { category:"Peptide", unit:"mcg", notes:"Track day/time, appetite, and weight notes." },
+    "AICAR": { category:"Peptide", unit:"mg", notes:"Track workout pairing and endurance notes." },
     "Sermorelin": { category:"Peptide", unit:"mcg", notes:"Track bedtime/fasted timing and stacking notes." },
     "Cerebrolysin": { category:"Injectable", unit:"mL/mg", notes:"Track route and course length; note cognition/mood briefly." },
-  "Dihexa": { category:"Peptide", unit:"mg", notes:"Track route/form and cognitive notes." },
+    "Dihexa": { category:"Peptide", unit:"mg", notes:"Track route/form and cognitive notes." },
     "DSIP": { category:"Peptide", unit:"mcg", notes:"Track bedtime timing and sleep quality notes." }
   };
 
@@ -351,22 +339,41 @@
   const KEY = "peptide_mini_v1";
   const $ = (id)=>document.getElementById(id);
 
+  // ✅ MERGE FIX: saved peptides + new defaults always combine
   const store = {
     get(){
       const raw = localStorage.getItem(KEY);
-      if(!raw) return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+
+      const uniqSort = (arr) => {
+        const seen = new Set();
+        const out = [];
+        for (const x of arr) {
+          const name = String(x || "").trim();
+          if(!name) continue;
+          const k = name.toLowerCase();
+          if(seen.has(k)) continue;
+          seen.add(k);
+          out.push(name);
+        }
+        return out.sort((a,b)=>a.localeCompare(b));
+      };
+
+      if(!raw) return {peptides: uniqSort([...PEPTIDES]), planner:[], vials:[], logs:[], weekStart:null};
+
       try{
         const parsed = JSON.parse(raw);
-        if(!parsed.peptides || !Array.isArray(parsed.peptides) || parsed.peptides.length===0) parsed.peptides=[...PEPTIDES];
         if(!Array.isArray(parsed.planner)) parsed.planner=[];
         if(!Array.isArray(parsed.vials)) parsed.vials=[];
         if(!Array.isArray(parsed.logs)) parsed.logs=[];
+        const saved = Array.isArray(parsed.peptides) ? parsed.peptides : [];
+        parsed.peptides = uniqSort([...saved, ...PEPTIDES]);
+        if(!parsed.weekStart) parsed.weekStart = null;
         return parsed;
       }catch{
-        return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+        return {peptides: uniqSort([...PEPTIDES]), planner:[], vials:[], logs:[], weekStart:null};
       }
     },
-    set(d){localStorage.setItem(KEY, JSON.stringify(d));}
+    set(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
   };
 
   const pad2 = (x)=>String(x).padStart(2,"0");
@@ -441,7 +448,6 @@
     return `• ${name}: ${parts.join(" • ")}`;
   }
 
-  // Manage peptide chips
   function renderPeptideChips(data){
     const wrap = $("peptideChips");
     if(!wrap) return;
@@ -547,7 +553,7 @@
           if (!card.getAttribute("data-card-id")) card.setAttribute("data-card-id", getCardId(card, i));
           const h2 = card.querySelector("h2");
           const title = h2 ? h2.textContent.trim().toLowerCase() : "";
-          if(title === "today") return; // keep Today open
+          if(title === "today") return;
           setCardCollapsed(card, true, st);
         });
       };
@@ -570,7 +576,6 @@
     if(!data.weekStart) data.weekStart=ymd(new Date());
     $("weekStart").value=data.weekStart;
 
-    // selects
     const opts = `<option value="">Select…</option>` + data.peptides.map(p=>`<option>${p}</option>`).join("");
     $("peptide").innerHTML=opts;
     $("pPeptide").innerHTML=opts;
@@ -578,11 +583,9 @@
 
     renderPeptideChips(data);
 
-    // info blocks
     $("pepInfo").innerHTML = peptideInfoLine($("peptide").value);
     $("pPepInfo").innerHTML = peptideInfoLine($("pPeptide").value);
 
-    // vials select filtered by peptide
     const curPep=$("peptide").value;
     const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
     $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
@@ -590,7 +593,6 @@
       return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
     }).join("");
 
-    // planner table
     const planner=[...data.planner].sort((a,b)=>a.day-b.day || (a.time||"99:99").localeCompare(b.time||"99:99"));
     $("planTable").innerHTML = planner.map(p=>`
       <tr>
@@ -606,7 +608,6 @@
       const d=store.get(); d.planner=d.planner.filter(x=>x.id!==id); store.set(d); refresh();
     });
 
-    // vials table
     $("vialTable").innerHTML = data.vials.map(v=>{
       const conc=(Number(v.mg)*1000)/Number(v.ml);
       const rem=remMcg(data,v.id);
@@ -625,7 +626,6 @@
       store.set(d); refresh();
     });
 
-    // logs table
     const logs=[...data.logs].sort((a,b)=>(b.takenAt||"").localeCompare(a.takenAt||""));
     $("logTable").innerHTML = logs.slice(0,80).map(l=>{
       const m = (l.volumeMl!=null && l.iu!=null) ? `${Number(l.volumeMl).toFixed(3)} / ${Number(l.iu).toFixed(1)}` : "";
@@ -637,7 +637,6 @@
       </tr>`;
     }).join("");
 
-    // today
     const t=new Date(); const dow=t.getDay(); const todayYmd=ymd(t);
     const todaysPlan=data.planner.filter(p=>p.day===dow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
     const todaysLogs=logsForDay(data,todayYmd);
@@ -665,7 +664,6 @@
       if(item) setLogFromPlan(item, todayYmd);
     });
 
-    // week grid
     const start=new Date(data.weekStart+"T00:00:00");
     $("weekGrid").innerHTML = Array.from({length:7},(_,i)=>{
       const d=addDays(start,i);
@@ -704,7 +702,6 @@
       if(item && dayYmd) setLogFromPlan(item, dayYmd);
     });
 
-    // math preview
     const vialId=$("vial").value || null;
     const vial=vialId?data.vials.find(v=>v.id===vialId):null;
     const m = mathFor(vial, $("doseValue").value, $("doseUnit").value);
@@ -723,7 +720,6 @@
     const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
   });
 
-  // Add peptide
   $("addPeptideBtn").onclick = () => {
     const name = ($("newPeptide").value || "").trim();
     if(!name) return;
@@ -743,7 +739,6 @@
     refresh();
   };
 
-  // Reset peptide list
   $("resetPeptidesBtn").onclick = () => {
     if(!confirm("Reset peptide dropdown to the default list?")) return;
     const d = store.get();
@@ -827,65 +822,9 @@
     setTimeout(()=>URL.revokeObjectURL(a.href),500);
   };
 
-  // iCloud Drive backup/restore (JSON)
-  function downloadJson(filename, obj){
-    const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json;charset=utf-8"});
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href), 500);
-  }
-  function isValidBackup(data){
-    if(!data || typeof data !== "object") return false;
-    if(!Array.isArray(data.peptides)) return false;
-    if(!Array.isArray(data.planner)) return false;
-    if(!Array.isArray(data.vials)) return false;
-    if(!Array.isArray(data.logs)) return false;
-    return true;
-  }
-  $("backupJson").onclick = () => {
-    const d = store.get();
-    const date = ymd(new Date());
-    downloadJson(`peptide-mini-backup-${date}.json`, d);
-  };
-  $("restoreJson").onclick = () => {
-    $("restoreFile").value = "";
-    $("restoreFile").click();
-  };
-  $("restoreFile").addEventListener("change", async () => {
-    const file = $("restoreFile").files && $("restoreFile").files[0];
-    if(!file) return;
-
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-
-      if(!isValidBackup(parsed)) {
-        alert("That file doesn’t look like a valid Peptide Mini backup.");
-        return;
-      }
-
-      if(!confirm("Restore this backup? This will overwrite the current data on this device.")) return;
-
-      store.set(parsed);
-      alert("Restore complete.");
-      refresh();
-    } catch (e) {
-      alert("Could not read that file. Make sure it’s a valid JSON backup.");
-    }
-  });
-
-  $("reset").onclick=()=>{
-    if(!confirm("Delete ALL data on this device?")) return;
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(UIKEY);
-    $("takenAt").value=nowDT();
-    refresh();
-  };
-
   // boot
   addMinimizeButtons();
+  $("takenAt").value=nowDT();
   refresh();
 })();
 </script>
