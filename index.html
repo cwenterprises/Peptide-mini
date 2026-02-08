@@ -11,46 +11,125 @@
   <meta name="theme-color" content="#ffffff">
 
   <style>
-    body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:14px;max-width:980px}
+    /* ---------- THEME (Light/Dark/Auto) ---------- */
+    :root{
+      --bg:#ffffff;
+      --text:#111;
+      --muted:#666;
+      --card:#ffffff;
+      --border:#ddd;
+      --border2:#eee;
+      --inputBg:#fff;
+      --inputBorder:#ccc;
+      --chipBg:#fafafa;
+      --tableHead:#fff;
+      --statusBg:#fafafa;
+      --shadow:none;
+    }
+
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#0b0f14;
+        --text:#e8eef7;
+        --muted:#a9b4c2;
+        --card:#101824;
+        --border:#253041;
+        --border2:#1b2533;
+        --inputBg:#0f1722;
+        --inputBorder:#2a3a52;
+        --chipBg:#121c2a;
+        --tableHead:#101824;
+        --statusBg:#121c2a;
+      }
+    }
+
+    body.theme-dark{
+      --bg:#0b0f14;
+      --text:#e8eef7;
+      --muted:#a9b4c2;
+      --card:#101824;
+      --border:#253041;
+      --border2:#1b2533;
+      --inputBg:#0f1722;
+      --inputBorder:#2a3a52;
+      --chipBg:#121c2a;
+      --tableHead:#101824;
+      --statusBg:#121c2a;
+    }
+
+    body.theme-light{
+      --bg:#ffffff;
+      --text:#111;
+      --muted:#666;
+      --card:#ffffff;
+      --border:#ddd;
+      --border2:#eee;
+      --inputBg:#fff;
+      --inputBorder:#ccc;
+      --chipBg:#fafafa;
+      --tableHead:#fff;
+      --statusBg:#fafafa;
+    }
+
+    /* ---------- BASE UI ---------- */
+    body{
+      font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;
+      margin:14px;max-width:980px;
+      background:var(--bg);
+      color:var(--text);
+    }
     h1{margin:0 0 8px}
     h2{margin:16px 0 8px}
-    .muted{color:#666;font-size:13px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:12px}
+    .muted{color:var(--muted);font-size:13px}
+    .card{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--card);box-shadow:var(--shadow)}
     .grid{display:grid;gap:12px}
     .split{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;align-items:start}
     @media(max-width:900px){.split{grid-template-columns:1fr}}
+
     label{display:grid;gap:6px;font-size:14px}
-    input,select,textarea,button{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px}
+    input,select,textarea,button{
+      font-size:16px;padding:10px;border:1px solid var(--inputBorder);border-radius:10px;
+      background:var(--inputBg);color:var(--text);
+    }
     textarea{min-height:56px}
     button{cursor:pointer}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
     .row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
     @media(max-width:900px){.row4{grid-template-columns:1fr 1fr}}
+
     .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .small{font-size:13px;padding:8px 10px}
-    .tag{display:inline-block;padding:2px 8px;border:1px solid #eee;border-radius:999px;font-size:12px;background:#fafafa}
-    .status{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #ddd;background:#fafafa}
+    .tag{display:inline-block;padding:2px 8px;border:1px solid var(--border2);border-radius:999px;font-size:12px;background:var(--chipBg)}
+    .status{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--statusBg)}
     .done{border-color:#bde5d2;background:#f1fbf6;color:#0a7}
     .pending{border-color:#ffe2b8;background:#fff8ed;color:#b26a00}
-    .planItem{border:1px solid #eee;border-radius:10px;padding:8px;display:grid;gap:6px}
+
+    .planItem{border:1px solid var(--border2);border-radius:10px;padding:8px;display:grid;gap:6px;background:var(--card)}
     .weekGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
-    .dayCol{border:1px solid #eee;border-radius:12px;padding:10px;min-height:160px}
+    .dayCol{border:1px solid var(--border2);border-radius:12px;padding:10px;min-height:160px;background:var(--card)}
     .dayTop{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
     .dayName{font-weight:700}
-    .dayDate{color:#777;font-size:12px}
-    table{width:100%;border-collapse:collapse;font-size:14px}
-    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top}
-    th{background:#fff;position:sticky;top:0}
+    .dayDate{color:var(--muted);font-size:12px}
+
+    table{width:100%;border-collapse:collapse;font-size:14px;color:var(--text)}
+    th,td{border-bottom:1px solid var(--border2);padding:8px;text-align:left;vertical-align:top}
+    th{background:var(--tableHead);position:sticky;top:0}
     .right{text-align:right}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-    .infoBox{border:1px solid #eee;border-radius:12px;padding:10px;background:#fafafa}
+    .infoBox{border:1px solid var(--border2);border-radius:12px;padding:10px;background:var(--chipBg)}
   </style>
 </head>
 
 <body>
   <h1>Peptide Mini</h1>
   <div class="muted">Local-only tracker: planner → today → log → done/pending. Saves to this device.</div>
+
+  <!-- Theme toggle -->
+  <div class="actions" style="justify-content:space-between;margin:10px 0 6px;">
+    <span class="muted">Theme</span>
+    <button id="themeToggle" class="small">🌙 Dark</button>
+  </div>
 
   <div class="split">
     <!-- LEFT -->
@@ -504,9 +583,65 @@
   const PEPTIDES = ["Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31"];
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const KEY = "peptide_mini_v1";
+  const THEME_KEY = "peptide_mini_theme"; // "dark" | "light" | "auto"
   const $ = (id)=>document.getElementById(id);
 
-  // General, non-medical “info cards” (kept short)
+  // ---------- Theme ----------
+  function isSystemDark(){
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function updateThemeButton(mode){
+    const btn = $("themeToggle");
+    if(!btn) return;
+
+    // Show the NEXT action when tapped (cycle: auto -> dark -> light -> auto)
+    let label = "🌙 Dark";
+    if(mode==="auto"){
+      label = isSystemDark() ? "☀️ Light" : "🌙 Dark";
+      btn.title = "Auto (system)";
+    } else if(mode==="dark"){
+      label = "☀️ Light";
+      btn.title = "Dark (manual)";
+    } else if(mode==="light"){
+      label = "🖥 Auto";
+      btn.title = "Light (manual)";
+    }
+    btn.textContent = label;
+  }
+  function applyTheme(mode){
+    document.body.classList.remove("theme-dark","theme-light");
+    if(mode==="dark") document.body.classList.add("theme-dark");
+    else if(mode==="light") document.body.classList.add("theme-light");
+    localStorage.setItem(THEME_KEY, mode);
+    updateThemeButton(mode);
+  }
+  function getTheme(){
+    return localStorage.getItem(THEME_KEY) || "auto";
+  }
+  function nextTheme(mode){
+    if(mode==="auto") return "dark";
+    if(mode==="dark") return "light";
+    return "auto";
+  }
+
+  // Apply saved theme ASAP
+  applyTheme(getTheme());
+
+  // React to system changes while in auto mode
+  if(window.matchMedia){
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    mq.addEventListener?.("change", () => {
+      if(getTheme()==="auto") updateThemeButton("auto");
+    });
+  }
+
+  $("themeToggle")?.addEventListener("click", ()=>{
+    const cur = getTheme();
+    const nxt = nextTheme(cur);
+    applyTheme(nxt);
+  });
+
+  // ---------- General “info cards” (kept short; not medical advice) ----------
   const PEPTIDE_INFO = {
     "Klow": [
       "Commonly sold as a blend (varies by vendor). Track actual ingredients if known.",
@@ -554,7 +689,7 @@
     ].join("\n")
   };
 
-  // Lab marker library (quick-add)
+  // ---------- Lab marker library (quick-add) ----------
   const LAB_LIBRARY = {
     "CBC": [
       {m:"WBC", u:"x10^3/uL"}, {m:"RBC", u:"x10^6/uL"}, {m:"Hemoglobin", u:"g/dL"}, {m:"Hematocrit", u:"%"},
@@ -608,6 +743,7 @@
     ]
   };
 
+  // ---------- Storage ----------
   const store = {
     get(){
       const raw = localStorage.getItem(KEY);
@@ -628,6 +764,7 @@
     set(d){localStorage.setItem(KEY, JSON.stringify(d));}
   };
 
+  // ---------- Date helpers ----------
   const pad2 = (x)=>String(x).padStart(2,"0");
   const ymd = (d)=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
   const nowDT = ()=>{
@@ -636,13 +773,13 @@
   };
   const addDays = (date, n)=>{ const d=new Date(date); d.setDate(d.getDate()+n); return d; };
 
+  // ---------- Dose math ----------
   function toMcg(v,u){
     const n=Number(v); if(!Number.isFinite(n)) return null;
     if(u==="mcg") return n;
     if(u==="mg") return n*1000;
     return null;
   }
-
   function mathFor(vial, doseValue, doseUnit){
     if(!vial) return null;
     const mg=Number(vial.mg), ml=Number(vial.ml);
@@ -650,10 +787,9 @@
     if(!Number.isFinite(mg)||!Number.isFinite(ml)||!mcg) return null;
     const conc=(mg*1000)/ml;
     const vol=mcg/conc;
-    const iu=vol*100;
+    const iu=vol*100; // assumes U-100 insulin syringe for display
     return {conc, vol, iu, mcg};
   }
-
   function remMcg(data, vialId){
     const vial=data.vials.find(v=>v.id===vialId);
     if(!vial) return null;
@@ -664,6 +800,7 @@
     return start-used;
   }
 
+  // ---------- Planner matching ----------
   const approx = (a,b,p=0.02)=>Math.abs(a-b)/Math.max(Math.abs(b),1e-9) <= p;
 
   function logsForDay(data, dayYmd){
@@ -671,7 +808,6 @@
     const end=new Date(dayYmd+"T23:59:59.999");
     return data.logs.filter(l=>{ const t=new Date(l.takenAt); return t>=start && t<=end; });
   }
-
   function planMatched(planItem, logs){
     const pv=Number(planItem.doseValue);
     return logs.some(l=>{
@@ -695,7 +831,7 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
-  // ---- Protocol helpers ----
+  // ---------- Protocol helpers ----------
   const protKey = (name)=>String(name||"").trim();
   function getProtocol(data, pep){ return data.protocols?.[protKey(pep)] || null; }
 
@@ -751,7 +887,6 @@
     const e = getProtocol(data, pep);
     if(!e?.defaults) return alert("No defaults saved for this peptide yet.");
     const d = e.defaults;
-
     if(d.route) $("pRoute").value = d.route;
     if(d.unit) $("pUnit").value = d.unit;
     if(d.time) $("pTime").value = d.time;
@@ -763,13 +898,12 @@
     const e = getProtocol(data, pep);
     if(!e?.defaults) return alert("No defaults saved for this peptide yet.");
     const d = e.defaults;
-
     if(d.route) $("route").value = d.route;
     if(d.unit) $("doseUnit").value = d.unit;
     if(d.doseValue!=null && d.doseValue!=="") $("doseValue").value = d.doseValue;
   }
 
-  // ---- Manage peptide chips ----
+  // ---------- Manage peptide chips ----------
   function renderPeptideChips(data){
     const wrap = $("peptideChips");
     if(!wrap) return;
@@ -799,17 +933,9 @@
     });
   }
 
-  // ---- Insights ----
-  function startOfDayISO(d){
-    const x = new Date(d);
-    x.setHours(0,0,0,0);
-    return x;
-  }
-  function daysAgo(n){
-    const d=new Date();
-    d.setDate(d.getDate()-n);
-    return d;
-  }
+  // ---------- Insights ----------
+  function startOfDayISO(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+  function daysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); return d; }
   function isInjectionRoute(route){
     const r=String(route||"").toLowerCase();
     return r.includes("subq") || r==="im";
@@ -833,6 +959,7 @@
     }
     return total;
   }
+
   function computeInsights(data, windowDays){
     const since = startOfDayISO(daysAgo(windowDays-1));
     const logs = data.logs.filter(l => new Date(l.takenAt) >= since);
@@ -877,6 +1004,7 @@
 
     return {windowDays, planned, done, injCount, logCount, topPep, byRoute, weeks, topMcg};
   }
+
   function renderInsights(data){
     const winSel = $("insWindow");
     if(!winSel) return;
@@ -908,7 +1036,7 @@
       : "—";
   }
 
-  // ---- Labs: flags & trends ----
+  // ---------- Labs: flags & trends ----------
   function parseRange(ref){
     const s = String(ref||"").trim().replaceAll("—","-").replaceAll("–","-");
     const parts = s.split("-").map(x=>x.trim()).filter(Boolean);
@@ -985,7 +1113,7 @@
     });
   }
 
-  // ---- Dose calculator ----
+  // ---------- Dose calculator ----------
   function calcDose(){
     const mg = Number($("calcMg")?.value);
     const ml = Number($("calcMl")?.value);
@@ -1007,7 +1135,6 @@
 
     const concMcgPerMl = (mg * 1000) / ml;
     const desiredMcg = (unit === "mg") ? dose * 1000 : dose;
-
     const volMl = desiredMcg / concMcgPerMl;
 
     const unitsPerMl = (syringe === "u40") ? 40 : 100;
@@ -1089,7 +1216,7 @@
     }
   }
 
-  // ---- UI refresh ----
+  // ---------- UI refresh ----------
   function refresh(){
     const data=store.get();
 
@@ -1126,7 +1253,7 @@
       return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
     }).join("");
 
-    // calc vial picker
+    // calc vial picker (all)
     $("calcVialPick").innerHTML = `<option value="">(pick a vial)</option>` + data.vials.map(v=>{
       const conc = (Number(v.mg)*1000)/Number(v.ml);
       return `<option value="${v.id}">${v.peptide} • ${conc.toFixed(0)} mcg/mL • ${v.mg}mg/${v.ml}mL</option>`;
@@ -1263,13 +1390,16 @@
     $("labFlagPreview").textContent = `Flag: ${flag}`;
     const mk = ($("labMarker").value||"").trim();
     $("labTrendPreview").textContent = `Trend: ${mk ? markerTrend(data, mk) : "—"}`;
+
+    // keep theme button label correct
+    updateThemeButton(getTheme());
   }
 
-  // init
+  // ---------- init ----------
   $("takenAt").value=nowDT();
   $("labDate").value = ymd(new Date());
 
-  // ---- Global listeners ----
+  // ---------- Global listeners ----------
   ["peptide","vial","doseValue","doseUnit"].forEach(id=>{
     $(id).addEventListener("change", refresh);
     $(id).addEventListener("input", refresh);
@@ -1281,7 +1411,7 @@
 
   $("insWindow").addEventListener("change", ()=>refresh());
 
-  // auto-prompt to apply protocol defaults on peptide selection
+  // Auto-prompt to apply protocol defaults on peptide selection
   $("pPeptide").addEventListener("change", () => {
     const d = store.get();
     const pep = $("pPeptide").value;
@@ -1313,7 +1443,7 @@
     refresh();
   });
 
-  // ---- Manage peptides ----
+  // ---------- Manage peptides ----------
   $("addPeptideBtn").onclick = () => {
     const name = ($("newPeptide").value || "").trim();
     if(!name) return;
@@ -1338,7 +1468,7 @@
     refresh();
   };
 
-  // ---- Protocol editor ----
+  // ---------- Protocol editor ----------
   $("protPeptide").addEventListener("change", ()=>{ const d=store.get(); loadProtocolIntoEditor(d); });
 
   $("saveProtocol").onclick = () => {
@@ -1395,7 +1525,7 @@
     refresh();
   };
 
-  // ---- Planner ----
+  // ---------- Planner ----------
   $("addPlan").onclick=()=>{
     const d=store.get();
     const peptide=$("pPeptide").value; if(!peptide) return alert("Pick peptide");
@@ -1420,7 +1550,7 @@
     const d=store.get(); d.planner=[]; store.set(d); refresh();
   };
 
-  // ---- Vials ----
+  // ---------- Vials ----------
   $("addVial").onclick=()=>{
     const d=store.get();
     const peptide=$("vPeptide").value; if(!peptide) return alert("Pick peptide");
@@ -1433,7 +1563,7 @@
     refresh();
   };
 
-  // ---- Logs ----
+  // ---------- Logs ----------
   $("saveDose").onclick=()=>{
     const d=store.get();
     const peptide=$("peptide").value; if(!peptide) return alert("Pick peptide");
@@ -1460,7 +1590,7 @@
     d.logs.pop(); store.set(d); refresh();
   };
 
-  // ---- Dose calculator handlers ----
+  // ---------- Dose calculator handlers ----------
   $("calcBtn").addEventListener("click", calcDose);
   ["calcMg","calcMl","calcDose","calcUnit","calcSyringe","calcRoute"].forEach(id=>{
     $(id).addEventListener("input", calcDose);
@@ -1539,7 +1669,7 @@
   $("calcToLog").addEventListener("click", () => sendCalcToLog({save:false}));
   $("calcToLogSave").addEventListener("click", () => sendCalcToLog({save:true}));
 
-  // ---- Labs handlers ----
+  // ---------- Labs handlers ----------
   $("labPanel").addEventListener("change", ()=>refresh());
   $("labSearch").addEventListener("input", ()=>refresh());
   $("labShow").addEventListener("change", ()=>refresh());
@@ -1617,7 +1747,7 @@
     setTimeout(()=>URL.revokeObjectURL(a.href),500);
   });
 
-  // ---- Export / Backup / Reset ----
+  // ---------- Export / Backup / Reset ----------
   $("export").onclick=()=>{
     const d=store.get();
     const esc=s=>{s=String(s??""); return (s.includes(",")||s.includes("\"")||s.includes("\n"))?`"${s.replaceAll("\"","\"\"")}"`:s;};
@@ -1714,7 +1844,7 @@ ${csv(d.labs)}
     refresh();
   };
 
-  // boot
+  // ---------- boot ----------
   refresh();
 })();
 </script>
