@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Peptide Mini">
 
-  <!-- ✅ Dark mode support -->
+  <!-- Dark mode support -->
   <meta name="color-scheme" content="light dark">
   <meta name="supported-color-schemes" content="light dark">
   <meta name="theme-color" content="#ffffff">
@@ -72,47 +72,23 @@
     .card.collapsed > .minBtn{ display:block; }
     .card.collapsed{ padding:12px; }
 
-    /* ✅ Dark mode */
+    /* Dark mode */
     :root{ color-scheme: light dark; }
-
     @media (prefers-color-scheme: dark){
-      body{
-        background:#0b0b0f;
-        color:#f2f2f6;
-      }
-
+      body{ background:#0b0b0f; color:#f2f2f6; }
       .muted{ color:#a8a8b3; }
-
-      .card{
-        background:#14141a;
-        border-color:#2a2a33;
-      }
-
-      input,select,textarea,button{
-        background:#101015;
-        color:#f2f2f6;
-        border-color:#2a2a33;
-      }
-
-      .tag, .status{
-        background:#101015;
-        border-color:#2a2a33;
-        color:#f2f2f6;
-      }
-
-      .planItem, .dayCol{
-        background:#121218;
-        border-color:#2a2a33;
-      }
-
+      .card{ background:#14141a; border-color:#2a2a33; }
+      input,select,textarea,button{ background:#101015; color:#f2f2f6; border-color:#2a2a33; }
+      .tag, .status{ background:#101015; border-color:#2a2a33; color:#f2f2f6; }
+      .planItem, .dayCol{ background:#121218; border-color:#2a2a33; }
       table{ color:#f2f2f6; }
       th,td{ border-bottom-color:#2a2a33; }
       th{ background:#14141a; }
-
       button{ background:#1a1a22; }
     }
   </style>
 </head>
+
 <body>
   <h1>Peptide Mini</h1>
 
@@ -181,6 +157,7 @@
             <input id="pTime" type="time" />
           </label>
         </div>
+
         <div class="row3">
           <label>Peptide
             <select id="pPeptide"></select>
@@ -192,6 +169,7 @@
             <input id="pDose" type="number" step="0.01" placeholder="e.g., 250" />
           </label>
         </div>
+
         <div class="row">
           <label>Unit
             <select id="pUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
@@ -200,10 +178,15 @@
             <input id="pNote" placeholder="bedtime, fasted, etc." />
           </label>
         </div>
+
+        <!-- Info readout for planner peptide -->
+        <div id="pPepInfo" class="muted"></div>
+
         <div class="actions">
           <button id="addPlan">Add</button>
           <button id="clearPlan" class="small" style="border-color:#f2b;color:#b00020;">Clear planner</button>
         </div>
+
         <div style="overflow:auto;">
           <table>
             <thead><tr><th>Day</th><th>Time</th><th>Peptide</th><th>Dose</th><th class="right">Del</th></tr></thead>
@@ -217,6 +200,7 @@
     <div class="grid">
       <div class="card grid">
         <h2>Log dose</h2>
+
         <div class="row">
           <label>Peptide
             <select id="peptide"></select>
@@ -225,6 +209,10 @@
             <input id="takenAt" type="datetime-local" />
           </label>
         </div>
+
+        <!-- Info readout for selected peptide -->
+        <div id="pepInfo" class="muted"></div>
+
         <div class="row3">
           <label>Route
             <select id="route"><option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option></select>
@@ -236,6 +224,7 @@
             <select id="doseUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
           </label>
         </div>
+
         <div class="row">
           <label>Vial (optional for mL/IU)
             <select id="vial"></select>
@@ -245,9 +234,11 @@
             <div id="math" class="muted" style="margin-top:6px;">Select a vial + mcg/mg dose.</div>
           </div>
         </div>
+
         <label>Notes
           <textarea id="notes" placeholder="optional…"></textarea>
         </label>
+
         <div class="actions">
           <button id="saveDose">Save</button>
           <button id="deleteLast" class="small">Delete last</button>
@@ -256,6 +247,7 @@
 
       <div class="card grid">
         <h2>Vials</h2>
+
         <div class="row3">
           <label>Peptide
             <select id="vPeptide"></select>
@@ -267,6 +259,7 @@
             <input id="vMl" type="number" step="0.01" placeholder="e.g., 2" />
           </label>
         </div>
+
         <div class="actions">
           <button id="addVial">Add vial</button>
           <button id="export" class="small">Export</button>
@@ -275,7 +268,9 @@
           <input id="restoreFile" type="file" accept="application/json,.json" style="display:none" />
           <button id="reset" class="small" style="border-color:#f2b;color:#b00020;">Reset all</button>
         </div>
+
         <div class="muted">Tip: On iPhone, after Backup tap “Save to Files” → iCloud Drive.</div>
+
         <div style="overflow:auto;">
           <table>
             <thead><tr><th>Peptide</th><th>Conc</th><th>Rem</th><th class="right">Del</th></tr></thead>
@@ -298,7 +293,61 @@
 
 <script>
 (() => {
-  const PEPTIDES = ["Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31"];
+  // Default peptide list (includes your additions)
+  const PEPTIDES = [
+    "Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31",
+    "5-amino-1mq","Adalank","Adamax","BPC-157","CJC-1295","GhRIP","Ipamorelin","Pinealon","TB-500",
+    "CJC-195/IPA","Wolverine","GHK-CU","Glow","Tesamorelin","PT-141","Retatrutide","MOTS-C","IGF-1 LR3",
+    "SLU-PP-332","Thymosin Alpha-1","VIP","LL-37","Kisspeptin","Epithalon","AOD-9604","AICAR",
+    "Sermorelin","Cerebrolysin","Dihexa","DSIP"
+  ];
+
+  // "Information" library (non-prescriptive tracker notes; no dosing guidance)
+  const PEPTIDE_INFO = {
+    "Klow": { category:"Blend", unit:"mg/mcg", notes:"Track route + dose + any sides. If it’s a blend, note what’s inside." },
+    "Glutathione": { category:"Antioxidant", unit:"mg", notes:"Track route (IM/SubQ) and any reaction at injection site." },
+    "KPV": { category:"Peptide", unit:"mcg/mg", notes:"Track route and timing (e.g., with meals / bedtime)." },
+    "Semax": { category:"Peptide", unit:"mcg", notes:"Often tracked as nasal or injection depending on product. Note delivery method." },
+    "Selank": { category:"Peptide", unit:"mcg", notes:"Often tracked as nasal or injection depending on product. Note delivery method." },
+    "Oxytocin": { category:"Peptide", unit:"IU/mcg", notes:"Track route (nasal vs injection) and timing/context." },
+    "ARA-290": { category:"Peptide", unit:"mcg", notes:"Track cycle days and response notes." },
+    "Lipo-C": { category:"Injectable blend", unit:"mL/mg", notes:"If multi-ingredient, note brand/formula and injection volume." },
+    "NAD+": { category:"Coenzyme", unit:"mg", notes:"Track concentration + route (IM/SubQ/IV if applicable) + how you felt." },
+    "PE-22-28": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add subjective notes." },
+    "SS-31": { category:"Peptide", unit:"mg/mcg", notes:"Track route and day/time; add energy/recovery notes." },
+
+    "5-amino-1mq": { category:"Small molecule", unit:"mg", notes:"Track oral vs other, time of day, and any appetite/energy notes." },
+    "Adalank": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add a short note on goal." },
+    "Adamax": { category:"Peptide", unit:"mcg", notes:"Track route and timing; add a short note on goal." },
+    "BPC-157": { category:"Peptide", unit:"mcg", notes:"Track site/location if localized; track route and response." },
+    "CJC-1295": { category:"Peptide", unit:"mcg", notes:"Track if paired with another (e.g., IPA). Note day/time." },
+    "GhRIP": { category:"Peptide", unit:"mcg", notes:"Track route, timing, and any sleep/appetite notes." },
+    "Ipamorelin": { category:"Peptide", unit:"mcg", notes:"Track timing (often bedtime/fasted). Note if stacked." },
+    "Pinealon": { category:"Peptide", unit:"mcg", notes:"Track route and time of day; add cognitive/clarity notes." },
+    "TB-500": { category:"Peptide", unit:"mcg", notes:"Track cycle schedule and injection site notes." },
+    "CJC-195/IPA": { category:"Stack", unit:"mcg", notes:"Track each component in notes if your product doesn’t separate them." },
+    "Wolverine": { category:"Blend/stack", unit:"mcg", notes:"If it’s a blend, note the ingredient list and dose form." },
+    "GHK-CU": { category:"Peptide", unit:"mg", notes:"Often topical/other; track form (serum/cream/injectable) and area used." },
+    "Glow": { category:"Blend/stack", unit:"mg/mcg", notes:"If it’s branded, track formula details and dose." },
+    "Tesamorelin": { category:"Peptide", unit:"mg", notes:"Track dosing days, time of day, and any lab/waist notes you want." },
+    "PT-141": { category:"Peptide", unit:"mcg", notes:"Track route and timing relative to use; keep notes private/short." },
+    "Retatrutide": { category:"Peptide", unit:"mg", notes:"Track injection day, side effects, appetite, and weight trend." },
+    "MOTS-C": { category:"Peptide", unit:"mg/mcg", notes:"Track training days vs rest days and energy notes." },
+    "IGF-1 LR3": { category:"Peptide", unit:"mcg", notes:"Track timing, training, and blood glucose notes if relevant." },
+    "SLU-PP-332": { category:"Small molecule", unit:"mg", notes:"Track oral timing and cardio/training notes." },
+    "Thymosin Alpha-1": { category:"Peptide", unit:"mg/mcg", notes:"Track schedule and general wellness notes." },
+    "VIP": { category:"Peptide", unit:"mcg", notes:"Track route and symptoms/response notes." },
+    "LL-37": { category:"Peptide", unit:"mcg", notes:"Track route and tolerance; add short response notes." },
+    "Kisspeptin": { category:"Peptide", unit:"mcg", notes:"Track schedule and any measurable markers you care about." },
+    "Epithalon": { category:"Peptide", unit:"mg/mcg", notes:"Track cycle start/end and sleep notes." },
+    "AOD-9604": { category:"Peptide", unit:"mcg", notes:"Track day/time, appetite, and bodyweight notes." },
+    "AICAR": { category:"Peptide", unit:"mg", notes:"Track workout pairing and any endurance notes." },
+    "Sermorelin": { category:"Peptide", unit:"mcg", notes:"Track bedtime/fasted timing and stacking notes." },
+    "Cerebrolysin": { category:"Injectable", unit:"mL/mg", notes:"Track route and course length; note cognition/mood briefly." },
+    "Dihexa": { category:"Peptide", unit:"mg", notes:"Track route/form and cognitive notes." },
+    "DSIP": { category:"Peptide", unit:"mcg", notes:"Track bedtime timing and sleep quality notes." }
+  };
+
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const KEY = "peptide_mini_v1";
   const $ = (id)=>document.getElementById(id);
@@ -382,6 +431,17 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
+  function peptideInfoLine(name){
+    const info = PEPTIDE_INFO[name];
+    if(!name) return "";
+    if(!info) return `• ${name}: (no saved info yet) — add your own notes below.`;
+    const parts = [];
+    if(info.category) parts.push(`<b>${info.category}</b>`);
+    if(info.unit) parts.push(`Unit hint: <b>${info.unit}</b>`);
+    if(info.notes) parts.push(info.notes);
+    return `• ${name}: ${parts.join(" • ")}`;
+  }
+
   // Manage peptide chips
   function renderPeptideChips(data){
     const wrap = $("peptideChips");
@@ -411,7 +471,7 @@
     });
   }
 
-  // ---------- UI: collapse cards ----------
+  // UI: collapse cards
   const UIKEY = "peptide_mini_ui_v2";
   function loadUIState(){
     try { return JSON.parse(localStorage.getItem(UIKEY) || "{}"); }
@@ -504,7 +564,6 @@
       };
     }
   }
-  // ---------- end UI ----------
 
   function refresh(){
     const data=store.get();
@@ -519,6 +578,10 @@
     $("vPeptide").innerHTML=opts;
 
     renderPeptideChips(data);
+
+    // info blocks
+    $("pepInfo").innerHTML = peptideInfoLine($("peptide").value);
+    $("pPepInfo").innerHTML = peptideInfoLine($("pPeptide").value);
 
     // vials select filtered by peptide
     const curPep=$("peptide").value;
@@ -653,7 +716,7 @@
   $("takenAt").value=nowDT();
 
   // events
-  ["peptide","vial","doseValue","doseUnit"].forEach(id=>{
+  ["peptide","pPeptide","vial","doseValue","doseUnit"].forEach(id=>{
     $(id).addEventListener("change", refresh);
     $(id).addEventListener("input", refresh);
   });
