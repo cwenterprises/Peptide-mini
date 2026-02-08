@@ -25,6 +25,8 @@
     button{cursor:pointer}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .row4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+    @media(max-width:900px){.row4{grid-template-columns:1fr 1fr}}
     .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .small{font-size:13px;padding:8px 10px}
     .tag{display:inline-block;padding:2px 8px;border:1px solid #eee;border-radius:999px;font-size:12px;background:#fafafa}
@@ -41,8 +43,11 @@
     th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top}
     th{background:#fff;position:sticky;top:0}
     .right{text-align:right}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .infoBox{border:1px solid #eee;border-radius:12px;padding:10px;background:#fafafa}
   </style>
 </head>
+
 <body>
   <h1>Peptide Mini</h1>
   <div class="muted">Local-only tracker: planner → today → log → done/pending. Saves to this device.</div>
@@ -94,6 +99,74 @@
           <div id="peptideChips" class="actions" style="margin-top:8px;"></div>
         </div>
 
+        <!-- Protocols & Purpose -->
+        <div class="card" style="border-style:dashed;">
+          <b>Protocols & Purpose</b>
+          <div class="muted" style="margin-top:6px;">Save your purpose + protocol notes + default fields (saved on this device).</div>
+
+          <div class="row" style="margin-top:10px;">
+            <label>Peptide
+              <select id="protPeptide"></select>
+            </label>
+            <label>Purpose (short)
+              <input id="protPurpose" placeholder="e.g., recovery, sleep, inflammation, energy…" />
+            </label>
+          </div>
+
+          <div class="row4">
+            <label>Default route
+              <select id="protRoute">
+                <option value="">(blank)</option>
+                <option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option>
+              </select>
+            </label>
+            <label>Default dose
+              <input id="protDose" type="number" step="0.01" placeholder="e.g., 250" />
+            </label>
+            <label>Default unit
+              <select id="protUnit">
+                <option value="">(blank)</option>
+                <option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option>
+              </select>
+            </label>
+            <label>Default time
+              <input id="protTime" type="time" />
+            </label>
+          </div>
+
+          <label>Default note (optional)
+            <input id="protDefaultNote" placeholder="e.g., fasted, bedtime, post-workout…" />
+          </label>
+
+          <label>Protocol notes (free text)
+            <textarea id="protNotes" placeholder="Cycle, days on/off, special rules, reminders…"></textarea>
+          </label>
+
+          <div class="actions">
+            <button id="saveProtocol" class="small">Save protocol</button>
+            <button id="applyToPlanner" class="small">Apply to Planner fields</button>
+            <button id="applyToLog" class="small">Apply to Log fields</button>
+            <button id="clearProtocol" class="small">Clear this peptide</button>
+          </div>
+
+          <div class="infoBox" style="margin-top:10px;">
+            <div class="actions" style="justify-content:space-between;">
+              <b>Research info (general)</b>
+              <span class="muted">Not medical advice</span>
+            </div>
+            <div id="protInfo" class="muted" style="margin-top:6px;white-space:pre-wrap;"></div>
+          </div>
+
+          <div class="muted" style="margin-top:10px;">All protocols:</div>
+          <div style="overflow:auto;margin-top:6px;">
+            <table>
+              <thead><tr><th>Peptide</th><th>Purpose</th><th>Defaults</th><th>Protocol notes</th></tr></thead>
+              <tbody id="protocolTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Planner inputs -->
         <div class="row">
           <label>Day
             <select id="pDay">
@@ -139,6 +212,45 @@
 
     <!-- RIGHT -->
     <div class="grid">
+      <!-- Insights -->
+      <div class="card grid">
+        <div class="actions" style="justify-content:space-between;">
+          <h2 style="margin:0;">Insights</h2>
+          <label class="muted" style="gap:4px;">
+            Window
+            <select id="insWindow">
+              <option value="7">Last 7 days</option>
+              <option value="14">Last 14 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row3">
+          <div class="infoBox"><b>Adherence</b><div id="insAdh" class="muted" style="margin-top:6px;"></div></div>
+          <div class="infoBox"><b>Injections</b><div id="insInj" class="muted" style="margin-top:6px;"></div></div>
+          <div class="infoBox"><b>Totals</b><div id="insTot" class="muted" style="margin-top:6px;white-space:pre-wrap;"></div></div>
+        </div>
+
+        <div class="row">
+          <div class="infoBox">
+            <b>Top peptides</b>
+            <div id="insTop" class="muted" style="margin-top:6px;white-space:pre-wrap;"></div>
+          </div>
+          <div class="infoBox">
+            <b>Routes</b>
+            <div id="insRoutes" class="muted" style="margin-top:6px;white-space:pre-wrap;"></div>
+          </div>
+        </div>
+
+        <div class="infoBox">
+          <b>Weekly trend</b>
+          <div id="insWeekly" class="muted" style="margin-top:6px;white-space:pre-wrap;"></div>
+        </div>
+      </div>
+
+      <!-- Log dose -->
       <div class="card grid">
         <h2>Log dose</h2>
         <div class="row">
@@ -178,6 +290,168 @@
         </div>
       </div>
 
+      <!-- Dose calculator -->
+      <div class="card grid">
+        <h2>Dose calculator</h2>
+        <div class="muted">Compute draw volume (mL) and insulin units from vial concentration.</div>
+
+        <div class="row">
+          <label>Peptide (optional)
+            <select id="calcPeptide"></select>
+          </label>
+          <label>&nbsp;
+            <button id="calcUsePepDefaults" class="small">Use protocol defaults</button>
+          </label>
+        </div>
+
+        <div class="row">
+          <label>Use an existing vial (optional)
+            <select id="calcVialPick"></select>
+          </label>
+          <label>&nbsp;
+            <button id="calcUseVial" class="small">Use selected vial</button>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="calcUseLogVial" class="small">Use Log’s selected vial</button>
+        </div>
+
+        <div class="row3">
+          <label>Vial amount
+            <input id="calcMg" type="number" step="0.01" placeholder="mg in vial (e.g., 10)" />
+          </label>
+          <label>Diluent
+            <input id="calcMl" type="number" step="0.01" placeholder="mL added (e.g., 2)" />
+          </label>
+          <label>Syringe
+            <select id="calcSyringe">
+              <option value="u100">U-100 (100 units = 1 mL)</option>
+              <option value="u40">U-40 (40 units = 1 mL)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="row4">
+          <label>Desired dose
+            <input id="calcDose" type="number" step="0.01" placeholder="e.g., 250" />
+          </label>
+          <label>Unit
+            <select id="calcUnit">
+              <option value="mcg">mcg</option>
+              <option value="mg">mg</option>
+            </select>
+          </label>
+          <label>Route (optional)
+            <select id="calcRoute">
+              <option value="">(use protocol/log)</option>
+              <option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option>
+            </select>
+          </label>
+          <label>&nbsp;
+            <button id="calcBtn">Calculate</button>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="calcToLog" class="small">Send to Log</button>
+          <button id="calcToLogSave" class="small">Send + Save</button>
+        </div>
+
+        <div class="infoBox">
+          <div><b>Result</b></div>
+          <div id="calcOut" class="muted" style="margin-top:6px;">Enter vial + diluent + dose.</div>
+        </div>
+      </div>
+
+      <!-- Lab tracking -->
+      <div class="card grid">
+        <div class="actions" style="justify-content:space-between;">
+          <h2 style="margin:0;">Lab tracking</h2>
+          <div class="actions">
+            <button id="labExport" class="small">Export labs CSV</button>
+            <button id="labDeleteLast" class="small">Delete last lab</button>
+          </div>
+        </div>
+        <div class="muted">Track any lab marker. Enter your lab’s reference range like <span class="mono">4.0–5.6</span> and it will flag Low/High/Normal.</div>
+
+        <div class="row3">
+          <label>Panel
+            <select id="labPanel"></select>
+          </label>
+          <label>Quick add marker
+            <select id="labQuick"></select>
+          </label>
+          <label>&nbsp;
+            <button id="labUseQuick">Use</button>
+          </label>
+        </div>
+
+        <div class="row3">
+          <label>Date
+            <input id="labDate" type="date" />
+          </label>
+          <label>Lab / Source
+            <input id="labSource" placeholder="Quest, LabCorp, doctor, etc." />
+          </label>
+          <label>Related peptide (optional)
+            <select id="labPeptide"></select>
+          </label>
+        </div>
+
+        <div class="row3">
+          <label>Marker
+            <input id="labMarker" placeholder="HbA1c, ALT, LDL, CRP, Testosterone…" />
+          </label>
+          <label>Value
+            <input id="labValue" placeholder="e.g., 5.2" />
+          </label>
+          <label>Unit
+            <input id="labUnit" placeholder="%, mg/dL, U/L..." />
+          </label>
+        </div>
+
+        <div class="row">
+          <label>Ref range (optional)
+            <input id="labRef" placeholder="e.g., 4.0–5.6" />
+          </label>
+          <label>Notes (optional)
+            <input id="labNotes" placeholder="fasted, time of day, symptoms, etc." />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="labAdd">Add lab</button>
+          <span id="labFlagPreview" class="tag muted">Flag: —</span>
+          <span id="labTrendPreview" class="tag muted">Trend: —</span>
+        </div>
+
+        <div class="row">
+          <label>Search
+            <input id="labSearch" placeholder="filter marker/source/notes…" />
+          </label>
+          <label>Show
+            <select id="labShow">
+              <option value="all">All entries</option>
+              <option value="abnormal">Abnormal only</option>
+              <option value="normal">Normal only</option>
+            </select>
+          </label>
+        </div>
+
+        <div style="overflow:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Marker</th><th>Value</th><th>Unit</th><th>Ref</th><th>Flag</th><th>Peptide</th><th>Source</th><th>Notes</th><th class="right">Del</th>
+              </tr>
+            </thead>
+            <tbody id="labTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Vials -->
       <div class="card grid">
         <h2>Vials</h2>
         <div class="row3">
@@ -211,6 +485,7 @@
         </div>
       </div>
 
+      <!-- Logs -->
       <div class="card grid">
         <h2>Logs</h2>
         <div style="overflow:auto;">
@@ -220,29 +495,134 @@
           </table>
         </div>
       </div>
+
     </div>
   </div>
 
 <script>
 (() => {
-  const PEPTIDES = ["Tesamorelin","5-AMINO-1MQ","Adalank","Adamax","ARA-290","BPC-157","CJC-1295","GhRIP","Glutathione","Ipamorelin","Klow","Lipo-C","Oxytocin","PE-22-28","PINEALON","Selank","Semax","SS-31","TB-500","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31"];
+  const PEPTIDES = ["Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31"];
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const KEY = "peptide_mini_v1";
   const $ = (id)=>document.getElementById(id);
 
+  // General, non-medical “info cards” (kept short)
+  const PEPTIDE_INFO = {
+    "Klow": [
+      "Commonly sold as a blend (varies by vendor). Track actual ingredients if known.",
+      "Often marketed for recovery/inflammation. Evidence varies by component."
+    ].join("\n"),
+    "Glutathione": [
+      "Antioxidant; elective injection use is controversial and not standardized.",
+      "Track source/sterility and discuss with a clinician if using."
+    ].join("\n"),
+    "KPV": [
+      "Tripeptide (Lys–Pro–Val), α-MSH fragment studied mostly preclinically for anti-inflammatory effects.",
+      "Human dosing standards are not established."
+    ].join("\n"),
+    "Semax": [
+      "ACTH(4–10) analog; research often uses intranasal routes in certain countries.",
+      "Evidence quality and availability vary by region."
+    ].join("\n"),
+    "Oxytocin": [
+      "Hormone peptide; intranasal oxytocin is widely used in research contexts.",
+      "Effects are context-dependent; avoid oversimplified claims."
+    ].join("\n"),
+    "Selank": [
+      "Anxiolytic/nootropic peptide; research often intranasal in Russian literature.",
+      "Evidence quality varies."
+    ].join("\n"),
+    "ARA-290": [
+      "Cibinetide: engineered EPO-derived peptide studied in clinical trials for neuropathy/inflammation contexts.",
+      "Not a general wellness peptide."
+    ].join("\n"),
+    "Lipo-C": [
+      "Compounded lipotropic injection; formulations differ by compounder.",
+      "Track exact formulation/brand in notes."
+    ].join("\n"),
+    "NAD+": [
+      "NAD biology is important; injection protocols vary and evidence is mixed.",
+      "Track how you respond and consider clinician oversight."
+    ].join("\n"),
+    "PE-22-28": [
+      "Spadin-derived peptide (TREK-1 research); mostly preclinical.",
+      "Human dosing standards are not established."
+    ].join("\n"),
+    "SS-31": [
+      "Elamipretide: mitochondria-targeting peptide studied in clinical trials.",
+      "Track medically supervised use carefully."
+    ].join("\n")
+  };
+
+  // Lab marker library (quick-add)
+  const LAB_LIBRARY = {
+    "CBC": [
+      {m:"WBC", u:"x10^3/uL"}, {m:"RBC", u:"x10^6/uL"}, {m:"Hemoglobin", u:"g/dL"}, {m:"Hematocrit", u:"%"},
+      {m:"MCV", u:"fL"}, {m:"MCH", u:"pg"}, {m:"MCHC", u:"g/dL"}, {m:"RDW", u:"%"},
+      {m:"Platelets", u:"x10^3/uL"}, {m:"Neutrophils %", u:"%"}, {m:"Lymphocytes %", u:"%"}, {m:"Monocytes %", u:"%"},
+      {m:"Eosinophils %", u:"%"}, {m:"Basophils %", u:"%"}, {m:"Neutrophils abs", u:"x10^3/uL"}, {m:"Lymphocytes abs", u:"x10^3/uL"}
+    ],
+    "CMP": [
+      {m:"Glucose", u:"mg/dL"}, {m:"BUN", u:"mg/dL"}, {m:"Creatinine", u:"mg/dL"}, {m:"eGFR", u:"mL/min/1.73m²"},
+      {m:"Sodium", u:"mmol/L"}, {m:"Potassium", u:"mmol/L"}, {m:"Chloride", u:"mmol/L"}, {m:"CO2 (Bicarb)", u:"mmol/L"},
+      {m:"Calcium", u:"mg/dL"}, {m:"Total Protein", u:"g/dL"}, {m:"Albumin", u:"g/dL"}, {m:"Globulin", u:"g/dL"},
+      {m:"A/G Ratio", u:""}, {m:"Total Bilirubin", u:"mg/dL"}, {m:"ALP", u:"U/L"}, {m:"AST", u:"U/L"}, {m:"ALT", u:"U/L"}
+    ],
+    "Lipids": [
+      {m:"Total Cholesterol", u:"mg/dL"}, {m:"LDL-C", u:"mg/dL"}, {m:"HDL-C", u:"mg/dL"}, {m:"Triglycerides", u:"mg/dL"},
+      {m:"Non-HDL-C", u:"mg/dL"}, {m:"ApoB", u:"mg/dL"}, {m:"ApoA1", u:"mg/dL"}, {m:"Lp(a)", u:"nmol/L"},
+      {m:"hs-CRP", u:"mg/L"}
+    ],
+    "Glycemic": [
+      {m:"HbA1c", u:"%"}, {m:"Fasting Glucose", u:"mg/dL"}, {m:"Insulin (fasting)", u:"uIU/mL"},
+      {m:"C-Peptide", u:"ng/mL"}
+    ],
+    "Thyroid": [
+      {m:"TSH", u:"uIU/mL"}, {m:"Free T4", u:"ng/dL"}, {m:"Free T3", u:"pg/mL"},
+      {m:"TPO Ab", u:"IU/mL"}, {m:"TG Ab", u:"IU/mL"}
+    ],
+    "Hormones": [
+      {m:"Total Testosterone", u:"ng/dL"}, {m:"Free Testosterone", u:"pg/mL"}, {m:"SHBG", u:"nmol/L"},
+      {m:"Estradiol (E2)", u:"pg/mL"}, {m:"LH", u:"mIU/mL"}, {m:"FSH", u:"mIU/mL"},
+      {m:"Prolactin", u:"ng/mL"}, {m:"DHEA-S", u:"ug/dL"}, {m:"Cortisol (AM)", u:"ug/dL"},
+      {m:"IGF-1", u:"ng/mL"}
+    ],
+    "Kidney": [
+      {m:"Creatinine", u:"mg/dL"}, {m:"BUN", u:"mg/dL"}, {m:"eGFR", u:"mL/min/1.73m²"},
+      {m:"Uric Acid", u:"mg/dL"}, {m:"Microalbumin/Cr ratio", u:"mg/g"}
+    ],
+    "Liver": [
+      {m:"ALT", u:"U/L"}, {m:"AST", u:"U/L"}, {m:"ALP", u:"U/L"}, {m:"GGT", u:"U/L"},
+      {m:"Total Bilirubin", u:"mg/dL"}
+    ],
+    "Inflammation": [
+      {m:"hs-CRP", u:"mg/L"}, {m:"CRP", u:"mg/L"}, {m:"ESR", u:"mm/hr"}, {m:"Ferritin", u:"ng/mL"}
+    ],
+    "Vitamins/Minerals": [
+      {m:"Vitamin D (25-OH)", u:"ng/mL"}, {m:"Vitamin B12", u:"pg/mL"}, {m:"Folate", u:"ng/mL"},
+      {m:"Magnesium", u:"mg/dL"}, {m:"Zinc", u:"ug/dL"}, {m:"Copper", u:"ug/dL"}
+    ],
+    "Other": [
+      {m:"PSA", u:"ng/mL"}, {m:"Homocysteine", u:"umol/L"}, {m:"CK (Creatine Kinase)", u:"U/L"},
+      {m:"Lipase", u:"U/L"}, {m:"Amylase", u:"U/L"}
+    ]
+  };
+
   const store = {
     get(){
       const raw = localStorage.getItem(KEY);
-      if(!raw) return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+      if(!raw) return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null, protocols:{}, labs:[]};
       try{
         const parsed = JSON.parse(raw);
         if(!parsed.peptides || !Array.isArray(parsed.peptides) || parsed.peptides.length===0) parsed.peptides=[...PEPTIDES];
         if(!Array.isArray(parsed.planner)) parsed.planner=[];
         if(!Array.isArray(parsed.vials)) parsed.vials=[];
         if(!Array.isArray(parsed.logs)) parsed.logs=[];
+        if(!parsed.protocols || typeof parsed.protocols !== "object") parsed.protocols = {};
+        if(!Array.isArray(parsed.labs)) parsed.labs=[];
         return parsed;
       }catch{
-        return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null};
+        return {peptides:[...PEPTIDES], planner:[], vials:[], logs:[], weekStart:null, protocols:{}, labs:[]};
       }
     },
     set(d){localStorage.setItem(KEY, JSON.stringify(d));}
@@ -262,6 +642,7 @@
     if(u==="mg") return n*1000;
     return null;
   }
+
   function mathFor(vial, doseValue, doseUnit){
     if(!vial) return null;
     const mg=Number(vial.mg), ml=Number(vial.ml);
@@ -272,13 +653,17 @@
     const iu=vol*100;
     return {conc, vol, iu, mcg};
   }
+
   function remMcg(data, vialId){
     const vial=data.vials.find(v=>v.id===vialId);
     if(!vial) return null;
     const start=Number(vial.mg)*1000;
-    const used=data.logs.filter(l=>l.vialId===vialId && Number.isFinite(Number(l.doseMcg))).reduce((s,l)=>s+Number(l.doseMcg),0);
+    const used=data.logs
+      .filter(l=>l.vialId===vialId && Number.isFinite(Number(l.doseMcg)))
+      .reduce((s,l)=>s+Number(l.doseMcg),0);
     return start-used;
   }
+
   const approx = (a,b,p=0.02)=>Math.abs(a-b)/Math.max(Math.abs(b),1e-9) <= p;
 
   function logsForDay(data, dayYmd){
@@ -286,6 +671,7 @@
     const end=new Date(dayYmd+"T23:59:59.999");
     return data.logs.filter(l=>{ const t=new Date(l.takenAt); return t>=start && t<=end; });
   }
+
   function planMatched(planItem, logs){
     const pv=Number(planItem.doseValue);
     return logs.some(l=>{
@@ -309,7 +695,81 @@
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
-  // Manage peptide chips
+  // ---- Protocol helpers ----
+  const protKey = (name)=>String(name||"").trim();
+  function getProtocol(data, pep){ return data.protocols?.[protKey(pep)] || null; }
+
+  function setInfoPanel(pep){
+    const box = $("protInfo");
+    if(!box) return;
+    box.textContent = PEPTIDE_INFO[pep] || "No built-in info for this peptide yet. (You can still save your own notes above.)";
+  }
+
+  function loadProtocolIntoEditor(data){
+    const sel = $("protPeptide");
+    if(!sel) return;
+    const pep = sel.value || "";
+    setInfoPanel(pep);
+
+    const entry = getProtocol(data, pep);
+    $("protPurpose").value = entry?.purpose || "";
+    $("protNotes").value = entry?.notes || "";
+    $("protRoute").value = entry?.defaults?.route || "";
+    $("protDose").value = entry?.defaults?.doseValue ?? "";
+    $("protUnit").value = entry?.defaults?.unit || "";
+    $("protTime").value = entry?.defaults?.time || "";
+    $("protDefaultNote").value = entry?.defaults?.note || "";
+  }
+
+  function renderProtocolTable(data){
+    const tb = $("protocolTable");
+    if(!tb) return;
+
+    const esc = (s)=>String(s??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    tb.innerHTML = data.peptides.map(p => {
+      const e = getProtocol(data, p) || {};
+      const purpose = esc(e.purpose || "");
+      const notes = esc(e.notes || "");
+      const def = e.defaults || {};
+      const defStr = [
+        def.route ? `route: ${def.route}` : "",
+        (def.doseValue!=null && def.doseValue!=="") ? `dose: ${def.doseValue}` : "",
+        def.unit ? `unit: ${def.unit}` : "",
+        def.time ? `time: ${def.time}` : "",
+        def.note ? `note: ${def.note}` : ""
+      ].filter(Boolean).join(" • ");
+      return `<tr>
+        <td>${esc(p)}</td>
+        <td>${purpose}</td>
+        <td class="muted">${esc(defStr)}</td>
+        <td>${notes}</td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="4" class="muted">No protocols yet.</td></tr>`;
+  }
+
+  function applyProtocolToPlanner(data, pep){
+    const e = getProtocol(data, pep);
+    if(!e?.defaults) return alert("No defaults saved for this peptide yet.");
+    const d = e.defaults;
+
+    if(d.route) $("pRoute").value = d.route;
+    if(d.unit) $("pUnit").value = d.unit;
+    if(d.time) $("pTime").value = d.time;
+    if(d.doseValue!=null && d.doseValue!=="") $("pDose").value = d.doseValue;
+    if(d.note) $("pNote").value = d.note;
+  }
+
+  function applyProtocolToLog(data, pep){
+    const e = getProtocol(data, pep);
+    if(!e?.defaults) return alert("No defaults saved for this peptide yet.");
+    const d = e.defaults;
+
+    if(d.route) $("route").value = d.route;
+    if(d.unit) $("doseUnit").value = d.unit;
+    if(d.doseValue!=null && d.doseValue!=="") $("doseValue").value = d.doseValue;
+  }
+
+  // ---- Manage peptide chips ----
   function renderPeptideChips(data){
     const wrap = $("peptideChips");
     if(!wrap) return;
@@ -324,10 +784,11 @@
         const used =
           d.planner.some(x=>x.peptide===name) ||
           d.logs.some(x=>x.peptide===name) ||
-          d.vials.some(x=>x.peptide===name);
+          d.vials.some(x=>x.peptide===name) ||
+          (d.labs||[]).some(x=>x.peptide===name);
 
         if(used){
-          alert("That peptide is already used in your planner/logs/vials. Remove those entries first if you want to delete it.");
+          alert("That peptide is already used in planner/logs/vials/labs. Remove those entries first if you want to delete it.");
           return;
         }
 
@@ -338,6 +799,297 @@
     });
   }
 
+  // ---- Insights ----
+  function startOfDayISO(d){
+    const x = new Date(d);
+    x.setHours(0,0,0,0);
+    return x;
+  }
+  function daysAgo(n){
+    const d=new Date();
+    d.setDate(d.getDate()-n);
+    return d;
+  }
+  function isInjectionRoute(route){
+    const r=String(route||"").toLowerCase();
+    return r.includes("subq") || r==="im";
+  }
+  function isoWeekKey(dateObj){
+    const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,"0")}`;
+  }
+  function mcgTotalForPeptide(logs, peptide){
+    let total=0;
+    for(const l of logs){
+      if(l.peptide!==peptide) continue;
+      const v=Number(l.doseValue);
+      if(!Number.isFinite(v)) continue;
+      if(l.doseUnit==="mcg") total += v;
+      else if(l.doseUnit==="mg") total += v*1000;
+    }
+    return total;
+  }
+  function computeInsights(data, windowDays){
+    const since = startOfDayISO(daysAgo(windowDays-1));
+    const logs = data.logs.filter(l => new Date(l.takenAt) >= since);
+
+    let planned=0, done=0;
+    for(let i=0;i<windowDays;i++){
+      const day = daysAgo(windowDays-1-i);
+      const dayY = ymd(day);
+      const dow = day.getDay();
+      const plan = data.planner.filter(p=>p.day===dow);
+      if(!plan.length) continue;
+      const dayLogs = logsForDay(data, dayY);
+      planned += plan.length;
+      done += plan.filter(p=>planMatched(p, dayLogs)).length;
+    }
+
+    const injCount = logs.filter(l=>isInjectionRoute(l.route)).length;
+    const logCount = logs.length;
+
+    const byPep = {};
+    const byRoute = {};
+    for(const l of logs){
+      byPep[l.peptide] = (byPep[l.peptide]||0)+1;
+      const r = l.route || "—";
+      byRoute[r] = (byRoute[r]||0)+1;
+    }
+    const topPep = Object.entries(byPep).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+    const byWeek = {};
+    for(const l of logs){
+      const wk = isoWeekKey(new Date(l.takenAt));
+      byWeek[wk] = (byWeek[wk]||0)+1;
+    }
+    const weeks = Object.entries(byWeek).sort((a,b)=>a[0].localeCompare(b[0]));
+
+    const totalMcgByPep = {};
+    for(const p of data.peptides){
+      const t = mcgTotalForPeptide(logs, p);
+      if(t>0) totalMcgByPep[p]=t;
+    }
+    const topMcg = Object.entries(totalMcgByPep).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+    return {windowDays, planned, done, injCount, logCount, topPep, byRoute, weeks, topMcg};
+  }
+  function renderInsights(data){
+    const winSel = $("insWindow");
+    if(!winSel) return;
+    const windowDays = Number(winSel.value || 30);
+    const ins = computeInsights(data, windowDays);
+
+    const adh = ins.planned ? Math.round((ins.done/ins.planned)*100) : null;
+    $("insAdh").textContent = ins.planned
+      ? `${adh}% (${ins.done}/${ins.planned} planned items completed)`
+      : `No planner items in last ${windowDays} days`;
+
+    $("insInj").textContent = `${ins.injCount} injection logs (SubQ/IM) • ${ins.logCount} total logs`;
+
+    const topMcgStr = ins.topMcg.length
+      ? ins.topMcg.map(([p,mcg])=>`${p}: ${mcg.toFixed(0)} mcg equiv`).join("\n")
+      : "No mcg/mg totals (IU/sprays excluded)";
+    $("insTot").textContent = topMcgStr;
+
+    $("insTop").textContent = ins.topPep.length
+      ? ins.topPep.map(([p,c])=>`${p}: ${c}`).join("\n")
+      : "No logs yet";
+
+    $("insRoutes").textContent = Object.keys(ins.byRoute).length
+      ? Object.entries(ins.byRoute).sort((a,b)=>b[1]-a[1]).map(([r,c])=>`${r}: ${c}`).join("\n")
+      : "—";
+
+    $("insWeekly").textContent = ins.weeks.length
+      ? ins.weeks.map(([w,c])=>`${w}: ${c} logs`).join("\n")
+      : "—";
+  }
+
+  // ---- Labs: flags & trends ----
+  function parseRange(ref){
+    const s = String(ref||"").trim().replaceAll("—","-").replaceAll("–","-");
+    const parts = s.split("-").map(x=>x.trim()).filter(Boolean);
+    if(parts.length !== 2) return null;
+    const lo = Number(parts[0]), hi = Number(parts[1]);
+    if(!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+    return [lo, hi];
+  }
+  function labFlag(valueStr, refStr){
+    const v = Number(String(valueStr||"").trim());
+    if(!Number.isFinite(v)) return "—";
+    const r = parseRange(refStr);
+    if(!r) return "—";
+    const [lo, hi] = r;
+    if(v < lo) return "LOW";
+    if(v > hi) return "HIGH";
+    return "NORMAL";
+  }
+  function markerTrend(data, marker){
+    const rows = (data.labs||[]).filter(x => (x.marker||"").toLowerCase() === String(marker||"").toLowerCase())
+      .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+    const nums = rows.map(r=>Number(String(r.value||"").trim())).filter(n=>Number.isFinite(n));
+    if(nums.length < 2) return "—";
+    const last = nums[nums.length-1], prev = nums[nums.length-2];
+    const delta = last - prev;
+    const sign = delta > 0 ? "↑" : (delta < 0 ? "↓" : "→");
+    return `${sign} ${prev} → ${last}`;
+  }
+
+  function renderLabs(data){
+    const tb = $("labTable");
+    if(!tb) return;
+
+    const q = String($("labSearch")?.value || "").toLowerCase().trim();
+    const show = $("labShow")?.value || "all";
+
+    const labs = [...(data.labs||[])].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+
+    const filtered = labs.filter(x=>{
+      const flag = labFlag(x.value, x.ref);
+      const hay = `${x.date||""} ${x.marker||""} ${x.value||""} ${x.unit||""} ${x.ref||""} ${x.peptide||""} ${x.source||""} ${x.notes||""}`.toLowerCase();
+      if(q && !hay.includes(q)) return false;
+      if(show==="abnormal" && !(flag==="LOW" || flag==="HIGH")) return false;
+      if(show==="normal" && flag!=="NORMAL") return false;
+      return true;
+    });
+
+    tb.innerHTML = filtered.map(x=>{
+      const flag = labFlag(x.value, x.ref);
+      const badge = flag==="HIGH" ? `<span class="status pending">HIGH</span>` :
+                    flag==="LOW" ? `<span class="status pending">LOW</span>` :
+                    flag==="NORMAL" ? `<span class="status done">NORMAL</span>` :
+                    `<span class="status">—</span>`;
+      return `
+      <tr>
+        <td>${x.date||""}</td>
+        <td>${x.marker||""}</td>
+        <td>${x.value||""}</td>
+        <td>${x.unit||""}</td>
+        <td>${x.ref||""}</td>
+        <td>${badge}</td>
+        <td>${x.peptide||""}</td>
+        <td>${x.source||""}</td>
+        <td>${x.notes||""}</td>
+        <td class="right"><button class="small" data-dellab="${x.id}">X</button></td>
+      </tr>`;
+    }).join("") || `<tr><td colspan="10" class="muted">No lab entries yet.</td></tr>`;
+
+    document.querySelectorAll("button[data-dellab]").forEach(b=>b.onclick=()=>{
+      const id=b.getAttribute("data-dellab");
+      const d=store.get();
+      d.labs = (d.labs||[]).filter(x=>x.id!==id);
+      store.set(d); refresh();
+    });
+  }
+
+  // ---- Dose calculator ----
+  function calcDose(){
+    const mg = Number($("calcMg")?.value);
+    const ml = Number($("calcMl")?.value);
+    const dose = Number($("calcDose")?.value);
+    const unit = $("calcUnit")?.value;
+    const syringe = $("calcSyringe")?.value || "u100";
+
+    const out = $("calcOut");
+    if(!out) return;
+
+    if(!Number.isFinite(mg) || mg<=0 || !Number.isFinite(ml) || ml<=0){
+      out.textContent = "Enter vial mg and diluent mL (both > 0).";
+      return;
+    }
+    if(!Number.isFinite(dose) || dose<=0){
+      out.textContent = "Enter desired dose (> 0).";
+      return;
+    }
+
+    const concMcgPerMl = (mg * 1000) / ml;
+    const desiredMcg = (unit === "mg") ? dose * 1000 : dose;
+
+    const volMl = desiredMcg / concMcgPerMl;
+
+    const unitsPerMl = (syringe === "u40") ? 40 : 100;
+    const insulinUnits = volMl * unitsPerMl;
+
+    out.innerHTML =
+      `Concentration: <b>${concMcgPerMl.toFixed(0)}</b> mcg/mL<br>` +
+      `Draw: <b>${volMl.toFixed(3)}</b> mL<br>` +
+      `Syringe units: <b>${insulinUnits.toFixed(1)}</b> units (${syringe.toUpperCase()})`;
+  }
+
+  function fillCalcFromVial(v){
+    if(!v) return;
+    $("calcMg").value = v.mg;
+    $("calcMl").value = v.ml;
+    calcDose();
+  }
+
+  function pickFirstVialForPeptide(data, peptide){
+    const list = data.vials.filter(v => v.peptide === peptide);
+    return list.length ? list[0] : null;
+  }
+
+  function getCalcSelectionVial(){
+    const d = store.get();
+    const calcId = $("calcVialPick")?.value || "";
+    const logId = $("vial")?.value || "";
+    const id = calcId || logId;
+
+    if(id){
+      return d.vials.find(v => v.id === id) || null;
+    }
+
+    const pep = $("calcPeptide")?.value || "";
+    if(pep){
+      const v = pickFirstVialForPeptide(d, pep);
+      if(v) return v;
+    }
+    return null;
+  }
+
+  function sendCalcToLog({save=false} = {}){
+    const v = getCalcSelectionVial();
+    if(!v) return alert("Pick a vial in the calculator (or select one in Log dose) first.");
+
+    const dose = Number($("calcDose")?.value);
+    const unit = $("calcUnit")?.value;
+    if(!Number.isFinite(dose) || dose <= 0) return alert("Enter a valid desired dose in the calculator.");
+
+    $("peptide").value = v.peptide;
+
+    const d = store.get();
+    const calcRoute = ($("calcRoute")?.value || "").trim();
+    if(calcRoute){
+      $("route").value = calcRoute;
+    } else {
+      const prot = getProtocol(d, v.peptide);
+      if(prot?.defaults?.route) $("route").value = prot.defaults.route;
+    }
+
+    $("doseUnit").value = unit;
+    $("doseValue").value = dose;
+    $("takenAt").value = nowDT();
+
+    refresh();
+
+    $("vial").value = v.id;
+    refresh();
+
+    const existing = ($("notes").value || "").trim();
+    const tag = `Calc: ${v.mg}mg/${v.ml}mL`;
+    $("notes").value = existing ? `${existing}\n${tag}` : tag;
+
+    if(save){
+      if(!confirm("Save this as a log entry now?")) return;
+      $("saveDose").click();
+    } else {
+      $("doseValue").scrollIntoView({behavior:"smooth", block:"center"});
+    }
+  }
+
+  // ---- UI refresh ----
   function refresh(){
     const data=store.get();
 
@@ -349,15 +1101,35 @@
     $("peptide").innerHTML=opts;
     $("pPeptide").innerHTML=opts;
     $("vPeptide").innerHTML=opts;
+    $("protPeptide").innerHTML=opts;
+    $("calcPeptide").innerHTML=opts;
+
+    // labs peptide select
+    $("labPeptide").innerHTML = `<option value="">General</option>` + data.peptides.map(p=>`<option>${p}</option>`).join("");
+
+    // labs: panel + quick list
+    const panels = Object.keys(LAB_LIBRARY);
+    $("labPanel").innerHTML = panels.map(p=>`<option>${p}</option>`).join("");
+    const curPanel = $("labPanel").value || panels[0];
+    const list = LAB_LIBRARY[curPanel] || [];
+    $("labQuick").innerHTML = `<option value="">(choose)</option>` + list.map(x=>`<option value="${x.m}">${x.m}</option>`).join("");
 
     renderPeptideChips(data);
+    renderProtocolTable(data);
+    loadProtocolIntoEditor(data);
 
-    // vials select filtered by peptide
+    // vials select filtered by peptide for log
     const curPep=$("peptide").value;
     const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
     $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
       const rem=remMcg(data,v.id);
       return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
+    }).join("");
+
+    // calc vial picker
+    $("calcVialPick").innerHTML = `<option value="">(pick a vial)</option>` + data.vials.map(v=>{
+      const conc = (Number(v.mg)*1000)/Number(v.ml);
+      return `<option value="${v.id}">${v.peptide} • ${conc.toFixed(0)} mcg/mL • ${v.mg}mg/${v.ml}mL</option>`;
     }).join("");
 
     // planner table
@@ -421,7 +1193,7 @@
           <span class="tag">${p.time||"anytime"}</span>
           <b>${p.peptide}</b><span class="muted">• ${p.route}</span>
           <span class="muted">• ${p.doseValue} ${p.unit}</span>
-          ${p.note?`<span class="muted">• ${p.note}`:""}
+          ${p.note?`<span class="muted">• ${p.note}</span>`:""}
         </div>
         <div class="actions" style="justify-content:flex-end;">
           ${matched?"":`<button class="small" data-log="${p.id}">Log</button>`}
@@ -474,46 +1246,90 @@
       if(item && dayYmd) setLogFromPlan(item, dayYmd);
     });
 
-    // math preview
+    // math preview for log
     const vialId=$("vial").value || null;
     const vial=vialId?data.vials.find(v=>v.id===vialId):null;
     const m = mathFor(vial, $("doseValue").value, $("doseUnit").value);
     $("math").innerHTML = m ? `Conc <b>${m.conc.toFixed(0)}</b> mcg/mL<br>Draw <b>${m.vol.toFixed(3)}</b> mL ≈ <b>${m.iu.toFixed(1)}</b> IU` : "Select a vial + mcg/mg dose.";
+
+    // labs render
+    renderLabs(data);
+
+    // insights render
+    renderInsights(data);
+
+    // lab preview
+    const flag = labFlag($("labValue").value, $("labRef").value);
+    $("labFlagPreview").textContent = `Flag: ${flag}`;
+    const mk = ($("labMarker").value||"").trim();
+    $("labTrendPreview").textContent = `Trend: ${mk ? markerTrend(data, mk) : "—"}`;
   }
 
-  // init inputs
+  // init
   $("takenAt").value=nowDT();
+  $("labDate").value = ymd(new Date());
 
-  // events
+  // ---- Global listeners ----
   ["peptide","vial","doseValue","doseUnit"].forEach(id=>{
     $(id).addEventListener("change", refresh);
     $(id).addEventListener("input", refresh);
   });
+
   $("weekStart").addEventListener("change", ()=>{
     const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
   });
 
-  // Add peptide
+  $("insWindow").addEventListener("change", ()=>refresh());
+
+  // auto-prompt to apply protocol defaults on peptide selection
+  $("pPeptide").addEventListener("change", () => {
+    const d = store.get();
+    const pep = $("pPeptide").value;
+    if(!pep) return;
+    const e = getProtocol(d, pep);
+    if(!e?.defaults) return;
+    if(confirm(`Use saved defaults for ${pep} in Planner?`)){
+      const def = e.defaults;
+      if(def.route) $("pRoute").value = def.route;
+      if(def.unit) $("pUnit").value = def.unit;
+      if(def.time) $("pTime").value = def.time;
+      if(def.doseValue!=null && def.doseValue!=="") $("pDose").value = def.doseValue;
+      if(def.note) $("pNote").value = def.note;
+    }
+  });
+
+  $("peptide").addEventListener("change", () => {
+    const d = store.get();
+    const pep = $("peptide").value;
+    if(!pep) return;
+    const e = getProtocol(d, pep);
+    if(!e?.defaults) return;
+    if(confirm(`Use saved defaults for ${pep} in Log Dose?`)){
+      const def = e.defaults;
+      if(def.route) $("route").value = def.route;
+      if(def.unit) $("doseUnit").value = def.unit;
+      if(def.doseValue!=null && def.doseValue!=="") $("doseValue").value = def.doseValue;
+    }
+    refresh();
+  });
+
+  // ---- Manage peptides ----
   $("addPeptideBtn").onclick = () => {
     const name = ($("newPeptide").value || "").trim();
     if(!name) return;
-
     const d = store.get();
     const exists = d.peptides.some(p => p.toLowerCase() === name.toLowerCase());
     if(exists){
       $("newPeptide").value = "";
       return alert("That peptide is already in the list.");
     }
-
     d.peptides.push(name);
     d.peptides.sort((a,b)=>a.localeCompare(b));
     store.set(d);
-
     $("newPeptide").value = "";
     refresh();
   };
 
-  // Reset peptide list
   $("resetPeptidesBtn").onclick = () => {
     if(!confirm("Reset peptide dropdown to the default list?")) return;
     const d = store.get();
@@ -522,6 +1338,64 @@
     refresh();
   };
 
+  // ---- Protocol editor ----
+  $("protPeptide").addEventListener("change", ()=>{ const d=store.get(); loadProtocolIntoEditor(d); });
+
+  $("saveProtocol").onclick = () => {
+    const d = store.get();
+    const pep = $("protPeptide").value;
+    if(!pep) return alert("Pick a peptide.");
+
+    const key = protKey(pep);
+    d.protocols[key] = {
+      purpose: ($("protPurpose").value || "").trim(),
+      notes: ($("protNotes").value || "").trim(),
+      defaults: {
+        route: $("protRoute").value || "",
+        doseValue: ($("protDose").value!=="" ? Number($("protDose").value) : ""),
+        unit: $("protUnit").value || "",
+        time: $("protTime").value || "",
+        note: ($("protDefaultNote").value || "").trim()
+      }
+    };
+
+    store.set(d);
+    refresh();
+    alert("Protocol saved.");
+  };
+
+  $("applyToPlanner").onclick = () => {
+    const d = store.get();
+    const pep = $("protPeptide").value;
+    if(!pep) return;
+    applyProtocolToPlanner(d, pep);
+    refresh();
+  };
+
+  $("applyToLog").onclick = () => {
+    const d = store.get();
+    const pep = $("protPeptide").value;
+    if(!pep) return;
+    applyProtocolToLog(d, pep);
+    refresh();
+  };
+
+  $("clearProtocol").onclick = () => {
+    const pep = $("protPeptide").value;
+    if(!pep) return;
+
+    const d = store.get();
+    const key = protKey(pep);
+
+    if(!d.protocols || !d.protocols[key]) return;
+    if(!confirm(`Clear protocol for ${pep}?`)) return;
+
+    delete d.protocols[key];
+    store.set(d);
+    refresh();
+  };
+
+  // ---- Planner ----
   $("addPlan").onclick=()=>{
     const d=store.get();
     const peptide=$("pPeptide").value; if(!peptide) return alert("Pick peptide");
@@ -546,6 +1420,7 @@
     const d=store.get(); d.planner=[]; store.set(d); refresh();
   };
 
+  // ---- Vials ----
   $("addVial").onclick=()=>{
     const d=store.get();
     const peptide=$("vPeptide").value; if(!peptide) return alert("Pick peptide");
@@ -558,6 +1433,7 @@
     refresh();
   };
 
+  // ---- Logs ----
   $("saveDose").onclick=()=>{
     const d=store.get();
     const peptide=$("peptide").value; if(!peptide) return alert("Pick peptide");
@@ -584,20 +1460,198 @@
     d.logs.pop(); store.set(d); refresh();
   };
 
+  // ---- Dose calculator handlers ----
+  $("calcBtn").addEventListener("click", calcDose);
+  ["calcMg","calcMl","calcDose","calcUnit","calcSyringe","calcRoute"].forEach(id=>{
+    $(id).addEventListener("input", calcDose);
+    $(id).addEventListener("change", calcDose);
+  });
+
+  $("calcUseVial").addEventListener("click", () => {
+    const d = store.get();
+    const id = $("calcVialPick").value;
+    if(!id) return alert("Pick a vial first.");
+    const v = d.vials.find(x => x.id === id);
+    if(!v) return alert("Couldn’t find that vial.");
+    fillCalcFromVial(v);
+  });
+
+  $("calcUseLogVial").addEventListener("click", () => {
+    const d = store.get();
+    const id = $("vial").value;
+    if(!id) return alert("Select a vial in the Log dose section first.");
+    const v = d.vials.find(x => x.id === id);
+    if(!v) return alert("Couldn’t find that vial.");
+    fillCalcFromVial(v);
+  });
+
+  $("calcVialPick").addEventListener("change", () => {
+    const d = store.get();
+    const id = $("calcVialPick").value;
+    if(!id) return;
+    const v = d.vials.find(x => x.id === id);
+    if(v) fillCalcFromVial(v);
+  });
+
+  $("calcPeptide").addEventListener("change", () => {
+    const d = store.get();
+    const pep = $("calcPeptide").value;
+    if(!pep) return;
+
+    const v = pickFirstVialForPeptide(d, pep);
+    if(v){
+      $("calcVialPick").value = v.id;
+      fillCalcFromVial(v);
+    }
+
+    const prot = getProtocol(d, pep);
+    if(prot?.defaults){
+      if($("calcRoute").value === "" && prot.defaults.route) $("calcRoute").value = prot.defaults.route;
+      if(prot.defaults.unit) $("calcUnit").value = prot.defaults.unit;
+      if(($("calcDose").value === "" || $("calcDose").value == null) && prot.defaults.doseValue !== "" && prot.defaults.doseValue != null){
+        $("calcDose").value = prot.defaults.doseValue;
+      }
+    }
+    calcDose();
+  });
+
+  $("calcUsePepDefaults").addEventListener("click", () => {
+    const d = store.get();
+    const pep = $("calcPeptide").value;
+    if(!pep) return alert("Pick a peptide first.");
+    const prot = getProtocol(d, pep);
+    if(!prot?.defaults) return alert("No protocol defaults saved for this peptide yet.");
+
+    const def = prot.defaults;
+    if(def.route) $("calcRoute").value = def.route;
+    if(def.unit) $("calcUnit").value = def.unit;
+    if(def.doseValue !== "" && def.doseValue != null) $("calcDose").value = def.doseValue;
+
+    const v = pickFirstVialForPeptide(d, pep);
+    if(v){
+      $("calcVialPick").value = v.id;
+      fillCalcFromVial(v);
+    } else {
+      calcDose();
+    }
+  });
+
+  $("calcToLog").addEventListener("click", () => sendCalcToLog({save:false}));
+  $("calcToLogSave").addEventListener("click", () => sendCalcToLog({save:true}));
+
+  // ---- Labs handlers ----
+  $("labPanel").addEventListener("change", ()=>refresh());
+  $("labSearch").addEventListener("input", ()=>refresh());
+  $("labShow").addEventListener("change", ()=>refresh());
+
+  $("labUseQuick").addEventListener("click", ()=>{
+    const panel = $("labPanel").value;
+    const marker = $("labQuick").value;
+    if(!panel || !marker) return;
+
+    const item = (LAB_LIBRARY[panel]||[]).find(x=>x.m===marker);
+    if(!item) return;
+
+    $("labMarker").value = item.m;
+    if(item.u) $("labUnit").value = item.u;
+
+    const d = store.get();
+    $("labFlagPreview").textContent = `Flag: ${labFlag($("labValue").value, $("labRef").value)}`;
+    $("labTrendPreview").textContent = `Trend: ${markerTrend(d, item.m)}`;
+  });
+
+  ["labValue","labRef","labMarker"].forEach(id=>{
+    $(id).addEventListener("input", ()=>{
+      const d = store.get();
+      $("labFlagPreview").textContent = `Flag: ${labFlag($("labValue").value, $("labRef").value)}`;
+      const m = ($("labMarker").value||"").trim();
+      $("labTrendPreview").textContent = `Trend: ${m ? markerTrend(d, m) : "—"}`;
+    });
+  });
+
+  $("labAdd").addEventListener("click", ()=>{
+    const d = store.get();
+    const date = $("labDate").value || ymd(new Date());
+    const marker = ($("labMarker").value||"").trim();
+    const value = ($("labValue").value||"").trim();
+    if(!marker || !value) return alert("Marker and Value are required.");
+
+    d.labs.push({
+      id: crypto.randomUUID(),
+      date,
+      source: ($("labSource").value||"").trim(),
+      peptide: ($("labPeptide").value||"").trim(),
+      marker,
+      value,
+      unit: ($("labUnit").value||"").trim(),
+      ref: ($("labRef").value||"").trim(),
+      notes: ($("labNotes").value||"").trim()
+    });
+
+    store.set(d);
+    $("labMarker").value=""; $("labValue").value=""; $("labUnit").value=""; $("labRef").value=""; $("labNotes").value="";
+    refresh();
+  });
+
+  $("labDeleteLast").addEventListener("click", ()=>{
+    const d=store.get();
+    if(!(d.labs||[]).length) return;
+    d.labs.pop();
+    store.set(d); refresh();
+  });
+
+  $("labExport").addEventListener("click", ()=>{
+    const d=store.get();
+    const rows = (d.labs||[]);
+    const esc=s=>{s=String(s??""); return (s.includes(",")||s.includes("\"")||s.includes("\n"))?`"${s.replaceAll("\"","\"\"")}"`:s;};
+    const header = ["date","marker","value","unit","ref","flag","peptide","source","notes"].join(",");
+    const body = rows.map(r=>[
+      r.date,r.marker,r.value,r.unit,r.ref,
+      labFlag(r.value,r.ref),
+      r.peptide,r.source,r.notes
+    ].map(esc).join(",")).join("\n");
+    const csv = header + "\n" + body;
+
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="peptide_mini_labs.csv"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  });
+
+  // ---- Export / Backup / Reset ----
   $("export").onclick=()=>{
     const d=store.get();
     const esc=s=>{s=String(s??""); return (s.includes(",")||s.includes("\"")||s.includes("\n"))?`"${s.replaceAll("\"","\"\"")}"`:s;};
     const csv=(rows)=>rows.length?[Object.keys(rows[0]).join(","),...rows.map(r=>Object.keys(rows[0]).map(k=>esc(r[k])).join(","))].join("\n"):"";
     const bundle =
-`# PLANNER\n${csv(d.planner.map(p=>({day:DAYS[p.day],time:p.time,peptide:p.peptide,route:p.route,doseValue:p.doseValue,unit:p.unit,note:p.note})))}\n
-# VIALS\n${csv(d.vials)}\n
-# LOGS\n${csv(d.logs)}\n`;
+`# PROTOCOLS
+${csv(Object.entries(d.protocols||{}).map(([peptide,val])=>({
+  peptide,
+  purpose: val?.purpose||"",
+  defaults_route: val?.defaults?.route||"",
+  defaults_dose: val?.defaults?.doseValue??"",
+  defaults_unit: val?.defaults?.unit||"",
+  defaults_time: val?.defaults?.time||"",
+  defaults_note: val?.defaults?.note||"",
+  notes: val?.notes||""
+})))}
+
+# PLANNER
+${csv(d.planner.map(p=>({day:DAYS[p.day],time:p.time,peptide:p.peptide,route:p.route,doseValue:p.doseValue,unit:p.unit,note:p.note})))}
+
+# VIALS
+${csv(d.vials)}
+
+# LOGS
+${csv(d.logs)}
+
+# LABS
+${csv(d.labs)}
+`;
     const blob=new Blob([bundle],{type:"text/plain;charset=utf-8"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="peptide_mini_export.csv.txt"; a.click();
     setTimeout(()=>URL.revokeObjectURL(a.href),500);
   };
 
-  // iCloud Drive backup/restore (JSON)
   function downloadJson(filename, obj){
     const blob = new Blob([JSON.stringify(obj, null, 2)], {type:"application/json;charset=utf-8"});
     const a = document.createElement("a");
@@ -613,6 +1667,8 @@
     if(!Array.isArray(data.planner)) return false;
     if(!Array.isArray(data.vials)) return false;
     if(!Array.isArray(data.logs)) return false;
+    if(typeof data.protocols !== "object") return false;
+    if(!Array.isArray(data.labs)) return false;
     return true;
   }
 
@@ -654,6 +1710,7 @@
     if(!confirm("Delete ALL data on this device?")) return;
     localStorage.removeItem(KEY);
     $("takenAt").value=nowDT();
+    $("labDate").value = ymd(new Date());
     refresh();
   };
 
