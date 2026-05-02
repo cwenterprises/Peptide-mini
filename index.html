@@ -1,823 +1,2441 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Peptide Mini</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PeptideOS — Personal Peptide Intelligence</title>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="PeptideOS"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════ */
+:root {
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
 
-  <!-- Home screen / PWA-ish -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Peptide Mini">
+  /* Dark theme (default) */
+  --bg: #080810;
+  --bg2: #0e0e1a;
+  --bg3: #14141f;
+  --bg4: #1c1c2a;
+  --bg5: #242434;
+  --border: #2a2a3e;
+  --border2: #222232;
 
-  <!-- Dark mode support -->
-  <meta name="color-scheme" content="light dark">
-  <meta name="supported-color-schemes" content="light dark">
-  <meta name="theme-color" content="#ffffff">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0f">
+  --accent: #6366f1;
+  --accent-glow: rgba(99,102,241,0.25);
+  --accent-dim: rgba(99,102,241,0.12);
+  --accent2: #22d3ee;
+  --accent2-dim: rgba(34,211,238,0.12);
 
-  <style>
-    body{font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:14px;max-width:980px}
-    h1{margin:0 0 8px}
-    h2{margin:16px 0 8px}
-    .muted{color:#666;font-size:13px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:12px;position:relative}
-    .grid{display:grid;gap:12px}
-    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;align-items:start}
-    @media(max-width:900px){.split{grid-template-columns:1fr}}
-    label{display:grid;gap:6px;font-size:14px}
-    input,select,textarea,button{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px}
-    textarea{min-height:56px}
-    button{cursor:pointer}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .small{font-size:13px;padding:8px 10px}
-    .tag{display:inline-block;padding:2px 8px;border:1px solid #eee;border-radius:999px;font-size:12px;background:#fafafa}
-    .status{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid #ddd;background:#fafafa}
-    .done{border-color:#bde5d2;background:#f1fbf6;color:#0a7}
-    .pending{border-color:#ffe2b8;background:#fff8ed;color:#b26a00}
-    .planItem{border:1px solid #eee;border-radius:10px;padding:8px;display:grid;gap:6px}
-    .weekGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
-    .dayCol{border:1px solid #eee;border-radius:12px;padding:10px;min-height:160px}
-    .dayTop{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-    .dayName{font-weight:700}
-    .dayDate{color:#777;font-size:12px}
-    table{width:100%;border-collapse:collapse;font-size:14px}
-    th,td{border-bottom:1px solid #eee;padding:8px;text-align:left;vertical-align:top}
-    th{background:#fff;position:sticky;top:0}
-    .right{text-align:right}
+  --success: #10b981;
+  --success-dim: rgba(16,185,129,0.12);
+  --warning: #f59e0b;
+  --warning-dim: rgba(245,158,11,0.12);
+  --danger: #ef4444;
+  --danger-dim: rgba(239,68,68,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --pink: #f472b6;
+  --pink-dim: rgba(244,114,182,0.12);
+  --orange: #fb923c;
+  --orange-dim: rgba(251,146,60,0.12);
 
-    /* Clickable title */
-    .card h2{cursor:pointer;user-select:none;padding-right:44px}
-    .card h2:hover{opacity:0.75}
-    .card h2:active{transform:scale(0.99)}
+  --txt: #eeeef8;
+  --txt2: #9090b0;
+  --txt3: #50507a;
 
-    /* Chevron button */
-    .minBtn{position:absolute;top:10px;right:10px;padding:6px 10px;font-size:16px;line-height:1;border-radius:10px}
+  --sidebar-w: 220px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
 
-    /* Collapsed: hide everything except first h2 and the button */
-    .card.collapsed > *{display:none}
-    .card.collapsed > h2,
-    .card.collapsed > .minBtn{display:block}
-    .card.collapsed{padding:12px}
+[data-theme="light"] {
+  --bg: #f0f2f8;
+  --bg2: #ffffff;
+  --bg3: #f8f9fc;
+  --bg4: #eef0f8;
+  --bg5: #e4e6f0;
+  --border: #d8dae8;
+  --border2: #e4e6f0;
 
-    /* Dark mode */
-    :root{color-scheme: light dark}
-    @media (prefers-color-scheme: dark){
-      body{background:#0b0b0f;color:#f2f2f6}
-      .muted{color:#a8a8b3}
-      .card{background:#14141a;border-color:#2a2a33}
-      input,select,textarea,button{background:#101015;color:#f2f2f6;border-color:#2a2a33}
-      .tag,.status{background:#101015;border-color:#2a2a33;color:#f2f2f6}
-      .planItem,.dayCol{background:#121218;border-color:#2a2a33}
-      table{color:#f2f2f6}
-      th,td{border-bottom-color:#2a2a33}
-      th{background:#14141a}
-      button{background:#1a1a22}
-    }
-  </style>
+  --accent: #4f46e5;
+  --accent-glow: rgba(79,70,229,0.15);
+  --accent-dim: rgba(79,70,229,0.08);
+  --accent2: #0891b2;
+  --accent2-dim: rgba(8,145,178,0.08);
+
+  --success: #059669;
+  --success-dim: rgba(5,150,105,0.10);
+  --warning: #d97706;
+  --warning-dim: rgba(217,119,6,0.10);
+  --danger: #dc2626;
+  --danger-dim: rgba(220,38,38,0.10);
+  --purple: #7c3aed;
+  --purple-dim: rgba(124,58,237,0.08);
+  --pink: #db2777;
+  --pink-dim: rgba(219,39,119,0.08);
+  --orange: #ea580c;
+  --orange-dim: rgba(234,88,12,0.08);
+
+  --txt: #0f1120;
+  --txt2: #505070;
+  --txt3: #9090b0;
+
+  --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* ═══════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px;-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--font);
+  background:var(--bg);
+  color:var(--txt);
+  min-height:100vh;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+a{color:var(--accent);text-decoration:none}
+button{font-family:var(--font);cursor:pointer;border:none;background:none}
+input,select,textarea{font-family:var(--font);font-size:14px;outline:none}
+table{border-collapse:collapse;width:100%}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--txt3)}
+
+/* ═══════════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════════ */
+#app{display:flex;min-height:100vh}
+
+/* Sidebar */
+#sidebar{
+  width:var(--sidebar-w);
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+  position:fixed;
+  top:0;left:0;bottom:0;
+  z-index:100;
+  overflow-y:auto;
+  transition:transform var(--transition);
+}
+.sidebar-logo{
+  padding:20px 18px 16px;
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;gap:10px;
+}
+.logo-mark{
+  width:34px;height:34px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:14px;color:#fff;letter-spacing:-0.5px;
+  box-shadow:0 0 16px var(--accent-glow);
+  flex-shrink:0;
+}
+.logo-text{font-weight:700;font-size:15px;letter-spacing:-0.3px;line-height:1.2}
+.logo-sub{font-size:10px;color:var(--txt3);font-weight:500;letter-spacing:0.5px;text-transform:uppercase}
+
+.nav-section{padding:10px 10px 4px;font-size:10px;font-weight:600;letter-spacing:0.8px;text-transform:uppercase;color:var(--txt3)}
+.nav-links{list-style:none;padding:6px 8px}
+.nav-links li{margin-bottom:2px}
+.nav-btn{
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:9px 10px;
+  border-radius:var(--radius-sm);
+  font-size:13.5px;font-weight:500;color:var(--txt2);
+  transition:all var(--transition);
+  cursor:pointer;
+  background:none;border:none;text-align:left;
+}
+.nav-btn:hover{background:var(--bg4);color:var(--txt)}
+.nav-btn.active{background:var(--accent-dim);color:var(--accent);font-weight:600}
+.nav-btn .icon{width:16px;height:16px;opacity:0.7;flex-shrink:0}
+.nav-btn.active .icon{opacity:1}
+.nav-badge{
+  margin-left:auto;
+  font-size:11px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:1px 7px;border-radius:20px;
+}
+
+.sidebar-bottom{
+  margin-top:auto;padding:12px 8px;
+  border-top:1px solid var(--border2);
+}
+.theme-toggle{
+  display:flex;align-items:center;gap:9px;
+  width:100%;padding:8px 10px;
+  border-radius:var(--radius-sm);
+  font-size:13px;font-weight:500;color:var(--txt2);
+  transition:all var(--transition);cursor:pointer;
+}
+.theme-toggle:hover{background:var(--bg4);color:var(--txt)}
+.toggle-track{
+  margin-left:auto;
+  width:34px;height:18px;
+  background:var(--bg5);
+  border-radius:9px;
+  position:relative;transition:background var(--transition);
+}
+.toggle-thumb{
+  position:absolute;top:3px;left:3px;
+  width:12px;height:12px;
+  background:var(--txt3);border-radius:50%;
+  transition:all var(--transition);
+}
+[data-theme="light"] .toggle-track{background:var(--accent)}
+[data-theme="light"] .toggle-thumb{left:19px;background:#fff}
+
+/* Main */
+#main{
+  margin-left:var(--sidebar-w);
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+
+.page-header{
+  padding:20px 28px 0;
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:12px;
+}
+.page-title{font-size:22px;font-weight:800;letter-spacing:-0.5px;line-height:1.2}
+.page-sub{font-size:13px;color:var(--txt2);margin-top:3px}
+.header-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+
+.tab-content{
+  padding:20px 28px 40px;
+  display:none;
+}
+.tab-content.active{display:block}
+
+/* Mobile sidebar toggle */
+#mobile-menu-btn{
+  display:none;
+  position:fixed;top:14px;left:14px;z-index:200;
+  width:38px;height:38px;
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  align-items:center;justify-content:center;
+  color:var(--txt);font-size:18px;
+}
+#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99}
+
+/* ═══════════════════════════════════════════════
+   TYPOGRAPHY
+═══════════════════════════════════════════════ */
+.section-title{font-size:13px;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:var(--txt3);margin-bottom:12px}
+.label-text{font-size:12.5px;font-weight:600;color:var(--txt2);letter-spacing:0.1px}
+
+/* ═══════════════════════════════════════════════
+   COMPONENTS
+═══════════════════════════════════════════════ */
+
+/* Buttons */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 16px;
+  border-radius:var(--radius-sm);
+  font-size:13.5px;font-weight:600;
+  cursor:pointer;border:none;
+  transition:all var(--transition);
+  white-space:nowrap;
+}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 12px var(--accent-glow)}
+.btn-primary:hover{filter:brightness(1.12);box-shadow:0 4px 20px var(--accent-glow)}
+.btn-secondary{background:var(--bg4);color:var(--txt);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--bg5);border-color:var(--border2)}
+.btn-ghost{background:transparent;color:var(--txt2);padding:8px 12px}
+.btn-ghost:hover{background:var(--bg4);color:var(--txt)}
+.btn-danger{background:var(--danger-dim);color:var(--danger);border:1px solid transparent}
+.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-success{background:var(--success-dim);color:var(--success);border:1px solid transparent}
+.btn-success:hover{background:var(--success);color:#fff}
+.btn-sm{padding:6px 12px;font-size:12.5px}
+.btn-xs{padding:4px 9px;font-size:11.5px;border-radius:6px}
+.btn-icon{padding:8px;border-radius:var(--radius-sm);background:var(--bg4);color:var(--txt2)}
+.btn-icon:hover{background:var(--bg5);color:var(--txt)}
+
+/* Cards */
+.card{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px;
+}
+.card-sm{padding:14px}
+.card-hover{transition:border-color var(--transition),box-shadow var(--transition)}
+.card-hover:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim),var(--shadow)}
+
+/* Inputs */
+.field{display:flex;flex-direction:column;gap:6px}
+.field .label-text{margin-bottom:0}
+.input-base{
+  width:100%;
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:9px 13px;
+  font-size:14px;
+  color:var(--txt);
+  transition:border-color var(--transition),box-shadow var(--transition);
+  appearance:none;-webkit-appearance:none;
+}
+.input-base:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.input-base::placeholder{color:var(--txt3)}
+select.input-base{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239090b0' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+textarea.input-base{min-height:72px;resize:vertical}
+
+/* Badges / status pills */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;
+  border-radius:20px;
+  font-size:11.5px;font-weight:600;
+  letter-spacing:0.2px;
+}
+.badge-accent{background:var(--accent-dim);color:var(--accent)}
+.badge-success{background:var(--success-dim);color:var(--success)}
+.badge-warning{background:var(--warning-dim);color:var(--warning)}
+.badge-danger{background:var(--danger-dim);color:var(--danger)}
+.badge-purple{background:var(--purple-dim);color:var(--purple)}
+.badge-pink{background:var(--pink-dim);color:var(--pink)}
+.badge-orange{background:var(--orange-dim);color:var(--orange)}
+.badge-muted{background:var(--bg4);color:var(--txt3)}
+.badge-cyan{background:var(--accent2-dim);color:var(--accent2)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* Tables */
+.tbl-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border)}
+.tbl-wrap table{font-size:13.5px}
+.tbl-wrap th{
+  background:var(--bg3);
+  padding:10px 14px;
+  font-size:11.5px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;
+  color:var(--txt3);text-align:left;
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+.tbl-wrap td{
+  padding:12px 14px;
+  border-bottom:1px solid var(--border2);
+  color:var(--txt);
+  vertical-align:middle;
+}
+.tbl-wrap tr:last-child td{border-bottom:none}
+.tbl-wrap tr:hover td{background:var(--bg3)}
+.tbl-wrap .td-muted{color:var(--txt2)}
+.tbl-wrap .td-sm{font-size:12.5px;color:var(--txt2)}
+.text-right{text-align:right!important}
+
+/* Divider */
+.divider{height:1px;background:var(--border2);margin:16px 0}
+
+/* Progress bar */
+.progress{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 0.6s ease}
+
+/* Grid helpers */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+.flex{display:flex}
+.flex-col{display:flex;flex-direction:column}
+.items-center{align-items:center}
+.justify-between{justify-content:space-between}
+.gap-8{gap:8px}
+.gap-12{gap:12px}
+.gap-16{gap:16px}
+.gap-20{gap:20px}
+.mt-4{margin-top:4px}
+.mt-8{margin-top:8px}
+.mt-12{margin-top:12px}
+.mt-16{margin-top:16px}
+.mt-20{margin-top:20px}
+.mb-8{margin-bottom:8px}
+.mb-12{margin-bottom:12px}
+.mb-16{margin-bottom:16px}
+.muted{color:var(--txt2)}
+.muted-sm{color:var(--txt3);font-size:12.5px}
+.bold{font-weight:700}
+.semibold{font-weight:600}
+.mono{font-family:monospace}
+
+/* ═══════════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════════ */
+#modal-overlay{
+  display:none;
+  position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);
+  padding:16px;
+  overflow-y:auto;
+}
+#modal-overlay.open{display:flex;align-items:flex-start;justify-content:center;padding-top:5vh}
+.modal{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  width:100%;max-width:600px;
+  box-shadow:0 24px 64px rgba(0,0,0,0.5);
+  animation:modalIn 0.2s ease;
+  position:relative;
+}
+.modal-lg{max-width:800px}
+.modal-xl{max-width:1000px}
+@keyframes modalIn{from{opacity:0;transform:translateY(-12px) scale(0.98)}to{opacity:1;transform:none}}
+.modal-header{
+  padding:20px 24px 16px;
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;
+}
+.modal-title{font-size:17px;font-weight:700;letter-spacing:-0.3px}
+.modal-close{
+  width:30px;height:30px;
+  border-radius:var(--radius-sm);
+  background:var(--bg4);color:var(--txt2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;line-height:1;cursor:pointer;
+  transition:all var(--transition);flex-shrink:0;
+}
+.modal-close:hover{background:var(--bg5);color:var(--txt)}
+.modal-body{padding:20px 24px}
+.modal-footer{
+  padding:16px 24px;
+  border-top:1px solid var(--border2);
+  display:flex;gap:10px;justify-content:flex-end;
+}
+
+/* ═══════════════════════════════════════════════
+   STAT CARDS (Dashboard)
+═══════════════════════════════════════════════ */
+.stat-card{
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px 20px;
+  display:flex;flex-direction:column;gap:6px;
+  position:relative;overflow:hidden;
+}
+.stat-card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  opacity:0;transition:opacity var(--transition);
+}
+.stat-card:hover::before{opacity:1}
+.stat-label{font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:0.6px;color:var(--txt3)}
+.stat-value{font-size:28px;font-weight:800;letter-spacing:-1px;line-height:1}
+.stat-sub{font-size:12px;color:var(--txt2)}
+.stat-icon{position:absolute;top:16px;right:16px;font-size:22px;opacity:0.5}
+
+/* ═══════════════════════════════════════════════
+   TODAY / PLANNER
+═══════════════════════════════════════════════ */
+.dose-item{
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-sm);
+  padding:12px 14px;
+  display:flex;align-items:center;gap:12px;
+}
+.dose-item.done{border-left:3px solid var(--success)}
+.dose-item.pending{border-left:3px solid var(--warning)}
+.dose-check{
+  width:22px;height:22px;
+  border-radius:50%;
+  border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+  cursor:pointer;
+  transition:all var(--transition);
+  font-size:12px;
+}
+.dose-item.done .dose-check{background:var(--success);border-color:var(--success);color:#fff}
+
+/* Week grid */
+.week-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+.day-col{
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);
+  padding:12px;
+  min-height:140px;
+}
+.day-col.today{border-color:var(--accent);background:var(--accent-dim)}
+.day-name{font-weight:700;font-size:13px}
+.day-date{font-size:11px;color:var(--txt3);margin-top:2px}
+.day-items{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.day-dose{
+  font-size:11.5px;
+  background:var(--bg4);
+  border-radius:6px;
+  padding:5px 8px;
+}
+
+/* ═══════════════════════════════════════════════
+   LIBRARY
+═══════════════════════════════════════════════ */
+.library-search{
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.search-wrap{
+  position:relative;flex:1;min-width:180px;
+}
+.search-wrap input{padding-left:36px}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--txt3);font-size:15px}
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  padding:5px 12px;border-radius:20px;font-size:12.5px;font-weight:500;
+  background:var(--bg4);color:var(--txt2);border:1px solid var(--border);
+  cursor:pointer;transition:all var(--transition);white-space:nowrap;
+}
+.chip.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+.chip:hover:not(.active){background:var(--bg5)}
+
+.pep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.pep-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;
+  cursor:pointer;transition:all var(--transition);
+}
+.pep-card:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim),var(--shadow)}
+.pep-card-name{font-size:15px;font-weight:700;letter-spacing:-0.2px;margin-bottom:2px}
+.pep-card-full{font-size:11.5px;color:var(--txt3);margin-bottom:8px}
+.pep-card-uses{font-size:12.5px;color:var(--txt2);line-height:1.5}
+.pep-card-footer{margin-top:10px;display:flex;align-items:center;justify-content:space-between}
+.pep-dose-tag{font-size:11.5px;font-weight:600;color:var(--txt2)}
+
+/* Library modal tabs */
+.modal-tabs{display:flex;gap:2px;margin-bottom:20px;background:var(--bg3);border-radius:var(--radius-sm);padding:4px}
+.modal-tab{
+  flex:1;padding:7px 10px;border-radius:6px;
+  font-size:12.5px;font-weight:600;cursor:pointer;
+  color:var(--txt2);transition:all var(--transition);text-align:center;
+}
+.modal-tab.active{background:var(--bg2);color:var(--txt);box-shadow:var(--shadow-sm)}
+.info-row{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid var(--border2);font-size:13.5px}
+.info-row:last-child{border-bottom:none}
+.info-label{font-weight:600;color:var(--txt2);flex-shrink:0;width:130px}
+.info-val{color:var(--txt)}
+.se-item{display:flex;gap:8px;align-items:flex-start;padding:6px 0;font-size:13.5px}
+.use-item{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:13.5px}
+
+/* ═══════════════════════════════════════════════
+   ORDERS PIPELINE
+═══════════════════════════════════════════════ */
+.pipeline{display:flex;gap:0;overflow-x:auto;margin-bottom:24px}
+.pipe-step{
+  flex:1;min-width:120px;
+  text-align:center;padding:10px 8px;
+  font-size:12px;font-weight:600;
+  color:var(--txt3);
+  position:relative;
+  cursor:pointer;
+  transition:all var(--transition);
+}
+.pipe-step::after{
+  content:'';
+  position:absolute;right:-1px;top:50%;transform:translateY(-50%);
+  width:0;height:0;
+  border-left:10px solid var(--bg2);
+  border-top:12px solid transparent;
+  border-bottom:12px solid transparent;
+  z-index:2;
+}
+.pipe-step:last-child::after{display:none}
+.pipe-step.active-filter{color:var(--accent);font-weight:700;background:var(--accent-dim)}
+.pipe-step .pipe-count{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:50%;
+  background:var(--bg4);font-size:11px;margin-top:4px;
+}
+.pipe-step.active-filter .pipe-count{background:var(--accent);color:#fff}
+.order-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px 18px;
+  margin-bottom:10px;
+}
+.order-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.order-vendor{font-size:15px;font-weight:700}
+.order-date{font-size:12px;color:var(--txt3);margin-top:3px}
+.order-items{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.order-item-tag{
+  font-size:12.5px;background:var(--bg4);
+  border-radius:6px;padding:4px 10px;color:var(--txt2);
+}
+.order-footer{margin-top:12px;padding-top:10px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between}
+
+/* ═══════════════════════════════════════════════
+   VENDOR CARDS
+═══════════════════════════════════════════════ */
+.vendor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.vendor-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;
+}
+.vendor-name{font-size:15px;font-weight:700}
+.vendor-url{font-size:12px;color:var(--accent);margin-top:2px}
+.stars{color:var(--warning);letter-spacing:-1px;font-size:15px}
+.vendor-trust{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:12px}
+.trust-verified{background:var(--success-dim);color:var(--success)}
+.trust-unverified{background:var(--warning-dim);color:var(--warning)}
+.trust-caution{background:var(--danger-dim);color:var(--danger)}
+
+/* ═══════════════════════════════════════════════
+   PRICE LIST
+═══════════════════════════════════════════════ */
+.price-best{background:var(--success-dim)!important;color:var(--success)!important;font-weight:700}
+
+/* ═══════════════════════════════════════════════
+   VIALS
+═══════════════════════════════════════════════ */
+.vial-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.vial-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+}
+.vial-name{font-size:14px;font-weight:700;margin-bottom:6px}
+.vial-stat{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;color:var(--txt2)}
+.vial-stat .val{color:var(--txt);font-weight:600}
+.vial-progress{margin-top:10px}
+.vial-pct{font-size:11.5px;color:var(--txt3);text-align:right;margin-bottom:4px}
+
+/* ═══════════════════════════════════════════════
+   HISTORY / LOGS
+═══════════════════════════════════════════════ */
+.log-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+
+/* ═══════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════ */
+.settings-section{margin-bottom:28px}
+.settings-section-title{font-size:15px;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border2)}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border2)}
+.setting-row:last-child{border-bottom:none}
+.setting-info{flex:1}
+.setting-name{font-size:14px;font-weight:600}
+.setting-desc{font-size:12.5px;color:var(--txt2);margin-top:2px}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+#toast-container{
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  display:flex;flex-direction:column;gap:8px;
+}
+.toast{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px 16px;
+  font-size:13.5px;font-weight:500;
+  box-shadow:var(--shadow);
+  animation:toastIn 0.25s ease;
+  display:flex;align-items:center;gap:8px;
+  min-width:220px;max-width:340px;
+}
+.toast.success{border-left:3px solid var(--success)}
+.toast.error{border-left:3px solid var(--danger)}
+.toast.info{border-left:3px solid var(--accent)}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+
+/* ═══════════════════════════════════════════════
+   EMPTY STATES
+═══════════════════════════════════════════════ */
+.empty{text-align:center;padding:48px 20px}
+.empty-icon{font-size:42px;margin-bottom:12px;opacity:0.4}
+.empty-title{font-size:16px;font-weight:700;color:var(--txt2);margin-bottom:6px}
+.empty-desc{font-size:13px;color:var(--txt3)}
+
+/* ═══════════════════════════════════════════════
+   CYCLE TRACKER
+═══════════════════════════════════════════════ */
+.cycle-bar{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+  margin-bottom:20px;
+}
+.cycle-info{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.cycle-day{font-size:28px;font-weight:800;letter-spacing:-1px}
+.cycle-label{font-size:12px;color:var(--txt3)}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%)}
+  #sidebar.open{transform:none}
+  #sidebar-overlay.open{display:block}
+  #main{margin-left:0}
+  #mobile-menu-btn{display:flex}
+  .page-header{padding:60px 16px 0}
+  .tab-content{padding:16px 16px 40px}
+  .grid-4{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .week-grid{grid-template-columns:repeat(7,minmax(120px,1fr));overflow-x:auto}
+  .pep-grid{grid-template-columns:1fr}
+  .vendor-grid{grid-template-columns:1fr}
+  .vial-grid{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .modal{margin:0;border-radius:var(--radius) var(--radius) 0 0;position:fixed;bottom:0;left:0;right:0;max-width:100%}
+  #modal-overlay.open{align-items:flex-end;padding:0}
+}
+</style>
 </head>
-
 <body>
-  <h1>Peptide Mini</h1>
 
-  <div class="actions" style="margin:8px 0 6px;">
-    <button id="collapseAll" class="small">Collapse all</button>
-    <button id="expandAll" class="small">Expand all</button>
+<!-- Mobile menu button -->
+<button id="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div id="app">
+<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">P+</div>
+    <div>
+      <div class="logo-text">PeptideOS</div>
+      <div class="logo-sub">Intelligence</div>
+    </div>
   </div>
 
-  <div class="muted">Local-only tracker: planner → today → log → done/pending. Saves to this device.</div>
+  <div class="nav-section" style="margin-top:6px">Overview</div>
+  <ul class="nav-links">
+    <li><button class="nav-btn active" data-tab="dashboard">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </button></li>
+    <li><button class="nav-btn" data-tab="today">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Today
+      <span class="nav-badge" id="badge-today">0</span>
+    </button></li>
+    <li><button class="nav-btn" data-tab="planner">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg>
+      Planner
+    </button></li>
+    <li><button class="nav-btn" data-tab="log">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4l3 3"/></svg>
+      Log Dose
+    </button></li>
+  </ul>
 
-  <div class="split">
-    <!-- LEFT -->
-    <div class="grid">
-      <div class="card grid">
-        <div class="actions" style="justify-content:space-between;">
-          <h2 style="margin:0;">Today</h2>
-          <span class="muted" id="todaySummary"></span>
-        </div>
-        <div id="todayList" class="grid"></div>
+  <div class="nav-section">Reference</div>
+  <ul class="nav-links">
+    <li><button class="nav-btn" data-tab="library">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      Peptide Library
+    </button></li>
+    <li><button class="nav-btn" data-tab="prices">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
+      Price List
+    </button></li>
+  </ul>
+
+  <div class="nav-section">Inventory</div>
+  <ul class="nav-links">
+    <li><button class="nav-btn" data-tab="vials">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3h6v2.5L17 9H7L9 5.5V3z"/><rect x="7" y="9" width="10" height="12" rx="1"/></svg>
+      Vials
+    </button></li>
+    <li><button class="nav-btn" data-tab="vendors">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Vendors
+    </button></li>
+    <li><button class="nav-btn" data-tab="orders">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Orders
+      <span class="nav-badge" id="badge-orders" style="display:none">!</span>
+    </button></li>
+    <li><button class="nav-btn" data-tab="history">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      History
+    </button></li>
+  </ul>
+
+  <div class="nav-section">System</div>
+  <ul class="nav-links">
+    <li><button class="nav-btn" data-tab="settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button></li>
+  </ul>
+
+  <div class="sidebar-bottom">
+    <button class="theme-toggle" onclick="toggleTheme()">
+      <span id="theme-icon">🌙</span>
+      <span id="theme-label">Dark mode</span>
+      <div class="toggle-track"><div class="toggle-thumb"></div></div>
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════ MAIN ═══════════════════ -->
+<main id="main">
+
+<!-- ─── DASHBOARD ─── -->
+<div id="tab-dashboard" class="tab-content active">
+  <div class="page-header">
+    <div><div class="page-title">Dashboard</div><div class="page-sub" id="dash-date"></div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="navTo('log')">+ Log Dose</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <!-- Cycle bar -->
+    <div class="cycle-bar" id="dash-cycle"></div>
+    <!-- Stats -->
+    <div class="grid-4 mb-16" id="dash-stats"></div>
+    <!-- Two column -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="dash-cols">
+      <div>
+        <div class="section-title">Today's Schedule</div>
+        <div id="dash-today-list"></div>
       </div>
-
-      <div class="card grid">
-        <div class="actions" style="justify-content:space-between;">
-          <h2 style="margin:0;">Week</h2>
-          <label class="muted" style="gap:4px;">
-            Week starts
-            <input id="weekStart" type="date" />
-          </label>
-        </div>
-        <div id="weekGrid" class="weekGrid"></div>
+      <div>
+        <div class="section-title">Recent Logs</div>
+        <div id="dash-recent-logs"></div>
       </div>
+    </div>
+  </div>
+</div>
 
-      <!-- Cycle Dates -->
-      <div class="card grid">
-        <h2>Cycle Dates</h2>
-        <div class="row">
-          <label>Cycle start
-            <input id="cycleStart" type="date" />
-          </label>
-          <label>Cycle end
-            <input id="cycleEnd" type="date" />
-          </label>
-        </div>
-        <div class="actions">
-          <button id="saveCycle" class="small">Save cycle dates</button>
-          <button id="clearCycle" class="small" style="border-color:#f2b;color:#b00020;">Clear cycle dates</button>
-          <span id="cycleSummary" class="muted"></span>
+<!-- ─── TODAY ─── -->
+<div id="tab-today" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Today</div><div class="page-sub" id="today-date-label"></div></div>
+    <div class="header-actions">
+      <label class="label-text" style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+        Week start
+        <input type="date" id="weekStart" class="input-base" style="width:160px"/>
+      </label>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="section-title">Today's Planned Doses</div>
+    <div id="today-list" style="margin-bottom:28px"></div>
+    <div class="section-title">7-Day View</div>
+    <div class="week-grid" id="weekGrid" style="overflow-x:auto"></div>
+  </div>
+</div>
+
+<!-- ─── PLANNER ─── -->
+<div id="tab-planner" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Planner</div><div class="page-sub">Recurring weekly schedule</div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddPlan()">+ Add Item</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <!-- Manage peptides -->
+    <div class="card mb-16">
+      <div class="flex items-center justify-between mb-12">
+        <div class="semibold">Peptide List</div>
+        <div class="flex gap-8">
+          <input type="text" id="newPeptide" class="input-base" placeholder="Add peptide name…" style="width:200px"/>
+          <button class="btn btn-secondary btn-sm" onclick="addCustomPeptide()">Add</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetPeptides()">Reset defaults</button>
         </div>
       </div>
+      <div id="peptideChips" class="flex gap-8" style="flex-wrap:wrap"></div>
+    </div>
+    <!-- Plan table -->
+    <div class="tbl-wrap" id="planTableWrap">
+      <table>
+        <thead><tr><th>Day</th><th>Time</th><th>Peptide</th><th>Dose</th><th>Route</th><th>Note</th><th class="text-right">Actions</th></tr></thead>
+        <tbody id="planTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
-      <div class="card grid">
-        <h2>Planner (recurring)</h2>
-
-        <!-- Manage peptides -->
-        <div class="card" style="border-style:dashed;">
-          <b>Manage Peptides</b>
-          <div class="muted" style="margin-top:6px;">Add/remove peptides in the dropdown (saved on this device).</div>
-
-          <div class="row" style="margin-top:10px;">
-            <label>New peptide name
-              <input id="newPeptide" placeholder="e.g., BPC-157" />
-            </label>
-            <label>&nbsp;
-              <button id="addPeptideBtn">Add peptide</button>
-            </label>
-          </div>
-
-          <div class="actions">
-            <button id="resetPeptidesBtn" class="small">Reset to default list</button>
-          </div>
-
-          <div class="muted" style="margin-top:6px;">Current list (tap x to remove):</div>
-          <div id="peptideChips" class="actions" style="margin-top:8px;"></div>
+<!-- ─── LOG DOSE ─── -->
+<div id="tab-log" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Log Dose</div><div class="page-sub">Record a dose</div></div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:24px" class="log-cols">
+      <div class="card">
+        <div class="semibold mb-16" style="font-size:16px">Dose Entry</div>
+        <div class="grid-2 gap-16">
+          <div class="field"><span class="label-text">Peptide</span><select id="log-peptide" class="input-base"></select></div>
+          <div class="field"><span class="label-text">Date &amp; Time</span><input id="log-takenAt" type="datetime-local" class="input-base"/></div>
         </div>
-
-        <div class="row">
-          <label>Day
-            <select id="pDay">
-              <option value="0">Sun</option><option value="1">Mon</option><option value="2">Tue</option>
-              <option value="3">Wed</option><option value="4">Thu</option><option value="5">Fri</option><option value="6">Sat</option>
+        <div id="log-pepInfo" class="muted-sm mt-8"></div>
+        <div class="grid-3 mt-16 gap-16">
+          <div class="field"><span class="label-text">Route</span>
+            <select id="log-route" class="input-base">
+              <option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>IV</option><option>Topical</option><option>Other</option>
             </select>
-          </label>
-          <label>Time (optional)
-            <input id="pTime" type="time" />
-          </label>
-        </div>
-
-        <div class="row3">
-          <label>Peptide
-            <select id="pPeptide"></select>
-          </label>
-          <label>Route
-            <select id="pRoute"><option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option></select>
-          </label>
-          <label>Dose (number)
-            <input id="pDose" type="number" step="0.01" placeholder="e.g., 250" />
-          </label>
-        </div>
-
-        <div class="row">
-          <label>Unit
-            <select id="pUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
-          </label>
-          <label>Note (optional)
-            <input id="pNote" placeholder="bedtime, fasted, etc." />
-          </label>
-        </div>
-
-        <div id="pPepInfo" class="muted"></div>
-
-        <div class="actions">
-          <button id="addPlan">Add</button>
-          <button id="clearPlan" class="small" style="border-color:#f2b;color:#b00020;">Clear planner</button>
-        </div>
-
-        <div style="overflow:auto;">
-          <table>
-            <thead><tr><th>Day</th><th>Time</th><th>Peptide</th><th>Dose</th><th class="right">Del</th></tr></thead>
-            <tbody id="planTable"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT -->
-    <div class="grid">
-      <div class="card grid">
-        <h2>Log dose</h2>
-
-        <div class="row">
-          <label>Peptide
-            <select id="peptide"></select>
-          </label>
-          <label>Date/Time
-            <input id="takenAt" type="datetime-local" />
-          </label>
-        </div>
-
-        <div id="pepInfo" class="muted"></div>
-
-        <div class="row3">
-          <label>Route
-            <select id="route"><option>SubQ</option><option>IM</option><option>Nasal</option><option>Oral</option><option>Other</option></select>
-          </label>
-          <label>Dose
-            <input id="doseValue" type="number" step="0.01" />
-          </label>
-          <label>Unit
-            <select id="doseUnit"><option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="sprays">sprays</option></select>
-          </label>
-        </div>
-
-        <div class="row">
-          <label>Vial (optional for mL/IU)
-            <select id="vial"></select>
-          </label>
-          <div class="card" style="border-style:dashed;">
-            <div><b>Draw math</b></div>
-            <div id="math" class="muted" style="margin-top:6px;">Select a vial + mcg/mg dose.</div>
+          </div>
+          <div class="field"><span class="label-text">Dose</span><input id="log-dose" type="number" step="0.01" class="input-base" placeholder="0"/></div>
+          <div class="field"><span class="label-text">Unit</span>
+            <select id="log-unit" class="input-base">
+              <option value="mcg">mcg</option><option value="mg">mg</option><option value="IU">IU</option><option value="mL">mL</option><option value="sprays">sprays</option>
+            </select>
           </div>
         </div>
-
-        <label>Notes
-          <textarea id="notes" placeholder="optional…"></textarea>
-        </label>
-
-        <div class="actions">
-          <button id="saveDose">Save</button>
-          <button id="deleteLast" class="small">Delete last</button>
+        <div class="grid-2 mt-16 gap-16">
+          <div class="field"><span class="label-text">Vial (for draw math)</span><select id="log-vial" class="input-base"></select></div>
+          <div class="card card-sm" style="border-style:dashed;display:flex;flex-direction:column;justify-content:center">
+            <div class="muted-sm mb-4">Draw Calculation</div>
+            <div id="log-math" class="semibold" style="font-size:13.5px">Select vial + dose</div>
+          </div>
+        </div>
+        <div class="field mt-16"><span class="label-text">Notes (optional)</span><textarea id="log-notes" class="input-base" placeholder="Injection site, how you felt, etc."></textarea></div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn btn-primary" onclick="saveDose()">Save Dose</button>
+          <button class="btn btn-ghost" onclick="deleteLast()">Delete Last</button>
         </div>
       </div>
 
-      <div class="card grid">
-        <h2>Vials</h2>
-
-        <div class="row3">
-          <label>Peptide
-            <select id="vPeptide"></select>
-          </label>
-          <label>Vial mg
-            <input id="vMg" type="number" step="0.01" placeholder="e.g., 10" />
-          </label>
-          <label>Diluent mL
-            <input id="vMl" type="number" step="0.01" placeholder="e.g., 2" />
-          </label>
+      <div class="flex-col gap-16">
+        <div class="card">
+          <div class="semibold mb-12" style="font-size:15px">Cycle Dates</div>
+          <div class="grid-2 gap-12">
+            <div class="field"><span class="label-text">Cycle Start</span><input id="cycleStart" type="date" class="input-base"/></div>
+            <div class="field"><span class="label-text">Cycle End</span><input id="cycleEnd" type="date" class="input-base"/></div>
+          </div>
+          <div id="cycle-summary" class="muted-sm mt-8"></div>
+          <div class="flex gap-8 mt-12">
+            <button class="btn btn-primary btn-sm" onclick="saveCycle()">Save</button>
+            <button class="btn btn-danger btn-sm" onclick="clearCycle()">Clear</button>
+          </div>
         </div>
-
-        <div class="actions">
-          <button id="addVial">Add vial</button>
-          <button id="export" class="small">Export</button>
-          <button id="reset" class="small" style="border-color:#f2b;color:#b00020;">Reset all</button>
-        </div>
-
-        <div style="overflow:auto;">
-          <table>
-            <thead><tr><th>Peptide</th><th>Conc</th><th>Rem</th><th class="right">Del</th></tr></thead>
-            <tbody id="vialTable"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card grid">
-        <h2>Logs</h2>
-        <div style="overflow:auto;">
-          <table>
-            <thead><tr><th>Time</th><th>Peptide</th><th>Dose</th><th>mL/IU</th></tr></thead>
-            <tbody id="logTable"></tbody>
-          </table>
+        <div class="card">
+          <div class="semibold mb-12" style="font-size:15px">Quick Stats</div>
+          <div id="log-quick-stats"></div>
         </div>
       </div>
     </div>
   </div>
+</div>
+
+<!-- ─── LIBRARY ─── -->
+<div id="tab-library" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Peptide Library</div><div class="page-sub">Reference data — uses, protocols, side effects, research status</div></div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="library-search">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="lib-search" class="input-base" placeholder="Search peptides…" oninput="renderLibrary()"/>
+      </div>
+      <div class="filter-chips" id="lib-filters"></div>
+    </div>
+    <div class="pep-grid" id="pep-grid"></div>
+  </div>
+</div>
+
+<!-- ─── VIALS ─── -->
+<div id="tab-vials" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Vials &amp; Inventory</div><div class="page-sub">Track reconstituted vials and remaining doses</div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddVial()">+ Add Vial</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <!-- Reconstitution helper -->
+    <div class="card mb-20">
+      <div class="semibold mb-12" style="font-size:15px">Reconstitution Calculator</div>
+      <div class="grid-4 gap-12 items-center">
+        <div class="field"><span class="label-text">Peptide mg (lyophilized)</span><input id="recon-mg" type="number" class="input-base" placeholder="e.g. 10"/></div>
+        <div class="field"><span class="label-text">BAC Water mL</span><input id="recon-ml" type="number" class="input-base" placeholder="e.g. 2"/></div>
+        <div class="field"><span class="label-text">Target dose (mcg)</span><input id="recon-dose" type="number" class="input-base" placeholder="e.g. 250"/></div>
+        <div class="card card-sm" style="border-style:dashed">
+          <div class="muted-sm mb-4">Result</div>
+          <div id="recon-result" class="semibold" style="font-size:13.5px">Fill in fields →</div>
+        </div>
+      </div>
+      <div class="flex gap-8 mt-12">
+        <button class="btn btn-secondary btn-sm" onclick="calcRecon()">Calculate</button>
+      </div>
+    </div>
+    <div class="vial-grid" id="vial-cards"></div>
+  </div>
+</div>
+
+<!-- ─── VENDORS ─── -->
+<div id="tab-vendors" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Vendors</div><div class="page-sub">Track your peptide sources and quality ratings</div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddVendor()">+ Add Vendor</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="vendor-grid" id="vendor-grid"></div>
+  </div>
+</div>
+
+<!-- ─── ORDERS ─── -->
+<div id="tab-orders" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Orders</div><div class="page-sub">Track peptide orders from placement to use</div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddOrder()">+ New Order</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="pipeline" id="order-pipeline"></div>
+    <div id="order-list"></div>
+  </div>
+</div>
+
+<!-- ─── PRICES ─── -->
+<div id="tab-prices" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Price List</div><div class="page-sub">Compare vendor prices per mg</div></div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" onclick="openAddPrice()">+ Add Entry</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="filter-chips mb-16" id="price-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+    <div id="price-table-wrap"></div>
+  </div>
+</div>
+
+<!-- ─── HISTORY ─── -->
+<div id="tab-history" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">History</div><div class="page-sub">Full dose log</div></div>
+    <div class="header-actions">
+      <button class="btn btn-secondary btn-sm" onclick="exportData()">Export CSV</button>
+    </div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div class="log-filters">
+      <select id="hist-peptide" class="input-base" style="width:160px" onchange="renderHistory()">
+        <option value="">All peptides</option>
+      </select>
+      <input type="date" id="hist-from" class="input-base" style="width:150px" onchange="renderHistory()"/>
+      <span class="muted" style="align-self:center">→</span>
+      <input type="date" id="hist-to" class="input-base" style="width:150px" onchange="renderHistory()"/>
+      <button class="btn btn-ghost btn-sm" onclick="clearHistFilter()">Clear</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date/Time</th><th>Peptide</th><th>Dose</th><th>Route</th><th>Draw</th><th>Notes</th><th class="text-right">Del</th></tr></thead>
+        <tbody id="histTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SETTINGS ─── -->
+<div id="tab-settings" class="tab-content">
+  <div class="page-header">
+    <div><div class="page-title">Settings</div><div class="page-sub">Customize your experience</div></div>
+  </div>
+  <div class="tab-content" style="display:block;padding:20px 28px 40px">
+    <div style="max-width:600px">
+      <div class="settings-section">
+        <div class="settings-section-title">Appearance</div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">Theme</div><div class="setting-desc">Toggle between dark and light mode</div></div>
+          <button class="btn btn-secondary btn-sm" onclick="toggleTheme()">Toggle Theme</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Data</div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">Export All Data</div><div class="setting-desc">Download a CSV backup of all your data</div></div>
+          <button class="btn btn-secondary btn-sm" onclick="exportData()">Export</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">Import Data</div><div class="setting-desc">Restore from a JSON backup</div></div>
+          <div class="flex gap-8">
+            <button class="btn btn-secondary btn-sm" onclick="exportJSON()">Export JSON</button>
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer">Import JSON<input type="file" accept=".json" onchange="importJSON(this)" style="display:none"/></label>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">Reset All Data</div><div class="setting-desc" style="color:var(--danger)">Permanently delete everything on this device</div></div>
+          <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">About</div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">PeptideOS</div><div class="setting-desc">v2.0 — Local-only, no servers, no tracking. All data stored in browser localStorage.</div></div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info"><div class="setting-name">Disclaimer</div><div class="setting-desc">For research and informational purposes only. Not medical advice. Consult a qualified healthcare professional before use.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div><!-- #app -->
+
+<!-- ═══════════════════ MODAL ═══════════════════ -->
+<div id="modal-overlay" onclick="modalOverlayClick(event)">
+  <div class="modal modal-lg" id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Modal</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
 
 <script>
-(() => {
-  // Default peptide list (includes your additions)
-  const PEPTIDES = [
-    "Klow","Glutathione","KPV","Semax","Oxytocin","Selank","ARA-290","Lipo-C","NAD+","PE-22-28","SS-31",
-    "5-amino-1mq","Adalank","Adamax","BPC-157","CJC-1295","GhRIP","Ipamorelin","Pinealon","TB-500",
-    "CJC-195/IPA","Wolverine","GHK-CU","Glow","Tesamorelin","PT-141","Retatrutide","MOTS-C","IGF-1 LR3",
-    "SLU-PP-332","Thymosin Alpha-1","VIP","LL-37","Kisspeptin","Epithalon","AOD-9604","AICAR",
-    "Sermorelin","Cerebrolysin","Dihexa","DSIP"
-  ];
+// ═══════════════════════════════════════════════
+// PEPTIDE REFERENCE DATABASE
+// ═══════════════════════════════════════════════
+const PEPTIDE_DB = {
+  "BPC-157":{fullName:"Body Protection Compound 157",category:"Healing & Recovery",catKey:"healing",mechanism:"Promotes angiogenesis, upregulates GH receptors, activates FAK-paxillin pathway for tissue repair. Systemic and local effects.",uses:["Tendon & ligament repair","Gut healing & IBS/IBD","Wound healing","Anti-inflammatory","Neuroprotection","Joint cartilage repair","Muscle healing"],protocol:"250–500 mcg/day SubQ near injury site or systemically. Can split AM/PM. Cycle 4–6 weeks on, 2 weeks off.",dose:"250–500 mcg/day",route:"SubQ, IM (oral for gut)",halfLife:"~4 hours",storage:"Lyophilized: freeze or refrigerate. Reconstituted: 4°C up to 4 weeks.",se:["Nausea (rare, high dose)","Dizziness","Injection site irritation","Very well tolerated generally"],research:"Extensive animal model evidence. Significant GI and musculoskeletal data. Widely used in research settings. No human clinical trials published.",status:"Research",statusColor:"warning"},
+  "TB-500":{fullName:"Thymosin Beta-4",category:"Healing & Recovery",catKey:"healing",mechanism:"Upregulates actin binding protein (thymosin β4), promotes cell migration, angiogenesis, anti-inflammatory via NF-κB down-regulation.",uses:["Muscle injury recovery","Tendon & ligament healing","Cardiac repair","Anti-inflammatory","Hair growth promotion","Systemic healing"],protocol:"Loading phase: 2–2.5 mg 2×/week × 4–6 weeks. Maintenance: 2 mg 2×/month.",dose:"2–2.5 mg",route:"SubQ, IM",halfLife:"Unknown (stable peptide)",storage:"Freeze lyophilized. Reconstituted: refrigerate up to 4 weeks.",se:["Temporary fatigue","Head rush/lightheadedness","Nausea at high doses","Generally well tolerated"],research:"Phase II cardiac repair trials conducted. Strong preclinical evidence. FDA IND filed by RegeneRx.",status:"Phase II Trial",statusColor:"accent"},
+  "Ipamorelin":{fullName:"Ipamorelin",category:"Growth Hormone",catKey:"gh",mechanism:"Selective GH secretagogue (3rd gen GHRP). Pituitary GH release without significant cortisol, prolactin, or ACTH elevation.",uses:["GH pulse optimization","Lean body composition","Anti-aging","Improved sleep quality","Faster recovery","Appetite regulation"],protocol:"100–300 mcg SubQ 1–3× daily. Best: fasted, 30–60 min pre-sleep or pre-workout. Avoid eating 1–2h around dose.",dose:"200–300 mcg",route:"SubQ",halfLife:"~2 hours",storage:"Refrigerate. Reconstituted: 4°C up to 4 weeks.",se:["Water retention (dose-dependent)","Mild hunger increase","Tingling/numbness","Headache (transient)"],research:"Well-characterized GHRP. Highly selective profile. Most widely used GH secretagogue in research/clinical settings.",status:"Research",statusColor:"warning"},
+  "CJC-1295":{fullName:"CJC-1295 (with DAC)",category:"Growth Hormone",catKey:"gh",mechanism:"GHRH analog with Drug Affinity Complex (DAC). Binds albumin extending half-life. Provides sustained GH pulse amplification.",uses:["GH level optimization","Lean muscle growth","Fat loss","Anti-aging","Recovery enhancement","Often stacked with Ipamorelin"],protocol:"1–2 mg/week SubQ (with DAC). Stack with Ipamorelin 200–300 mcg 3×/day for synergistic effect.",dose:"1–2 mg/week",route:"SubQ",halfLife:"~6–8 days (with DAC)",storage:"Freeze lyophilized. Reconstituted: refrigerate.",se:["Water retention","Carpal tunnel at high doses","Tingling","Increased hunger","Potential for flat GH release curve"],research:"Well-characterized pharmacokinetics. Popular in anti-aging medicine. Compared favorably to GHRH injections.",status:"Research",statusColor:"warning"},
+  "Sermorelin":{fullName:"Sermorelin Acetate",category:"Growth Hormone",catKey:"gh",mechanism:"First 29 amino acids of GHRH. Stimulates endogenous pulsatile GH release via pituitary somatotrophs. Preserves natural feedback.",uses:["GH deficiency treatment","Anti-aging protocols","Body composition improvement","Sleep quality","Bone density maintenance"],protocol:"200–500 mcg SubQ before bed, daily. Cycle 3–6 months on, 1–2 months off.",dose:"200–300 mcg/day",route:"SubQ",halfLife:"~10–20 minutes",storage:"Refrigerate. Reconstituted: stable 2–4 weeks.",se:["Injection site redness/swelling","Flushing","Dizziness","Headache","Facial flushing"],research:"Previously FDA-approved (Geref, discontinued 2008). Extensive safety data from pediatric GH deficiency use. Widely compounded.",status:"Compounded",statusColor:"cyan"},
+  "Tesamorelin":{fullName:"Tesamorelin",category:"Growth Hormone",catKey:"gh",mechanism:"Stabilized GHRH analog (trans-3-hexenoic acid modification). Reduces visceral adipose tissue and improves cognitive function.",uses:["HIV-associated lipodystrophy (FDA approved)","Visceral fat reduction","Cognitive function improvement","IGF-1 optimization","Metabolic health"],protocol:"2 mg/day SubQ abdomen (FDA protocol). Off-label: 1–2 mg/day.",dose:"1–2 mg/day",route:"SubQ",halfLife:"~26 minutes",storage:"Refrigerate before reconstitution. Use reconstituted dose promptly.",se:["Fluid retention","Arthralgia/joint pain","Peripheral edema","Blood glucose elevation","Injection site reactions"],research:"FDA Approved (Egrifta) for HIV lipodystrophy 2010. Ongoing research for NAFLD, Alzheimer's, and general body composition.",status:"FDA Approved",statusColor:"success"},
+  "PT-141":{fullName:"Bremelanotide (PT-141)",category:"Sexual Health",catKey:"sexual",mechanism:"Melanocortin receptor agonist (MC1R, MC3R, MC4R). Acts centrally via hypothalamus to increase sexual desire — independent of vascular mechanism.",uses:["Female hypoactive sexual desire disorder (FDA approved)","Male erectile dysfunction","Libido enhancement in both sexes","Sexual motivation"],protocol:"1.75 mg SubQ (FDA) or intranasal 45 min before activity. Max once per 72h. Lower research doses: 0.5–1 mg.",dose:"1–1.75 mg",route:"SubQ, Nasal",halfLife:"~2.7 hours",storage:"Refrigerate. Reconstituted: 4°C up to 3 weeks.",se:["Nausea (most common, ~40%)","Facial flushing","Hyperpigmentation (long-term use)","Headache","Blood pressure fluctuation (temporary)"],research:"FDA Approved (Vyleesi) June 2019 for HSDD in premenopausal women. Significant clinical trial database.",status:"FDA Approved",statusColor:"success"},
+  "Thymosin Alpha-1":{fullName:"Thymosin Alpha-1",category:"Immune System",catKey:"immune",mechanism:"Thymic peptide modulating T-cell differentiation, NK cell activity, dendritic cell function, TLR expression and cytokine balance.",uses:["Immune system modulation","Chronic viral infections","Cancer immunotherapy adjunct","Hepatitis B & C treatment","Autoimmune conditions","Vaccine adjuvant"],protocol:"1.6 mg SubQ 2×/week for 6+ months (standard immune protocol). Acute: 0.8–1.6 mg daily × 5–7 days.",dose:"1.6 mg",route:"SubQ",halfLife:"~2 hours",storage:"Refrigerate. Reconstituted: 4°C up to 4 weeks.",se:["Injection site reactions","Mild flu-like symptoms initially","Generally exceptionally well tolerated"],research:"Approved in 40+ countries as Zadaxin (SciClone). Extensive clinical data for hepatitis, cancer adjunct, and sepsis.",status:"Approved (non-US)",statusColor:"cyan"},
+  "Epithalon":{fullName:"Epithalamin / Epithalon",category:"Longevity",catKey:"longevity",mechanism:"Tetrapeptide (AEDG) activates telomerase, reduces oxidative stress, normalizes circadian rhythms and melatonin levels.",uses:["Telomere elongation","Anti-aging protocols","Sleep quality improvement","Antioxidant effects","Melatonin normalization","Immune senescence reversal"],protocol:"5–10 mg/day SubQ or IM for 10–20 consecutive days, 2×/year. Or 5 mg EOD × 20 doses.",dose:"5–10 mg/day (cycles)",route:"SubQ, IM",halfLife:"~24 hours (estimated)",storage:"Freeze lyophilized. Reconstituted: refrigerate.",se:["Generally very well tolerated","Mild injection site reactions","Reported improved mood/sleep"],research:"Extensive Russian research (Khavinson Institute). Telomerase activation documented. Limited independent Western replication.",status:"Research",statusColor:"warning"},
+  "GHK-Cu":{fullName:"Copper Peptide GHK-Cu",category:"Skin & Anti-Aging",catKey:"longevity",mechanism:"Copper complex activates 4,000+ genes. Promotes collagen/elastin synthesis, antioxidant enzymes, anti-inflammatory, and nerve repair.",uses:["Skin rejuvenation & anti-aging","Wound healing acceleration","Hair follicle stimulation","Neuroprotection","Anti-inflammatory","Collagen synthesis"],protocol:"0.5–2 mg/day SubQ. Topical: 0.1–0.5% formulations applied daily.",dose:"1–2 mg/day",route:"SubQ, Topical",halfLife:"Unknown",storage:"Refrigerate. Protect from light. Lyophilized stable >2 years frozen.",se:["Skin darkening at SubQ injection site (copper pigment)","Mild local irritation","Topical: rare sensitivity"],research:"Extensive in vitro evidence (Loren Pickart foundational research). Genomic effects well-documented. Clinical trials limited.",status:"Research",statusColor:"warning"},
+  "NAD+":{fullName:"Nicotinamide Adenine Dinucleotide",category:"Energy & Metabolism",catKey:"metabolic",mechanism:"Essential coenzyme for cellular energy (ATP production), DNA repair via PARPs, sirtuin activation, and mitochondrial function.",uses:["Cellular energy optimization","Anti-aging (sirtuin activation)","DNA repair support","Addiction therapy","Cognitive enhancement","Mitochondrial health"],protocol:"IV: 500mg–1g over 4h, 1–10 days for reset. SubQ: 100–500 mg/day. Oral precursors: NMN 500mg–1g/day.",dose:"100–500 mg (SubQ)",route:"IV, SubQ, Oral (as NMN/NR)",halfLife:"~1–4 hours",storage:"Freeze. Reconstituted: refrigerate, use within 1 week.",se:["IV: nausea, flushing, chest tightness during infusion (rate-dependent)","SubQ: generally well tolerated","High-dose oral: GI discomfort"],research:"Extensive preclinical longevity data. Growing human evidence for energy and aging. Elysium, ChromaDex clinical studies.",status:"Research/Supplement",statusColor:"cyan"},
+  "Semax":{fullName:"Semax (ACTH 4-7 Pro-Gly-Pro)",category:"Cognitive Enhancement",catKey:"cognitive",mechanism:"Melanocortin receptor agonist. Increases BDNF and NGF. Enhances dopaminergic/serotonergic neurotransmission. Anti-apoptotic.",uses:["Cognitive enhancement","Stroke recovery","ADHD symptoms","Anxiety & depression","Neuroprotection","Memory formation"],protocol:"0.1–1 mg intranasal 1–2× daily. Cycle 2–4 weeks on, 2 weeks off. Russian standard: 0.1% solution.",dose:"0.1–0.6 mg",route:"Nasal",halfLife:"Minutes active (prolonged effects)",storage:"Refrigerate nasal solution. Freeze lyophilized.",se:["Nasal irritation/burning","Mild anxiety or overstimulation at high doses","Insomnia if dosed late","Generally well tolerated"],research:"Approved in Russia for cognitive disorders, stroke, and glaucoma. Strong neuroprotective preclinical evidence. Phase II trials ongoing.",status:"Approved (Russia)",statusColor:"cyan"},
+  "Selank":{fullName:"Selank",category:"Cognitive Enhancement",catKey:"cognitive",mechanism:"Tuftsin analog modulating GABA-A receptors, increasing BDNF, regulating enkephalin metabolism. Anxiolytic without dependence.",uses:["Anxiety reduction","Cognitive enhancement","Depression","Immune modulation","Stress adaptation","Memory improvement"],protocol:"0.25–0.75 mg intranasal 1–3× daily. Cycle 2–4 weeks. Often stacked with Semax.",dose:"0.25–0.5 mg",route:"Nasal",halfLife:"Minutes",storage:"Refrigerate. Stable ~30 days refrigerated.",se:["Nasal post-drip","Mild drowsiness (some users)","Very well tolerated","No dependence reported"],research:"Approved in Russia for anxiety disorders. GABA-A modulation provides anxiolysis without benzodiazepine risks.",status:"Approved (Russia)",statusColor:"cyan"},
+  "AOD-9604":{fullName:"Anti-Obesity Drug 9604",category:"Fat Loss",catKey:"metabolic",mechanism:"Modified fragment of hGH (176-191aa). Activates β3-adrenergic receptors stimulating lipolysis. No IGF-1 elevation, no growth effects.",uses:["Targeted fat loss","Lipolysis stimulation","Visceral fat reduction","Metabolic syndrome adjunct","Emerging: cartilage repair"],protocol:"300–500 mcg/day SubQ in abdominal fat, morning fasted. Cycle 12–16 weeks.",dose:"300 mcg/day",route:"SubQ",halfLife:"~30 minutes",storage:"Refrigerate. Reconstituted: 4°C.",se:["Injection site reactions","Rare headache","Mild water retention","No hormonal side effects"],research:"Phase II obesity trials conducted (Metabolic Pharmaceuticals). FDA IND status achieved. Strong lipolysis mechanism.",status:"Research",statusColor:"warning"},
+  "Retatrutide":{fullName:"Retatrutide (GGG Triple Agonist)",category:"Weight Management",catKey:"metabolic",mechanism:"Triple receptor agonist: GLP-1R, GIPR, and GcgR. Multiple complementary pathways for dramatic weight reduction.",uses:["Obesity treatment","Significant weight loss","Type 2 diabetes","Cardiovascular risk reduction","Metabolic syndrome"],protocol:"Investigational (Phase III): 0.5 mg/week escalating to 4–12 mg/week over 20+ weeks.",dose:"4–12 mg/week (investigational)",route:"SubQ",halfLife:"~6 days",storage:"Refrigerate.",se:["Nausea/vomiting (common)","Diarrhea/constipation","Decreased appetite","Injection site reactions","Rare: pancreatitis risk"],research:"Eli Lilly Phase III trials 2024. Phase II showed ~24% body weight loss at highest doses — exceeding semaglutide data.",status:"Phase III Trial",statusColor:"accent"},
+  "MOTS-C":{fullName:"Mitochondrial-Derived Peptide MOTS-C",category:"Longevity & Metabolism",catKey:"longevity",mechanism:"Mitochondria-derived peptide encoded in mt-rRNA small subunit. Activates AMPK, enhances insulin sensitivity, improves metabolic flexibility. 'Mitochondrial hormone'.",uses:["Metabolic health optimization","Exercise performance","Insulin sensitivity","Longevity signaling","Cognitive function","Muscle health with aging"],protocol:"5–10 mg SubQ 2–3×/week. Some protocols: daily 5 mg.",dose:"5–10 mg",route:"SubQ",halfLife:"Unknown",storage:"Freeze lyophilized. Refrigerate reconstituted.",se:["Generally very well tolerated","Minimal adverse effects reported","Active research — long-term data limited"],research:"Discovered 2015 (Pinchas Cohen lab, USC). Circulating levels decline with age and obesity. Strong AMPK activation data.",status:"Research",statusColor:"warning"},
+  "LL-37":{fullName:"Cathelicidin LL-37",category:"Immune System",catKey:"immune",mechanism:"Human cathelicidin antimicrobial peptide (hCAP-18 derived). Broad-spectrum antimicrobial, disrupts biofilms, modulates immune response.",uses:["Antimicrobial activity","Wound healing","Biofilm disruption","Immune stimulation","Anti-inflammatory in certain contexts","CIRS adjunct"],protocol:"0.5–1 mg/day SubQ. Topical formulations for wound care.",dose:"0.5–1 mg",route:"SubQ, Topical",halfLife:"Short (minutes in plasma)",storage:"Refrigerate. Protect from bacterial contamination.",se:["Significant pain at injection site","Potential inflammatory reactions at high doses","Rare: systemic effects"],research:"Extensive in vitro antimicrobial data. Deficiency linked to skin disorders (rosacea, atopic dermatitis). Clinical trials emerging.",status:"Research",statusColor:"warning"},
+  "Oxytocin":{fullName:"Oxytocin",category:"Hormonal & Social",catKey:"hormonal",mechanism:"Nonapeptide hormone and neurotransmitter. Activates OT receptors in limbic system and periphery. Modulates trust, bonding, anxiety, and social cognition.",uses:["Social anxiety reduction","Trust and bonding enhancement","PTSD therapy adjunct","Autism social function","Wound healing","Gut motility (clinically)"],protocol:"10–40 IU intranasal 15–30 min before social situations. SubQ: 1–4 IU for physiological effects.",dose:"20–40 IU (nasal)",route:"Nasal, SubQ",halfLife:"~1–6 min (peripheral), longer central",storage:"Refrigerate. Sensitive to light and temperature. Bacteriostatic water for SubQ.",se:["Nausea","Headache","Increased emotional sensitivity","Potential heightened social anxiety (paradoxical, some individuals)"],research:"Extensive research literature. FDA approved for labor induction (IV Pitocin). Intranasal widely researched for psychiatric applications.",status:"Research/Approved (obstetric)",statusColor:"cyan"},
+  "Kisspeptin-10":{fullName:"Kisspeptin-10",category:"Hormonal & Reproductive",catKey:"hormonal",mechanism:"Activates GPR54/Kiss1R — primary upstream regulator of GnRH pulse generator. Drives LH and FSH pulsatility.",uses:["Hypogonadism","Fertility treatment","Testosterone pulse restoration","LH optimization","Reproductive axis assessment"],protocol:"0.3–1 nmol/kg IV or SubQ. Complex pulsatile dosing. Specialist guidance required.",dose:"Variable (nmol/kg)",route:"SubQ, IV",halfLife:"~28 minutes",storage:"Freeze. Reconstituted: refrigerate.",se:["Mild injection reactions","Hormonal fluctuations","Facial flushing (IV)"],research:"Phase I/II trials for hypogonadism and fertility (Kisspeptin-54 and -10). Strong GnRH axis mechanistic evidence.",status:"Phase II Trial",statusColor:"accent"},
+  "5-Amino-1MQ":{fullName:"5-Amino-1-methylquinolinium",category:"Fat Loss & NAD+",catKey:"metabolic",mechanism:"Selective NNMT (nicotinamide N-methyltransferase) inhibitor. Reduces fat cell size, elevates cellular NAD+ and SAM levels, reprograms adipocyte metabolism.",uses:["Targeted fat loss","NAD+ pathway enhancement","Metabolic optimization","Obesity","Insulin resistance improvement"],protocol:"50–100 mg oral daily. Some SubQ protocols: 100 mg 3×/week.",dose:"50–100 mg",route:"Oral, SubQ",halfLife:"Unknown",storage:"Room temperature (oral capsules). Refrigerate if reconstituted.",se:["Limited human data available","Generally reported well tolerated in self-experimentation","Potential GI discomfort"],research:"Emerging research from Schopfer lab (Vanderbilt). Powerful preclinical fat loss data. Very limited human trials.",status:"Research",statusColor:"warning"},
+  "SS-31":{fullName:"Elamipretide (SS-31, MTP-131)",category:"Longevity & Mitochondria",catKey:"longevity",mechanism:"Cardiolipin-targeting tetrapeptide. Stabilizes mitochondrial inner membrane, improves electron transport chain efficiency, reduces reactive oxygen species.",uses:["Mitochondrial dysfunction","Heart failure","Age-related decline","Exercise performance enhancement","Kidney protection","Sarcopenia"],protocol:"0.1–4 mg/kg SubQ or IV. Clinical trials use 0.05 mg/kg IV infusion.",dose:"4–8 mg",route:"SubQ, IV",halfLife:"~2 hours",storage:"Freeze lyophilized. Reconstituted: refrigerate, use within 24h.",se:["Injection site reactions","Generally well tolerated in trials","Flushing (IV)"],research:"Phase II/III trials for heart failure (Stealth BioTherapeutics). FDA Orphan Drug designation. Multiple cardiovascular indications.",status:"Phase II/III Trial",statusColor:"accent"},
+  "VIP":{fullName:"Vasoactive Intestinal Peptide",category:"Immune & Neurological",catKey:"immune",mechanism:"28-aa neuropeptide activating VPAC1/VPAC2. Anti-inflammatory via IL-10/TGF-β, vasodilatory, bronchodilatory, neuroprotective.",uses:["CIRS/Mold illness (Shoemaker Protocol)","Pulmonary hypertension","Gut motility disorders","Anti-inflammatory","PTSD","Autoimmune conditions"],protocol:"Shoemaker Protocol: 50 mcg 4×/day intranasal. SubQ: 25–50 mcg/day.",dose:"50 mcg",route:"Nasal, SubQ, IV",halfLife:"~1 minute (IV), longer nasal",storage:"Freeze. Very unstable — use reconstituted within 24–48h. No BAC water.",se:["Nasal irritation","Flushing","Potential sex hormone changes","Headache"],research:"FDA Orphan Drug for pulmonary hypertension. Shoemaker Protocol for CIRS well-documented clinically. Anti-inflammatory data strong.",status:"Research/Orphan",statusColor:"purple"},
+  "PE-22-28":{fullName:"PE-22-28",category:"Cognitive Enhancement",catKey:"cognitive",mechanism:"Spadin analog targeting TREK-1 K+ channels. Rapid antidepressant effect distinct from SSRI/SNRI mechanisms. May have neurogenesis effects.",uses:["Depression","Anxiety","Cognitive enhancement","Rapid-onset mood improvement","TREK-1 channel research"],protocol:"0.5–1 mg SubQ daily. Limited established protocols — emerging use.",dose:"0.5–1 mg",route:"SubQ",halfLife:"Unknown",storage:"Freeze lyophilized.",se:["Very limited human data","Minimal adverse effects reported","Active research phase"],research:"Novel mechanism. French research (Institut de Pharmacologie Moléculaire). Rapid antidepressant onset in animal models. Human data very limited.",status:"Research",statusColor:"warning"},
+  "KPV":{fullName:"KPV (Lys-Pro-Val)",category:"Anti-Inflammatory",catKey:"healing",mechanism:"C-terminal tripeptide of α-MSH. Anti-inflammatory via NF-κB pathway inhibition, MC1R activation. Gut-specific oral bioavailability.",uses:["IBD & Crohn's disease","Gut inflammation","Skin conditions (psoriasis, eczema)","Wound healing","Systemic inflammation reduction"],protocol:"0.5–2 mg/day oral (gut effect) or SubQ (systemic). Oral capsules for GI targeting.",dose:"0.5–1 mg",route:"Oral, SubQ",halfLife:"Short",storage:"Refrigerate.",se:["Exceptionally well tolerated","No significant adverse effects reported","Minimal systemic absorption (oral)"],research:"Strong in vitro and animal IBD data. Human clinical trials limited. Growing interest in oral peptide therapy for gut conditions.",status:"Research",statusColor:"warning"},
+  "DSIP":{fullName:"Delta Sleep-Inducing Peptide",category:"Sleep & Recovery",catKey:"sleep",mechanism:"Neuropeptide modulating delta-wave sleep architecture. Reduces CRH/ACTH, affects melatonin cycling and GH secretion during sleep.",uses:["Sleep quality improvement","Insomnia management","Stress reduction","Pain management","Cortisol normalization","Circadian rhythm support"],protocol:"0.25–1 mg SubQ 30–60 min before bed. Can use 2–3 nights/week.",dose:"0.25–0.5 mg",route:"SubQ",halfLife:"Unknown (short)",storage:"Refrigerate.",se:["Morning grogginess (rare)","Vivid dreams (many users)","Generally well tolerated"],research:"Discovered 1977 (Monnier). Significant sleep quality research. Often used alongside Epithalon or GHRP protocols.",status:"Research",statusColor:"warning"},
+  "Dihexa":{fullName:"Dihexa (PNB-0408)",category:"Cognitive Enhancement",catKey:"cognitive",mechanism:"HGF/c-Met potentiator. Promotes synaptogenesis at concentrations ~10 million times more potent than BDNF. Crosses blood-brain barrier.",uses:["Cognitive enhancement","Alzheimer's research","Memory formation","Neuroregeneration","Synaptic plasticity"],protocol:"0.1–10 mg/day SubQ or topical. Extremely potent — start very low (0.1 mg). Cycle 4–8 weeks.",dose:"0.1–1 mg",route:"SubQ, Topical, Oral",halfLife:"Unknown",storage:"Freeze lyophilized.",se:["Limited human data","Theoretical oncological risk at high doses (c-Met amplification)","Reported anxiety/irritability in some users","Use caution with history of cancer"],research:"Washington State University (Joseph Harding). Dramatic animal model cognitive results. Limited human data. Theoretical cancer risk warrants caution.",status:"Research (caution)",statusColor:"danger"},
+  "Cerebrolysin":{fullName:"Cerebrolysin",category:"Neuroprotection",catKey:"cognitive",mechanism:"Mixture of neuropeptides/amino acids from porcine brain. BDNF/NGF-like effects, synaptic protection, neuroplasticity, anti-apoptotic.",uses:["Alzheimer's disease treatment","Stroke recovery","Vascular dementia","TBI recovery","Cognitive enhancement","Parkinson's adjunct"],protocol:"5–30 mL IV daily × 10–20 days per cycle. IM: 2–5 mL daily. Repeat cycles 2–3×/year.",dose:"5–10 mL (IV)",route:"IV, IM",halfLife:"Variable peptide mixture",storage:"Refrigerate. Do NOT freeze. Sensitive to contamination.",se:["IV site reactions","Dizziness","Headache","Nausea (IV)","Allergic reactions possible"],research:"Approved in EU, Russia, China, and many others (Ebewe). Not approved in US/UK. Cochrane reviews: limited quality evidence, some benefit in VaD.",status:"Approved (EU/Asia)",statusColor:"cyan"},
+  "Glutathione":{fullName:"Glutathione (GSH)",category:"Antioxidant",catKey:"healing",mechanism:"Master antioxidant tripeptide (Glu-Cys-Gly). Neutralizes ROS and free radicals, heavy metal chelation, NAD+ cycling, Phase II detoxification.",uses:["Antioxidant protection","Liver detoxification","Skin brightening","Heavy metal burden","Parkinson's (IV)","Chemotherapy adjunct","Immune support"],protocol:"IV: 200–600 mg slow push or infusion. SubQ: 100–200 mg/day. Liposomal oral: 250–500 mg/day.",dose:"200–400 mg",route:"IV, SubQ, Oral (liposomal)",halfLife:"~10 minutes (IV)",storage:"Freeze. Extremely unstable once reconstituted. Use within hours. Never mix with vitamin C IV.",se:["IV too-fast: flushing, nausea, chest tightness","SubQ: site irritation","Generally very well tolerated"],research:"Extensive integrative medicine use. IV widely used. Oral bioavailability limited unless liposomal form.",status:"Clinical/Supplement",statusColor:"cyan"},
+  "Adamax":{fullName:"Adamax",category:"Cognitive Enhancement",catKey:"cognitive",mechanism:"Novel neuropeptide with reported neurotrophin-like and NMDA receptor modulation effects. Limited mechanistic data available.",uses:["Cognitive enhancement","Neuroprotection","Memory","Focus"],protocol:"1–2 mg/day SubQ. Limited established protocols.",dose:"1–2 mg",route:"SubQ",halfLife:"Unknown",storage:"Refrigerate.",se:["Very limited human data","Community self-experimentation reports generally mild"],research:"Very limited published research. Primarily community-driven data. Mechanism not fully elucidated.",status:"Research",statusColor:"warning"},
+  "Pinealon":{fullName:"Pinealon (Ala-Glu-Asp)",category:"Cognitive & Sleep",catKey:"sleep",mechanism:"Tripeptide targeting pineal gland. Neuroprotective, promotes melatonin synthesis regulation, mitochondrial protection, anti-aging.",uses:["Sleep quality","Cognitive function","Neuroprotection","Pineal gland support","Anti-aging","Circadian health"],protocol:"0.1–1 mg/day SubQ or oral. Cycle 10–20 days.",dose:"0.1–0.5 mg",route:"SubQ, Oral",halfLife:"Unknown",storage:"Refrigerate.",se:["Very well tolerated","Minimal reported adverse effects"],research:"Khavinson Institute research (Russian). Part of 'short peptide' series. Limited independent Western literature.",status:"Research",statusColor:"warning"},
+  "AICAR":{fullName:"AICAR (5-aminoimidazole-4-carboxamide ribonucleotide)",category:"Exercise & Metabolism",catKey:"metabolic",mechanism:"AMPK activator via ZMP accumulation. Mimics cellular energy depletion state. Increases fatty acid oxidation, glucose uptake, mitochondrial biogenesis.",uses:["Exercise performance","Fat burning","Metabolic disease research","Cardiac protection","AMPK pathway activation","Diabetes research"],protocol:"Research: 10–25 mg/kg SubQ. Performance: 1–2 mg/kg/day.",dose:"500 mg – 1 g",route:"SubQ, IV",halfLife:"~30 minutes",storage:"Refrigerate. Reconstituted: use within 1 week.",se:["Hypoglycemia at high doses","GI distress (oral)","Injection site reactions","Lactic acidosis (high doses, theoretical)"],research:"Extensively studied in metabolic research. WADA prohibited substance. Strong preclinical data. Limited human clinical trials.",status:"Research (WADA banned)",statusColor:"danger"},
+  "SLU-PP-332":{fullName:"SLU-PP-332",category:"Exercise Mimetic",catKey:"metabolic",mechanism:"ERRα/γ nuclear receptor agonist. Activates downstream exercise-related gene programs (mitochondrial biogenesis, fat oxidation, muscle fiber type switch) without exercise.",uses:["Exercise mimetic","Metabolic disease research","Heart failure model","Muscle endurance","Weight loss research"],protocol:"Investigational preclinical only. No established human protocol.",dose:"Research only",route:"SubQ (animal studies)",halfLife:"Unknown",storage:"Freeze.",se:["Very limited human data","Preclinical only — human safety profile unknown"],research:"Washington University St. Louis (2024, Logan Lab). Generated significant scientific and media interest. Preclinical only — NOT ready for human use.",status:"Preclinical Only",statusColor:"danger"},
+  "ARA-290":{fullName:"ARA-290 (Cibinetide)",category:"Neuroprotection & Healing",catKey:"healing",mechanism:"Non-hematopoietic EPO analog. Activates innate repair receptor (IRR/EPOR:βcR heterodimer). Neuroprotective, anti-inflammatory, tissue repair.",uses:["Neuropathic pain","Sarcoidosis neuropathy","Type 2 diabetes neuropathy","Wound healing","Anti-inflammatory","Peripheral nerve repair"],protocol:"Clinical: 4 mg SubQ daily × 28 days.",dose:"4 mg",route:"SubQ",halfLife:"Unknown",storage:"Refrigerate.",se:["Injection site reactions","Mild fatigue","Generally well tolerated in Phase II trials"],research:"Phase II trials for sarcoidosis neuropathy and diabetic neuropathy (ARAIM Pharmaceuticals). Significant safety data accumulated.",status:"Phase II Trial",statusColor:"accent"},
+  "IGF-1 LR3":{fullName:"Long R3 IGF-1 (IGF-1 LR3)",category:"Growth & Muscle",catKey:"gh",mechanism:"Modified IGF-1 with 13-aa N-terminal extension and Arg3 substitution reducing IGFBP binding. 100× longer half-life than native IGF-1. Activates IGF-1R, PI3K/Akt/mTOR.",uses:["Muscle hypertrophy","Fat loss","Recovery acceleration","GH axis enhancement","Anti-aging research"],protocol:"20–100 mcg/day SubQ or IM. Often post-workout. Cycle 4–6 weeks. Monitor blood glucose.",dose:"40–80 mcg/day",route:"SubQ, IM",halfLife:"~20–30 hours",storage:"Freeze lyophilized. Refrigerate reconstituted. Avoid repeated freeze-thaw.",se:["Hypoglycemia (significant — take with carbs post-injection)","Potential organ/jaw growth at high prolonged doses","Theoretical cancer promotion (monitor)","Headache","Fluid retention"],research:"Well-characterized pharmacology. Significant use concern for cancer risk. Used in GH deficiency and research contexts. Not for naive users.",status:"Research (advanced users)",statusColor:"danger"},
+  "Lipo-C":{fullName:"Lipotropic Combination (Lipo-C)",category:"Metabolic & Fat Loss",catKey:"metabolic",mechanism:"Combination of methionine, inositol, choline, B12 (and often carnitine, B6). Supports hepatic fat metabolism, lipid transport, methylation.",uses:["Hepatic fat clearance","Lipid metabolism support","Energy optimization","Weight loss adjunct","Liver health"],protocol:"1–2 mL SubQ 2–3×/week. IV: 1–2 mL slow push.",dose:"1–2 mL",route:"SubQ, IM, IV",halfLife:"Variable (mixture)",storage:"Refrigerate. Multi-dose vials: use within 30 days.",se:["Urine smell (normal)","Mild injection site discomfort","GI sensitivity"],research:"Widely used in compounding pharmacies. Component evidence strong individually. Combination clinical trials limited.",status:"Clinical/Compounded",statusColor:"cyan"},
+  "Klow":{fullName:"Klow (custom blend)",category:"Custom",catKey:"custom",mechanism:"Custom combination peptide.",uses:["Custom protocol"],protocol:"Per individual protocol.",dose:"Variable",route:"SubQ",halfLife:"Unknown",storage:"Refrigerate.",se:["Variable"],research:"Custom formulation.",status:"Custom",statusColor:"muted"},
+  "Glow":{fullName:"Glow (skin protocol)",category:"Skin & Aesthetics",catKey:"longevity",mechanism:"Combination of skin-supporting peptides typically including GHK-Cu, collagen peptides, and antioxidant support.",uses:["Skin rejuvenation","Collagen support","Antioxidant","Anti-aging aesthetics"],protocol:"Per individual formulation.",dose:"Variable",route:"SubQ, Topical",halfLife:"Variable",storage:"Refrigerate.",se:["Minimal, well tolerated"],research:"Component-based evidence.",status:"Custom/Research",statusColor:"muted"},
+  "Wolverine":{fullName:"Wolverine Stack (BPC-157 + TB-500)",category:"Healing & Recovery",catKey:"healing",mechanism:"Synergistic combination of BPC-157 and TB-500 providing comprehensive tissue repair via complementary mechanisms.",uses:["Maximum healing acceleration","Injury recovery","Post-surgery recovery","Tendon & muscle repair"],protocol:"BPC-157 500 mcg + TB-500 2.5 mg, 2×/week for 4–6 weeks.",dose:"BPC-157 500mcg + TB-500 2mg",route:"SubQ, IM",halfLife:"Variable",storage:"Store separately. Refrigerate.",se:["Combined side effects of components","Generally well tolerated"],research:"Combination use widely reported. No clinical trials on combination specifically.",status:"Research",statusColor:"warning"},
+  "CJC-1295/IPA":{fullName:"CJC-1295 + Ipamorelin Blend",category:"Growth Hormone",catKey:"gh",mechanism:"Combined GHRH and GHRP synergy. CJC-1295 amplifies GH pulses; Ipamorelin triggers them selectively. Maximized GH secretion.",uses:["Optimal GH optimization","Body composition","Anti-aging","Recovery","Sleep quality"],protocol:"CJC-1295 (no DAC) 100 mcg + Ipamorelin 200 mcg SubQ 3×/day or pre-sleep.",dose:"Combined 300–500 mcg",route:"SubQ",halfLife:"Combined kinetics",storage:"Refrigerate reconstituted. Freeze lyophilized.",se:["Combined side effects","Water retention","Hunger","Generally well tolerated"],research:"Synergistic combination well-established in research community. Widely used in anti-aging medicine.",status:"Research",statusColor:"warning"},
+  "GhRIP":{fullName:"GHRP Combination",category:"Growth Hormone",catKey:"gh",mechanism:"Growth hormone releasing peptide combination protocol.",uses:["GH stimulation","Recovery","Body composition"],protocol:"Per specific formulation protocol.",dose:"Variable",route:"SubQ",halfLife:"Variable",storage:"Refrigerate.",se:["Standard GHRP side effects"],research:"Component-based evidence.",status:"Research",statusColor:"warning"},
+};
 
-  const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  const KEY = "peptide_mini_v1";
-  const UIKEY = "peptide_mini_ui_v2";
-  const $ = (id)=>document.getElementById(id);
+// Category info
+const CATEGORIES = [
+  {key:"all",label:"All"},
+  {key:"healing",label:"Healing"},
+  {key:"gh",label:"Growth Hormone"},
+  {key:"cognitive",label:"Cognitive"},
+  {key:"immune",label:"Immune"},
+  {key:"metabolic",label:"Metabolic"},
+  {key:"longevity",label:"Longevity"},
+  {key:"sexual",label:"Sexual Health"},
+  {key:"sleep",label:"Sleep"},
+  {key:"hormonal",label:"Hormonal"},
+  {key:"custom",label:"Custom"},
+];
 
-  // ✅ MERGE FIX + ✅ cycle fields
-  const store = {
-    get(){
-      const raw = localStorage.getItem(KEY);
+const STATUS_COLORS = {
+  "FDA Approved":"success","Phase III Trial":"accent","Phase II Trial":"accent","Phase II/III Trial":"accent",
+  "Approved (Russia)":"cyan","Approved (non-US)":"cyan","Approved (EU/Asia)":"cyan","Approved (obstetric)":"cyan",
+  "Compounded":"cyan","Clinical/Compounded":"cyan","Clinical/Supplement":"cyan","Research/Supplement":"cyan",
+  "Research":"warning","Research/Approved (other uses)":"cyan","Research (advanced users)":"danger",
+  "Research (WADA banned)":"danger","Research (caution)":"danger","Preclinical Only":"danger",
+  "Custom":"muted","Custom/Research":"muted","Phase II Trial":"accent","Research/Orphan":"purple",
+};
 
-      const uniqSort = (arr) => {
-        const seen = new Set();
-        const out = [];
-        for (const x of arr) {
-          const name = String(x || "").trim();
-          if(!name) continue;
-          const k = name.toLowerCase();
-          if(seen.has(k)) continue;
-          seen.add(k);
-          out.push(name);
-        }
-        return out.sort((a,b)=>a.localeCompare(b));
-      };
+// ═══════════════════════════════════════════════
+// DEFAULT PEPTIDE LIST
+// ═══════════════════════════════════════════════
+const DEFAULT_PEPTIDES = Object.keys(PEPTIDE_DB).concat([]).filter((v,i,a)=>a.indexOf(v)===i).sort((a,b)=>a.localeCompare(b));
 
-      if(!raw) return {
-        peptides: uniqSort([...PEPTIDES]),
-        planner:[], vials:[], logs:[],
-        weekStart:null,
-        cycleStart:null, cycleEnd:null
-      };
+// ═══════════════════════════════════════════════
+// DATA STORE
+// ═══════════════════════════════════════════════
+const STORE_KEY = "peptideos_v2";
 
-      try{
-        const parsed = JSON.parse(raw);
-        if(!Array.isArray(parsed.planner)) parsed.planner=[];
-        if(!Array.isArray(parsed.vials)) parsed.vials=[];
-        if(!Array.isArray(parsed.logs)) parsed.logs=[];
-        const saved = Array.isArray(parsed.peptides) ? parsed.peptides : [];
-        parsed.peptides = uniqSort([...saved, ...PEPTIDES]);
-
-        if(!("weekStart" in parsed)) parsed.weekStart = null;
-        if(!("cycleStart" in parsed)) parsed.cycleStart = null;
-        if(!("cycleEnd" in parsed)) parsed.cycleEnd = null;
-
-        return parsed;
-      }catch{
-        return {
-          peptides: uniqSort([...PEPTIDES]),
-          planner:[], vials:[], logs:[],
-          weekStart:null,
-          cycleStart:null, cycleEnd:null
-        };
-      }
-    },
-    set(d){ localStorage.setItem(KEY, JSON.stringify(d)); }
-  };
-
-  const pad2 = (x)=>String(x).padStart(2,"0");
-  const ymd = (d)=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  const nowDT = ()=>{
-    const d=new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-  };
-  const addDays = (date, n)=>{ const d=new Date(date); d.setDate(d.getDate()+n); return d; };
-
-  function toMcg(v,u){
-    const n=Number(v); if(!Number.isFinite(n)) return null;
-    if(u==="mcg") return n;
-    if(u==="mg") return n*1000;
-    return null;
+const store = {
+  get() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return this.defaults();
+      const d = JSON.parse(raw);
+      return Object.assign(this.defaults(), d);
+    } catch { return this.defaults(); }
+  },
+  set(d) { localStorage.setItem(STORE_KEY, JSON.stringify(d)); },
+  defaults() {
+    const dedup = (arr) => {
+      const seen=new Set(),out=[];
+      for(const x of arr){const k=String(x||"").trim();if(!k||seen.has(k.toLowerCase()))continue;seen.add(k.toLowerCase());out.push(k);}
+      return out.sort((a,b)=>a.localeCompare(b));
+    };
+    return {
+      peptides: dedup([...DEFAULT_PEPTIDES]),
+      planner: [],
+      vials: [],
+      logs: [],
+      vendors: [],
+      orders: [],
+      prices: [],
+      cycleStart: null,
+      cycleEnd: null,
+      weekStart: null,
+    };
   }
-  function mathFor(vial, doseValue, doseUnit){
-    if(!vial) return null;
-    const mg=Number(vial.mg), ml=Number(vial.ml);
-    const mcg=toMcg(doseValue,doseUnit);
-    if(!Number.isFinite(mg)||!Number.isFinite(ml)||!mcg) return null;
-    const conc=(mg*1000)/ml;
-    const vol=mcg/conc;
-    const iu=vol*100;
-    return {conc, vol, iu, mcg};
-  }
-  function remMcg(data, vialId){
-    const vial=data.vials.find(v=>v.id===vialId);
-    if(!vial) return null;
-    const start=Number(vial.mg)*1000;
-    const used=data.logs.filter(l=>l.vialId===vialId && Number.isFinite(Number(l.doseMcg))).reduce((s,l)=>s+Number(l.doseMcg),0);
-    return start-used;
-  }
-  const approx = (a,b,p=0.02)=>Math.abs(a-b)/Math.max(Math.abs(b),1e-9) <= p;
+};
 
-  function logsForDay(data, dayYmd){
-    const start=new Date(dayYmd+"T00:00:00");
-    const end=new Date(dayYmd+"T23:59:59.999");
-    return data.logs.filter(l=>{ const t=new Date(l.takenAt); return t>=start && t<=end; });
-  }
-  function planMatched(planItem, logs){
-    const pv=Number(planItem.doseValue);
-    return logs.some(l=>{
-      if(l.peptide!==planItem.peptide) return false;
-      if(l.route!==planItem.route) return false;
-      if(l.doseUnit!==planItem.unit) return false;
-      const lv=Number(l.doseValue);
-      return Number.isFinite(pv)&&Number.isFinite(lv)&&approx(lv,pv,0.02);
-    });
-  }
+// ═══════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const pad2 = x => String(x).padStart(2,"0");
+const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+const nowDT = () => { const d=new Date(); return `${ymd(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+const addDays = (date,n) => { const d=new Date(date); d.setDate(d.getDate()+n); return d; };
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  function setLogFromPlan(planItem, dayYmd){
-    $("peptide").value=planItem.peptide;
-    $("route").value=planItem.route;
-    $("doseValue").value=planItem.doseValue;
-    $("doseUnit").value=planItem.unit;
-    let hh=pad2(new Date().getHours()), mi=pad2(new Date().getMinutes());
-    if(planItem.time){ const [h,m]=planItem.time.split(":"); hh=pad2(h); mi=pad2(m); }
-    $("takenAt").value=`${dayYmd}T${hh}:${mi}`;
-    refresh();
-    window.scrollTo({top:0,behavior:"smooth"});
-  }
+function formatDate(isoStr) {
+  const d = new Date(isoStr);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+function formatDateTime(isoStr) {
+  const d = new Date(isoStr);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()} ${d.getFullYear()}, ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
+}
 
-  function renderPeptideChips(data){
-    const wrap = $("peptideChips");
-    if(!wrap) return;
-    wrap.innerHTML = data.peptides.map(p =>
-      `<span class="tag">${p} <button class="small" data-rmp="${p}" style="padding:2px 8px;margin-left:6px;">x</button></span>`
-    ).join("");
+function toMcg(v,u) {
+  const n=Number(v);if(!Number.isFinite(n))return null;
+  if(u==="mcg")return n;if(u==="mg")return n*1000;return null;
+}
+function mathFor(vial,doseValue,doseUnit) {
+  if(!vial)return null;
+  const mg=Number(vial.mg),ml=Number(vial.ml);
+  const mcg=toMcg(doseValue,doseUnit);
+  if(!Number.isFinite(mg)||!Number.isFinite(ml)||!mcg)return null;
+  const conc=(mg*1000)/ml;
+  const vol=mcg/conc;
+  const iu=vol*100;
+  return{conc,vol,iu,mcg};
+}
+function remMcg(data,vialId) {
+  const vial=data.vials.find(v=>v.id===vialId);
+  if(!vial)return null;
+  const start=Number(vial.mg)*1000;
+  const used=data.logs.filter(l=>l.vialId===vialId&&Number.isFinite(Number(l.doseMcg))).reduce((s,l)=>s+Number(l.doseMcg),0);
+  return start-used;
+}
+const approx=(a,b,p=0.02)=>Math.abs(a-b)/Math.max(Math.abs(b),1e-9)<=p;
 
-    wrap.querySelectorAll("button[data-rmp]").forEach(btn=>{
-      btn.onclick = ()=>{
-        const name = btn.getAttribute("data-rmp");
-        const d = store.get();
-        const used =
-          d.planner.some(x=>x.peptide===name) ||
-          d.logs.some(x=>x.peptide===name) ||
-          d.vials.some(x=>x.peptide===name);
+function logsForDay(data,dayYmd) {
+  const start=new Date(dayYmd+"T00:00:00"),end=new Date(dayYmd+"T23:59:59.999");
+  return data.logs.filter(l=>{const t=new Date(l.takenAt);return t>=start&&t<=end;});
+}
+function planMatched(planItem,logs) {
+  const pv=Number(planItem.doseValue);
+  return logs.some(l=>{
+    if(l.peptide!==planItem.peptide)return false;
+    if(l.route!==planItem.route)return false;
+    if(l.doseUnit!==planItem.unit)return false;
+    const lv=Number(l.doseValue);
+    return Number.isFinite(pv)&&Number.isFinite(lv)&&approx(lv,pv,0.02);
+  });
+}
 
-        if(used){
-          alert("That peptide is already used in your planner/logs/vials. Remove those entries first if you want to delete it.");
-          return;
-        }
+function stars(n) {
+  const full=Math.round(n);
+  return "★".repeat(full)+"☆".repeat(5-full);
+}
 
-        d.peptides = d.peptides.filter(x => x !== name);
-        store.set(d);
-        refresh();
-      };
-    });
-  }
+function showToast(msg,type="info",duration=3000) {
+  const ct=$("toast-container");
+  const t=document.createElement("div");
+  t.className=`toast ${type}`;
+  const icons={success:"✓",error:"✕",info:"ℹ"};
+  t.innerHTML=`<span style="font-size:15px">${icons[type]||"ℹ"}</span>${msg}`;
+  ct.appendChild(t);
+  setTimeout(()=>{t.style.opacity="0";t.style.transform="translateX(20px)";t.style.transition="all 0.3s";setTimeout(()=>t.remove(),300);},duration);
+}
 
-  function loadUIState(){
-    try { return JSON.parse(localStorage.getItem(UIKEY) || "{}"); }
-    catch { return {}; }
-  }
-  function saveUIState(state){
-    localStorage.setItem(UIKEY, JSON.stringify(state));
-  }
-  function getCardId(card, index){
-    const h2 = card.querySelector("h2");
-    const title = h2 ? h2.textContent.trim() : `card-${index}`;
-    return `${title}`.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || `card-${index}`;
-  }
-  function applyChevronUI(card){
-    const btn = card.querySelector(":scope > .minBtn");
-    if(!btn) return;
-    btn.innerHTML = card.classList.contains("collapsed") ? "▸" : "▾";
-  }
-  function setCardCollapsed(card, collapsed, state){
-    const id = card.getAttribute("data-card-id");
-    if (collapsed) card.classList.add("collapsed");
-    else card.classList.remove("collapsed");
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function navTo(tab) {
+  document.querySelectorAll(".tab-content").forEach(el=>el.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(el=>el.classList.remove("active"));
+  const panel=$(`tab-${tab}`);
+  if(panel)panel.classList.add("active");
+  const btn=document.querySelector(`[data-tab="${tab}"]`);
+  if(btn)btn.classList.add("active");
+  if(window.innerWidth<=900)closeSidebar();
+  refreshTab(tab);
+}
 
-    if(!state.collapsed) state.collapsed = {};
-    state.collapsed[id] = !!collapsed;
-    saveUIState(state);
+function refreshTab(tab) {
+  if(tab==="dashboard")renderDashboard();
+  if(tab==="today")renderToday();
+  if(tab==="planner")renderPlanner();
+  if(tab==="log")renderLog();
+  if(tab==="library")renderLibrary();
+  if(tab==="vials")renderVials();
+  if(tab==="vendors")renderVendors();
+  if(tab==="orders")renderOrders();
+  if(tab==="prices")renderPrices();
+  if(tab==="history")renderHistory();
+  if(tab==="settings"){}
+}
 
-    applyChevronUI(card);
-  }
+document.querySelectorAll(".nav-btn[data-tab]").forEach(btn=>{
+  btn.addEventListener("click",()=>navTo(btn.getAttribute("data-tab")));
+});
 
-  function addMinimizeButtons(){
-    const state = loadUIState();
-    if(!state.collapsed) state.collapsed = {};
+function toggleSidebar() {
+  $("sidebar").classList.toggle("open");
+  $("sidebar-overlay").classList.toggle("open");
+}
+function closeSidebar() {
+  $("sidebar").classList.remove("open");
+  $("sidebar-overlay").classList.remove("open");
+}
 
-    document.querySelectorAll(".card").forEach((card, i) => {
-      if (!card.getAttribute("data-card-id")) {
-        card.setAttribute("data-card-id", getCardId(card, i));
-      }
+// ═══════════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════════
+function toggleTheme() {
+  const html=document.documentElement;
+  const current=html.getAttribute("data-theme");
+  const next=current==="dark"?"light":"dark";
+  html.setAttribute("data-theme",next);
+  localStorage.setItem("peptideos_theme",next);
+  updateThemeUI(next);
+}
+function updateThemeUI(theme) {
+  $("theme-icon").textContent=theme==="dark"?"🌙":"☀️";
+  $("theme-label").textContent=theme==="dark"?"Dark mode":"Light mode";
+}
+function initTheme() {
+  const saved=localStorage.getItem("peptideos_theme");
+  const theme=saved||(window.matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  document.documentElement.setAttribute("data-theme",theme);
+  updateThemeUI(theme);
+}
 
-      if (!card.querySelector(":scope > .minBtn")) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "minBtn small";
-        btn.innerHTML = "▾";
+// ═══════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════
+function openModal(title,bodyHTML,footerHTML,size="") {
+  $("modal-title").textContent=title;
+  $("modal-body").innerHTML=bodyHTML;
+  $("modal-footer").innerHTML=footerHTML||"";
+  $("modal-box").className=`modal${size?" modal-"+size:""}`;
+  $("modal-overlay").classList.add("open");
+}
+function closeModal() {
+  $("modal-overlay").classList.remove("open");
+}
+function modalOverlayClick(e) {
+  if(e.target===$("modal-overlay"))closeModal();
+}
 
-        btn.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const st = loadUIState();
-          const collapsedNow = !card.classList.contains("collapsed");
-          setCardCollapsed(card, collapsedNow, st);
-        };
+// ═══════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════
+function renderDashboard() {
+  const data=store.get();
+  const today=new Date();
+  $("dash-date").textContent=today.toLocaleDateString([],{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 
-        card.prepend(btn);
-
-        const title = card.querySelector("h2");
-        if (title) title.onclick = () => btn.click();
-      }
-
-      const id = card.getAttribute("data-card-id");
-      const collapsed = !!state.collapsed[id];
-      if(collapsed) card.classList.add("collapsed");
-      else card.classList.remove("collapsed");
-      applyChevronUI(card);
-    });
-
-    const collapseAllBtn = document.getElementById("collapseAll");
-    const expandAllBtn = document.getElementById("expandAll");
-
-    if (collapseAllBtn) {
-      collapseAllBtn.onclick = () => {
-        const st = loadUIState();
-        document.querySelectorAll(".card").forEach((card, i) => {
-          if (!card.getAttribute("data-card-id")) card.setAttribute("data-card-id", getCardId(card, i));
-          const h2 = card.querySelector("h2");
-          const title = h2 ? h2.textContent.trim().toLowerCase() : "";
-          if(title === "today") return;
-          setCardCollapsed(card, true, st);
-        });
-      };
-    }
-
-    if (expandAllBtn) {
-      expandAllBtn.onclick = () => {
-        const st = loadUIState();
-        document.querySelectorAll(".card").forEach((card, i) => {
-          if (!card.getAttribute("data-card-id")) card.setAttribute("data-card-id", getCardId(card, i));
-          setCardCollapsed(card, false, st);
-        });
-      };
-    }
-  }
-
-  function refresh(){
-    const data=store.get();
-
-    if(!data.weekStart) data.weekStart=ymd(new Date());
-    $("weekStart").value=data.weekStart;
-
-    // Cycle UI
-    $("cycleStart").value = data.cycleStart || "";
-    $("cycleEnd").value = data.cycleEnd || "";
-    const cs = data.cycleStart ? data.cycleStart : "—";
-    const ce = data.cycleEnd ? data.cycleEnd : "—";
-    $("cycleSummary").textContent = `Current: ${cs} → ${ce}`;
-
-    const opts = `<option value="">Select…</option>` + data.peptides.map(p=>`<option>${p}</option>`).join("");
-    $("peptide").innerHTML=opts;
-    $("pPeptide").innerHTML=opts;
-    $("vPeptide").innerHTML=opts;
-
-    renderPeptideChips(data);
-
-    const curPep=$("peptide").value;
-    const vials=data.vials.filter(v=>!curPep || v.peptide===curPep);
-    $("vial").innerHTML = `<option value="">None</option>` + vials.map(v=>{
-      const rem=remMcg(data,v.id);
-      return `<option value="${v.id}">${v.peptide} • ${(Number(v.mg)*1000/Number(v.ml)).toFixed(0)} mcg/mL • rem ${Math.max(rem,0).toFixed(0)}mcg</option>`;
-    }).join("");
-
-    const planner=[...data.planner].sort((a,b)=>a.day-b.day || (a.time||"99:99").localeCompare(b.time||"99:99"));
-    $("planTable").innerHTML = planner.map(p=>`
-      <tr>
-        <td>${DAYS[p.day]}</td>
-        <td>${p.time||"—"}</td>
-        <td>${p.peptide}</td>
-        <td>${p.doseValue} ${p.unit}</td>
-        <td class="right"><button class="small" data-delp="${p.id}">X</button></td>
-      </tr>
-    `).join("");
-    document.querySelectorAll("button[data-delp]").forEach(b=>b.onclick=()=>{
-      const id=b.getAttribute("data-delp");
-      const d=store.get(); d.planner=d.planner.filter(x=>x.id!==id); store.set(d); refresh();
-    });
-
-    $("vialTable").innerHTML = data.vials.map(v=>{
-      const conc=(Number(v.mg)*1000)/Number(v.ml);
-      const rem=remMcg(data,v.id);
-      return `<tr>
-        <td>${v.peptide}</td>
-        <td>${conc.toFixed(0)} mcg/mL</td>
-        <td>${Math.max(rem,0).toFixed(0)} mcg</td>
-        <td class="right"><button class="small" data-delv="${v.id}">X</button></td>
-      </tr>`;
-    }).join("");
-    document.querySelectorAll("button[data-delv]").forEach(b=>b.onclick=()=>{
-      const id=b.getAttribute("data-delv");
-      const d=store.get();
-      d.vials=d.vials.filter(x=>x.id!==id);
-      d.logs=d.logs.map(l=>l.vialId===id?{...l,vialId:null,volumeMl:null,iu:null}:l);
-      store.set(d); refresh();
-    });
-
-    const logs=[...data.logs].sort((a,b)=>(b.takenAt||"").localeCompare(a.takenAt||""));
-    $("logTable").innerHTML = logs.slice(0,80).map(l=>{
-      const m = (l.volumeMl!=null && l.iu!=null) ? `${Number(l.volumeMl).toFixed(3)} / ${Number(l.iu).toFixed(1)}` : "";
-      return `<tr>
-        <td>${new Date(l.takenAt).toLocaleString()}</td>
-        <td>${l.peptide} <span class="muted">• ${l.route}</span></td>
-        <td>${l.doseValue} ${l.doseUnit}</td>
-        <td>${m}</td>
-      </tr>`;
-    }).join("");
-
-    const t=new Date(); const dow=t.getDay(); const todayYmd=ymd(t);
-    const todaysPlan=data.planner.filter(p=>p.day===dow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
-    const todaysLogs=logsForDay(data,todayYmd);
-    const done=todaysPlan.filter(p=>planMatched(p,todaysLogs)).length;
-    $("todaySummary").textContent = todaysPlan.length?`Planned ${todaysPlan.length} • Done ${done} • Pending ${todaysPlan.length-done}`:"No planner items";
-    $("todayList").innerHTML = todaysPlan.length ? todaysPlan.map(p=>{
-      const matched=planMatched(p,todaysLogs);
-      return `<div class="planItem">
-        <div class="actions">
-          <span class="status ${matched?"done":"pending"}">${matched?"DONE":"PENDING"}</span>
-          <span class="tag">${p.time||"anytime"}</span>
-          <b>${p.peptide}</b><span class="muted">• ${p.route}</span>
-          <span class="muted">• ${p.doseValue} ${p.unit}</span>
-          ${p.note?`<span class="muted">• ${p.note}</span>`:""}
+  // Cycle bar
+  const cycleEl=$("dash-cycle");
+  if(data.cycleStart&&data.cycleEnd) {
+    const start=new Date(data.cycleStart),end=new Date(data.cycleEnd),now=new Date();
+    const total=end-start;
+    const elapsed=now-start;
+    const pct=Math.max(0,Math.min(100,Math.round(elapsed/total*100)));
+    const daysLeft=Math.max(0,Math.ceil((end-now)/86400000));
+    const dayNum=Math.max(1,Math.ceil(elapsed/86400000));
+    cycleEl.innerHTML=`
+      <div class="cycle-info">
+        <div><div class="muted-sm">Cycle Day</div><div class="cycle-day">${dayNum}</div></div>
+        <div style="flex:1">
+          <div class="flex justify-between mb-4"><span class="label-text">Cycle Progress</span><span class="muted-sm">${pct}%</span></div>
+          <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div class="flex justify-between mt-4 muted-sm"><span>${data.cycleStart}</span><span>${daysLeft} days remaining</span><span>${data.cycleEnd}</span></div>
         </div>
-        <div class="actions" style="justify-content:flex-end;">
-          ${matched?"":`<button class="small" data-log="${p.id}">Log</button>`}
-        </div>
+        <div><div class="muted-sm">Days Left</div><div class="cycle-day" style="font-size:22px">${daysLeft}</div></div>
       </div>`;
-    }).join("") : `<div class="muted">Add planner items below.</div>`;
+  } else {
+    cycleEl.innerHTML=`<div class="flex items-center justify-between"><div class="muted">No active cycle. <a onclick="navTo('log')" href="#" style="color:var(--accent)">Set cycle dates →</a></div></div>`;
+  }
 
-    document.querySelectorAll("button[data-log]").forEach(b=>b.onclick=()=>{
-      const id=b.getAttribute("data-log");
-      const item=store.get().planner.find(x=>x.id===id);
-      if(item) setLogFromPlan(item, todayYmd);
-    });
+  // Stats
+  const todayYmd=ymd(today);
+  const dow=today.getDay();
+  const todayPlan=data.planner.filter(p=>p.day===dow);
+  const todayLogs=logsForDay(data,todayYmd);
+  const donePlan=todayPlan.filter(p=>planMatched(p,todayLogs));
+  const weekAgo=new Date(today);weekAgo.setDate(today.getDate()-7);
+  const weekLogs=data.logs.filter(l=>new Date(l.takenAt)>=weekAgo);
+  const activeVials=data.vials.filter(v=>{const r=remMcg(data,v.id);return r&&r>100;});
+  const pendingOrders=data.orders.filter(o=>["Ordered","Processing","Shipped","In Transit"].includes(o.status));
+  $("dash-stats").innerHTML=`
+    <div class="stat-card"><div class="stat-label">Today</div><div class="stat-value">${donePlan.length}/${todayPlan.length}</div><div class="stat-sub">doses done</div><div class="stat-icon">💊</div></div>
+    <div class="stat-card"><div class="stat-label">This Week</div><div class="stat-value">${weekLogs.length}</div><div class="stat-sub">doses logged</div><div class="stat-icon">📈</div></div>
+    <div class="stat-card"><div class="stat-label">Active Vials</div><div class="stat-value">${activeVials.length}</div><div class="stat-sub">with remaining doses</div><div class="stat-icon">🧪</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Orders</div><div class="stat-value">${pendingOrders.length}</div><div class="stat-sub">in transit</div><div class="stat-icon">📦</div></div>`;
 
-    const start=new Date(data.weekStart+"T00:00:00");
-    $("weekGrid").innerHTML = Array.from({length:7},(_,i)=>{
-      const d=addDays(start,i);
-      const dayYmd=ymd(d);
-      const dayDow=d.getDay();
-      const plan=data.planner.filter(p=>p.day===dayDow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
-      const dayLogs=logsForDay(data,dayYmd);
-      const doneCount=plan.filter(p=>planMatched(p,dayLogs)).length;
-      const items = plan.length ? plan.map(p=>{
-        const matched=planMatched(p,dayLogs);
-        return `<div class="planItem">
-          <div class="actions">
-            <span class="status ${matched?"done":"pending"}">${matched?"DONE":"PENDING"}</span>
-            <span class="tag">${p.time||"anytime"}</span>
-            <b>${p.peptide}</b>
+  // Today's schedule
+  const dashTodayEl=$("dash-today-list");
+  if(!todayPlan.length) {
+    dashTodayEl.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No planned doses today</div><div class="empty-desc">Add items in the Planner tab.</div></div>`;
+  } else {
+    dashTodayEl.innerHTML=todayPlan.map(p=>{
+      const done=planMatched(p,todayLogs);
+      return `<div class="dose-item ${done?"done":"pending"}" style="margin-bottom:8px">
+        <div class="dose-check" onclick="quickLog('${p.id}')" title="${done?"Logged":"Click to log"}">${done?"✓":""}</div>
+        <div style="flex:1">
+          <div class="semibold">${p.peptide} <span class="muted" style="font-weight:400">— ${p.doseValue} ${p.unit}</span></div>
+          <div class="muted-sm">${p.route}${p.time?" • "+p.time:""}${p.note?" • "+p.note:""}</div>
+        </div>
+        <span class="badge badge-${done?"success":"warning"}">${done?"Done":"Pending"}</span>
+      </div>`;
+    }).join("");
+  }
+
+  // Recent logs
+  const recentEl=$("dash-recent-logs");
+  const recent=[...data.logs].sort((a,b)=>b.takenAt.localeCompare(a.takenAt)).slice(0,5);
+  if(!recent.length) {
+    recentEl.innerHTML=`<div class="empty"><div class="empty-icon">📊</div><div class="empty-title">No logs yet</div></div>`;
+  } else {
+    recentEl.innerHTML=recent.map(l=>`
+      <div class="dose-item" style="margin-bottom:8px">
+        <div style="flex:1">
+          <div class="semibold">${l.peptide}</div>
+          <div class="muted-sm">${formatDateTime(l.takenAt)}</div>
+        </div>
+        <div class="flex-col" style="text-align:right;gap:2px">
+          <span class="badge badge-accent">${l.doseValue} ${l.doseUnit}</span>
+          <span class="muted-sm">${l.route}</span>
+        </div>
+      </div>`).join("");
+  }
+
+  // Update nav badge
+  const pending=todayPlan.filter(p=>!planMatched(p,todayLogs));
+  $("badge-today").textContent=pending.length||0;
+
+  // Orders badge
+  if(pendingOrders.length) {
+    $("badge-orders").style.display="inline-flex";
+    $("badge-orders").textContent=pendingOrders.length;
+  } else {
+    $("badge-orders").style.display="none";
+  }
+}
+
+function quickLog(planId) {
+  const data=store.get();
+  const plan=data.planner.find(p=>p.id===planId);
+  if(!plan)return;
+  navTo("log");
+  setTimeout(()=>{
+    $("log-peptide").value=plan.peptide;
+    $("log-route").value=plan.route;
+    $("log-dose").value=plan.doseValue;
+    $("log-unit").value=plan.unit;
+    $("log-takenAt").value=nowDT();
+    refreshLogUI();
+  },100);
+}
+
+// ═══════════════════════════════════════════════
+// TODAY
+// ═══════════════════════════════════════════════
+function renderToday() {
+  const data=store.get();
+  if(!data.weekStart)data.weekStart=ymd(new Date());
+  $("weekStart").value=data.weekStart;
+
+  const today=new Date();
+  const todayYmd=ymd(today);
+  const dow=today.getDay();
+  $("today-date-label").textContent=today.toLocaleDateString([],{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+
+  // Today list
+  const todayPlan=data.planner.filter(p=>p.day===dow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
+  const todayLogs=logsForDay(data,todayYmd);
+  const todayEl=$("today-list");
+  if(!todayPlan.length) {
+    todayEl.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No planned doses for today</div><div class="empty-desc">Add items in the Planner tab.</div></div>`;
+  } else {
+    const done=todayPlan.filter(p=>planMatched(p,todayLogs)).length;
+    todayEl.innerHTML=`
+      <div class="flex items-center gap-12 mb-12">
+        <span class="badge badge-accent">${done}/${todayPlan.length} done</span>
+        <div class="progress" style="flex:1"><div class="progress-fill" style="width:${Math.round(done/todayPlan.length*100)}%"></div></div>
+      </div>
+      ${todayPlan.map(p=>{
+        const isDone=planMatched(p,todayLogs);
+        return `<div class="dose-item ${isDone?"done":"pending"}" style="margin-bottom:8px">
+          <div class="dose-check">${isDone?"✓":""}</div>
+          <div style="flex:1">
+            <div class="semibold">${p.peptide} <span class="muted">— ${p.doseValue} ${p.unit}</span></div>
+            <div class="muted-sm">${p.route}${p.time?" · "+p.time:""}${p.note?" · "+p.note:""}</div>
           </div>
-          <div class="muted">${p.route} • ${p.doseValue} ${p.unit}${p.note?` • ${p.note}`:""}</div>
-          <div class="actions" style="justify-content:flex-end;">
-            ${matched?"":`<button class="small" data-wlog="${p.id}" data-ymd="${dayYmd}">Log</button>`}
+          <div class="flex gap-8">
+            <span class="badge badge-${isDone?"success":"warning"}">${isDone?"Done":"Pending"}</span>
+            ${isDone?"":`<button class="btn btn-secondary btn-xs" onclick="quickLog('${p.id}')">Log</button>`}
           </div>
         </div>`;
-      }).join("") : `<div class="muted" style="margin-top:10px;">No planned items.</div>`;
-      return `<div class="dayCol">
-        <div class="dayTop">
-          <div><div class="dayName">${DAYS[dayDow]}</div><div class="dayDate">${dayYmd}</div></div>
-          <div class="muted">Planned ${plan.length}<br>Done ${doneCount}</div>
-        </div>
-        ${items}
-      </div>`;
-    }).join("");
-
-    document.querySelectorAll("button[data-wlog]").forEach(b=>b.onclick=()=>{
-      const id=b.getAttribute("data-wlog");
-      const dayYmd=b.getAttribute("data-ymd");
-      const item=store.get().planner.find(x=>x.id===id);
-      if(item && dayYmd) setLogFromPlan(item, dayYmd);
-    });
-
-    const vialId=$("vial").value || null;
-    const vial=vialId?data.vials.find(v=>v.id===vialId):null;
-    const m = mathFor(vial, $("doseValue").value, $("doseUnit").value);
-    $("math").innerHTML = m ? `Conc <b>${m.conc.toFixed(0)}</b> mcg/mL<br>Draw <b>${m.vol.toFixed(3)}</b> mL ≈ <b>${m.iu.toFixed(1)}</b> IU` : "Select a vial + mcg/mg dose.";
+      }).join("")}`;
   }
 
-  // init inputs
-  $("takenAt").value=nowDT();
-
-  // Cycle save/clear
-  $("saveCycle").onclick = () => {
-    const d = store.get();
-    d.cycleStart = $("cycleStart").value || null;
-    d.cycleEnd = $("cycleEnd").value || null;
-    store.set(d);
-    refresh();
-  };
-  $("clearCycle").onclick = () => {
-    const d = store.get();
-    d.cycleStart = null;
-    d.cycleEnd = null;
-    store.set(d);
-    refresh();
-  };
-
-  // events
-  ["peptide","vial","doseValue","doseUnit"].forEach(id=>{
-    $(id).addEventListener("change", refresh);
-    $(id).addEventListener("input", refresh);
-  });
-  $("weekStart").addEventListener("change", ()=>{
-    const d=store.get(); d.weekStart=$("weekStart").value || ymd(new Date()); store.set(d); refresh();
-  });
-
-  $("addPeptideBtn").onclick = () => {
-    const name = ($("newPeptide").value || "").trim();
-    if(!name) return;
-    const d = store.get();
-    const exists = d.peptides.some(p => p.toLowerCase() === name.toLowerCase());
-    if(exists){ $("newPeptide").value=""; return alert("That peptide is already in the list."); }
-    d.peptides.push(name);
-    d.peptides.sort((a,b)=>a.localeCompare(b));
-    store.set(d);
-    $("newPeptide").value="";
-    refresh();
-  };
-
-  $("resetPeptidesBtn").onclick = () => {
-    if(!confirm("Reset peptide dropdown to the default list?")) return;
-    const d = store.get();
-    d.peptides = [...PEPTIDES];
-    store.set(d);
-    refresh();
-  };
-
-  $("addPlan").onclick=()=>{
-    const d=store.get();
-    const peptide=$("pPeptide").value; if(!peptide) return alert("Pick peptide");
-    const doseValue=Number($("pDose").value); if(!Number.isFinite(doseValue)||doseValue<=0) return alert("Dose > 0");
-    d.planner.push({
-      id: crypto.randomUUID(),
-      day: Number($("pDay").value),
-      time: $("pTime").value || "",
-      peptide,
-      route: $("pRoute").value,
-      doseValue,
-      unit: $("pUnit").value,
-      note: $("pNote").value || ""
+  // Week grid
+  const start=new Date(data.weekStart+"T00:00:00");
+  const weekEl=$("weekGrid");
+  weekEl.innerHTML=Array.from({length:7},(_,i)=>{
+    const d=addDays(start,i);
+    const dayYmd=ymd(d);
+    const dayDow=d.getDay();
+    const isToday=dayYmd===ymd(new Date());
+    const plan=data.planner.filter(p=>p.day===dayDow).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));
+    const dayLogs=logsForDay(data,dayYmd);
+    const doneC=plan.filter(p=>planMatched(p,dayLogs)).length;
+    const items=plan.map(p=>{
+      const matched=planMatched(p,dayLogs);
+      return `<div class="day-dose" style="border-left:2px solid ${matched?"var(--success)":"var(--warning)"}">
+        <div class="semibold" style="font-size:11.5px">${p.peptide}</div>
+        <div style="font-size:10.5px;color:var(--txt2)">${p.doseValue}${p.unit} · ${matched?"Done":"Pending"}</div>
+      </div>`;
     });
-    store.set(d);
-    $("pTime").value=""; $("pDose").value=""; $("pNote").value="";
-    refresh();
-  };
+    return `<div class="day-col${isToday?" today":""}">
+      <div class="day-name">${DAYS[dayDow]}</div>
+      <div class="day-date">${d.getDate()} ${MONTHS[d.getMonth()]}</div>
+      ${plan.length?`<div class="muted-sm mt-4">${doneC}/${plan.length}</div>`:""}
+      <div class="day-items">${items.join("")||"<div class='muted-sm' style='margin-top:8px'>Rest day</div>"}</div>
+    </div>`;
+  }).join("");
 
-  $("clearPlan").onclick=()=>{
-    if(!confirm("Clear all planner items?")) return;
-    const d=store.get(); d.planner=[]; store.set(d); refresh();
+  $("weekStart").onchange=()=>{
+    const d=store.get();d.weekStart=$("weekStart").value||ymd(new Date());store.set(d);renderToday();
   };
+}
 
-  $("addVial").onclick=()=>{
-    const d=store.get();
-    const peptide=$("vPeptide").value; if(!peptide) return alert("Pick peptide");
-    const mg=Number($("vMg").value), ml=Number($("vMl").value);
-    if(!Number.isFinite(mg)||mg<=0) return alert("mg > 0");
-    if(!Number.isFinite(ml)||ml<=0) return alert("mL > 0");
-    d.vials.push({id:crypto.randomUUID(), peptide, mg, ml});
-    store.set(d);
-    $("vMg").value=""; $("vMl").value="";
-    refresh();
+// ═══════════════════════════════════════════════
+// PLANNER
+// ═══════════════════════════════════════════════
+function renderPlanner() {
+  const data=store.get();
+  // Peptide chips
+  const chipsEl=$("peptideChips");
+  chipsEl.innerHTML=data.peptides.map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg4);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:12.5px">
+      ${p}
+      <button onclick="removePeptide('${p.replace(/'/g,"\\'")}','${p.replace(/'/g,"\\'")}')" style="color:var(--txt3);font-size:14px;line-height:1;margin-left:2px;cursor:pointer;background:none;border:none">×</button>
+    </span>`).join("");
+
+  // Plan table
+  const planner=[...data.planner].sort((a,b)=>a.day-b.day||(a.time||"99:99").localeCompare(b.time||"99:99"));
+  const tbody=$("planTable");
+  if(!planner.length) {
+    tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No planner items yet</div><div class="empty-desc">Click "+ Add Item" to build your schedule.</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=planner.map(p=>`
+    <tr>
+      <td class="semibold">${DAYS[p.day]}</td>
+      <td class="td-muted">${p.time||"—"}</td>
+      <td><span class="badge badge-accent">${p.peptide}</span></td>
+      <td class="semibold">${p.doseValue} ${p.unit}</td>
+      <td class="td-muted">${p.route}</td>
+      <td class="td-sm">${p.note||"—"}</td>
+      <td class="text-right">
+        <div class="flex gap-8" style="justify-content:flex-end">
+          <button class="btn btn-secondary btn-xs" onclick="editPlanItem('${p.id}')">Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deletePlanItem('${p.id}')">Del</button>
+        </div>
+      </td>
+    </tr>`).join("");
+}
+
+function openAddPlan(editId) {
+  const data=store.get();
+  const existing=editId?data.planner.find(p=>p.id===editId):null;
+  const pepOpts=data.peptides.map(p=>`<option${existing&&existing.peptide===p?" selected":""}>${p}</option>`).join("");
+  openModal(
+    existing?"Edit Planner Item":"Add Planner Item",
+    `<div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Day</span>
+        <select id="m-day" class="input-base">
+          ${DAYS.map((d,i)=>`<option value="${i}"${existing&&existing.day===i?" selected":""}>${d}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><span class="label-text">Time (optional)</span><input id="m-time" type="time" class="input-base" value="${existing?.time||""}"/></div>
+    </div>
+    <div class="grid-3 gap-16 mb-16">
+      <div class="field"><span class="label-text">Peptide</span><select id="m-peptide" class="input-base">${pepOpts}</select></div>
+      <div class="field"><span class="label-text">Route</span>
+        <select id="m-route" class="input-base">
+          ${["SubQ","IM","Nasal","Oral","IV","Topical","Other"].map(r=>`<option${existing&&existing.route===r?" selected":""}>${r}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><span class="label-text">Dose</span><input id="m-dose" type="number" step="0.01" class="input-base" placeholder="e.g. 250" value="${existing?.doseValue||""}"/></div>
+    </div>
+    <div class="grid-2 gap-16">
+      <div class="field"><span class="label-text">Unit</span>
+        <select id="m-unit" class="input-base">
+          ${["mcg","mg","IU","mL","sprays"].map(u=>`<option${existing&&existing.unit===u?" selected":""}>${u}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><span class="label-text">Note (optional)</span><input id="m-note" class="input-base" placeholder="bedtime, fasted…" value="${existing?.note||""}"/></div>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="savePlanItem('${editId||""}')">${existing?"Save Changes":"Add to Planner"}</button>`
+  );
+}
+
+function editPlanItem(id){openAddPlan(id);}
+
+function savePlanItem(editId) {
+  const peptide=$("m-peptide").value;
+  const doseValue=Number($("m-dose").value);
+  if(!peptide)return showToast("Select a peptide","error");
+  if(!Number.isFinite(doseValue)||doseValue<=0)return showToast("Dose must be > 0","error");
+  const d=store.get();
+  const item={
+    id:editId||crypto.randomUUID(),
+    day:Number($("m-day").value),
+    time:$("m-time").value||"",
+    peptide,route:$("m-route").value,
+    doseValue,unit:$("m-unit").value,
+    note:$("m-note").value||""
   };
+  if(editId){d.planner=d.planner.map(p=>p.id===editId?item:p);}
+  else{d.planner.push(item);}
+  store.set(d);closeModal();renderPlanner();
+  showToast(editId?"Item updated":"Item added to planner","success");
+}
 
-  $("saveDose").onclick=()=>{
-    const d=store.get();
-    const peptide=$("peptide").value; if(!peptide) return alert("Pick peptide");
-    const route=$("route").value;
-    const doseValue=Number($("doseValue").value); if(!Number.isFinite(doseValue)||doseValue<=0) return alert("Dose > 0");
-    const doseUnit=$("doseUnit").value;
-    const takenAt = $("takenAt").value ? new Date($("takenAt").value).toISOString() : new Date().toISOString();
-    const vialId=$("vial").value || null;
-    const vial=vialId?d.vials.find(v=>v.id===vialId):null;
-    const m=mathFor(vial, doseValue, doseUnit);
-    d.logs.push({
-      id:crypto.randomUUID(),
-      takenAt, peptide, route, doseValue, doseUnit,
-      doseMcg: m?m.mcg:null, volumeMl: m?m.vol:null, iu: m?m.iu:null,
-      vialId, notes: $("notes").value||""
-    });
-    store.set(d);
-    $("doseValue").value=""; $("notes").value="";
-    refresh();
+function deletePlanItem(id) {
+  if(!confirm("Delete this planner item?"))return;
+  const d=store.get();d.planner=d.planner.filter(p=>p.id!==id);store.set(d);renderPlanner();
+  showToast("Item deleted","info");
+}
+
+function addCustomPeptide() {
+  const name=($("newPeptide").value||"").trim();
+  if(!name)return;
+  const d=store.get();
+  if(d.peptides.some(p=>p.toLowerCase()===name.toLowerCase())){showToast("Already in list","error");$("newPeptide").value="";return;}
+  d.peptides.push(name);d.peptides.sort((a,b)=>a.localeCompare(b));
+  store.set(d);$("newPeptide").value="";renderPlanner();
+  showToast(`Added "${name}"`, "success");
+}
+
+function removePeptide(name) {
+  const d=store.get();
+  const used=d.planner.some(x=>x.peptide===name)||d.logs.some(x=>x.peptide===name)||d.vials.some(x=>x.peptide===name);
+  if(used){showToast("Peptide used in logs/vials. Remove those first.","error");return;}
+  d.peptides=d.peptides.filter(x=>x!==name);store.set(d);renderPlanner();
+}
+
+function resetPeptides() {
+  if(!confirm("Reset to default peptide list?"))return;
+  const d=store.get();
+  const uniq=(arr)=>{const s=new Set(),o=[];for(const x of arr){const k=String(x).trim();if(!k||s.has(k.toLowerCase()))continue;s.add(k.toLowerCase());o.push(k);}return o.sort((a,b)=>a.localeCompare(b));};
+  d.peptides=uniq([...DEFAULT_PEPTIDES]);store.set(d);renderPlanner();
+  showToast("Peptide list reset","info");
+}
+
+// ═══════════════════════════════════════════════
+// LOG DOSE
+// ═══════════════════════════════════════════════
+function renderLog() {
+  const data=store.get();
+  $("log-takenAt").value=nowDT();
+  const opts=`<option value="">Select peptide…</option>`+data.peptides.map(p=>`<option>${p}</option>`).join("");
+  $("log-peptide").innerHTML=opts;
+  $("cycleStart").value=data.cycleStart||"";
+  $("cycleEnd").value=data.cycleEnd||"";
+  updateCycleSummary(data);
+  refreshLogUI();
+
+  ["log-peptide","log-vial","log-dose","log-unit"].forEach(id=>{
+    const el=$(id);if(el){el.onchange=refreshLogUI;el.oninput=refreshLogUI;}
+  });
+}
+
+function refreshLogUI() {
+  const data=store.get();
+  const curPep=$("log-peptide")?.value;
+
+  // Peptide info
+  const info=curPep&&PEPTIDE_DB[curPep];
+  if($("log-pepInfo"))$("log-pepInfo").innerHTML=info?`<span class="badge badge-${info.statusColor||"muted"}">${info.status}</span> &nbsp;<span class="muted-sm">${info.dose||""} · ${info.route||""}</span>`:"";
+
+  // Vials for this peptide
+  const vials=data.vials.filter(v=>!curPep||v.peptide===curPep);
+  if($("log-vial"))$("log-vial").innerHTML=`<option value="">None</option>`+vials.map(v=>{
+    const rem=remMcg(data,v.id);
+    const conc=(Number(v.mg)*1000/Number(v.ml)).toFixed(0);
+    return `<option value="${v.id}">${v.peptide} · ${conc} mcg/mL · ${Math.max(rem||0,0).toFixed(0)} mcg left</option>`;
+  }).join("");
+
+  // Draw math
+  const vialId=$("log-vial")?.value||null;
+  const vial=vialId?data.vials.find(v=>v.id===vialId):null;
+  const m=mathFor(vial,$("log-dose")?.value,$("log-unit")?.value);
+  if($("log-math"))$("log-math").innerHTML=m?`Concentration: <b>${m.conc.toFixed(0)} mcg/mL</b><br>Draw: <b>${m.vol.toFixed(3)} mL ≈ ${m.iu.toFixed(1)} IU</b>`:`Select a vial + mcg/mg dose`;
+
+  // Quick stats
+  if($("log-quick-stats")){
+    const logs=[...data.logs].sort((a,b)=>b.takenAt.localeCompare(a.takenAt)).slice(0,3);
+    $("log-quick-stats").innerHTML=logs.length?logs.map(l=>`
+      <div class="info-row"><span class="info-label">${l.peptide}</span><span class="info-val">${l.doseValue} ${l.doseUnit} · ${new Date(l.takenAt).toLocaleDateString()}</span></div>`
+    ).join(""):`<div class="muted-sm">No recent logs</div>`;
+  }
+}
+
+function saveDose() {
+  const d=store.get();
+  const peptide=$("log-peptide").value;if(!peptide)return showToast("Select a peptide","error");
+  const doseValue=Number($("log-dose").value);if(!Number.isFinite(doseValue)||doseValue<=0)return showToast("Enter a valid dose","error");
+  const doseUnit=$("log-unit").value;
+  const route=$("log-route").value;
+  const takenAt=$("log-takenAt").value?new Date($("log-takenAt").value).toISOString():new Date().toISOString();
+  const vialId=$("log-vial").value||null;
+  const vial=vialId?d.vials.find(v=>v.id===vialId):null;
+  const m=mathFor(vial,doseValue,doseUnit);
+  d.logs.push({
+    id:crypto.randomUUID(),takenAt,peptide,route,doseValue,doseUnit,
+    doseMcg:m?m.mcg:null,volumeMl:m?m.vol:null,iu:m?m.iu:null,
+    vialId,notes:$("log-notes").value||""
+  });
+  store.set(d);
+  $("log-dose").value="";$("log-notes").value="";
+  refreshLogUI();showToast(`${peptide} ${doseValue}${doseUnit} logged ✓`,"success");
+}
+
+function deleteLast() {
+  const d=store.get();if(!d.logs.length){showToast("No logs to delete","error");return;}
+  if(!confirm("Delete the most recent log entry?"))return;
+  d.logs.pop();store.set(d);refreshLogUI();showToast("Last log deleted","info");
+}
+
+function saveCycle() {
+  const d=store.get();
+  d.cycleStart=$("cycleStart").value||null;
+  d.cycleEnd=$("cycleEnd").value||null;
+  store.set(d);updateCycleSummary(d);showToast("Cycle dates saved","success");
+}
+function clearCycle() {
+  const d=store.get();d.cycleStart=null;d.cycleEnd=null;store.set(d);
+  $("cycleStart").value="";$("cycleEnd").value="";updateCycleSummary(d);showToast("Cycle cleared","info");
+}
+function updateCycleSummary(data) {
+  if(!$("cycle-summary"))return;
+  if(data.cycleStart&&data.cycleEnd){
+    const start=new Date(data.cycleStart),end=new Date(data.cycleEnd),now=new Date();
+    const total=end-start,elapsed=now-start;
+    const pct=Math.max(0,Math.min(100,Math.round(elapsed/total*100)));
+    const daysLeft=Math.max(0,Math.ceil((end-now)/86400000));
+    $("cycle-summary").innerHTML=`<span class="badge badge-accent">Day ${Math.max(1,Math.ceil(elapsed/86400000))}</span> &nbsp; ${pct}% complete · ${daysLeft} days remaining`;
+  } else {$("cycle-summary").textContent="No active cycle.";}
+}
+
+// ═══════════════════════════════════════════════
+// LIBRARY
+// ═══════════════════════════════════════════════
+let libFilter="all";
+function renderLibrary() {
+  // Filters
+  const filtersEl=$("lib-filters");
+  if(!filtersEl.hasChildNodes()||filtersEl.getAttribute("data-rendered")!=="1") {
+    filtersEl.setAttribute("data-rendered","1");
+    filtersEl.innerHTML=CATEGORIES.map(c=>`<span class="chip${c.key===libFilter?" active":""}" onclick="setLibFilter('${c.key}')">${c.label}</span>`).join("");
+  }
+
+  const query=($("lib-search")?.value||"").toLowerCase().trim();
+  const pepGrid=$("pep-grid");
+  const entries=Object.entries(PEPTIDE_DB);
+  const filtered=entries.filter(([k,v])=>{
+    if(libFilter!=="all"&&v.catKey!==libFilter)return false;
+    if(!query)return true;
+    return k.toLowerCase().includes(query)||v.fullName?.toLowerCase().includes(query)||v.category?.toLowerCase().includes(query)||v.uses?.some(u=>u.toLowerCase().includes(query));
+  });
+
+  if(!filtered.length){pepGrid.innerHTML=`<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">🔬</div><div class="empty-title">No peptides found</div></div></div>`;return;}
+
+  pepGrid.innerHTML=filtered.map(([k,v])=>`
+    <div class="pep-card" onclick="openPeptideModal('${k}')">
+      <div class="flex justify-between items-start mb-8">
+        <div class="pep-card-name">${k}</div>
+        <span class="badge badge-${v.statusColor||"muted"}" style="flex-shrink:0">${v.status}</span>
+      </div>
+      <div class="pep-card-full">${v.fullName}</div>
+      <div class="pep-card-uses">${(v.uses||[]).slice(0,3).join(" · ")}</div>
+      <div class="pep-card-footer">
+        <span class="badge badge-muted">${v.category}</span>
+        <span class="pep-dose-tag">${v.dose||""}</span>
+      </div>
+    </div>`).join("");
+}
+
+function setLibFilter(key) {
+  libFilter=key;
+  $("lib-filters").innerHTML=CATEGORIES.map(c=>`<span class="chip${c.key===key?" active":""}" onclick="setLibFilter('${c.key}')">${c.label}</span>`).join("");
+  renderLibrary();
+}
+
+let libModalTab="overview";
+function openPeptideModal(key) {
+  const v=PEPTIDE_DB[key];if(!v)return;
+  libModalTab="overview";
+  renderPeptideModalBody(key);
+}
+
+function renderPeptideModalBody(key) {
+  const v=PEPTIDE_DB[key];
+  const tabs=["overview","protocol","effects","research"];
+  const tabLabels={"overview":"Overview","protocol":"Protocol","effects":"Uses & Effects","research":"Research & Status"};
+
+  const tabsHTML=`<div class="modal-tabs">${tabs.map(t=>`<div class="modal-tab${t===libModalTab?" active":""}" onclick="libSwitchTab('${key}','${t}')">${tabLabels[t]}</div>`).join("")}</div>`;
+
+  let content="";
+  if(libModalTab==="overview") {
+    content=`
+      <div class="flex gap-8 mb-16" style="flex-wrap:wrap">
+        <span class="badge badge-${v.statusColor||"muted"}">${v.status}</span>
+        <span class="badge badge-muted">${v.category}</span>
+      </div>
+      <div class="info-row"><span class="info-label">Full Name</span><span class="info-val">${v.fullName}</span></div>
+      <div class="info-row"><span class="info-label">Mechanism</span><span class="info-val" style="line-height:1.6">${v.mechanism}</span></div>
+      <div class="info-row"><span class="info-label">Typical Dose</span><span class="info-val semibold">${v.dose||"—"}</span></div>
+      <div class="info-row"><span class="info-label">Routes</span><span class="info-val">${v.route||"—"}</span></div>
+      <div class="info-row"><span class="info-label">Half-Life</span><span class="info-val">${v.halfLife||"—"}</span></div>`;
+  } else if(libModalTab==="protocol") {
+    content=`
+      <div class="card card-sm" style="background:var(--accent-dim);border-color:var(--accent);margin-bottom:16px">
+        <div class="muted-sm mb-4">Dosing Protocol</div>
+        <div style="font-size:14px;line-height:1.7">${v.protocol||"—"}</div>
+      </div>
+      <div class="info-row"><span class="info-label">Typical Dose</span><span class="info-val semibold">${v.dose||"—"}</span></div>
+      <div class="info-row"><span class="info-label">Route(s)</span><span class="info-val">${v.route||"—"}</span></div>
+      <div class="info-row"><span class="info-label">Half-Life</span><span class="info-val">${v.halfLife||"—"}</span></div>
+      <div class="info-row"><span class="info-label">Storage</span><span class="info-val" style="line-height:1.6">${v.storage||"—"}</span></div>`;
+  } else if(libModalTab==="effects") {
+    const uses=(v.uses||[]).map(u=>`<div class="use-item"><span style="color:var(--success);font-size:14px">✓</span> ${u}</div>`).join("");
+    const se=(v.se||[]).map(s=>`<div class="se-item"><span style="color:var(--warning);font-size:14px">⚠</span> ${s}</div>`).join("");
+    content=`
+      <div class="semibold mb-8">Reported Uses</div>${uses}
+      <div class="divider"></div>
+      <div class="semibold mb-8 mt-4">Side Effects</div>${se||"<div class='muted-sm'>No significant side effects documented</div>"}`;
+  } else if(libModalTab==="research") {
+    content=`
+      <div class="info-row"><span class="info-label">Research Status</span><span class="info-val"><span class="badge badge-${v.statusColor||"muted"}">${v.status}</span></span></div>
+      <div class="info-row"><span class="info-label">Notes</span><span class="info-val" style="line-height:1.7">${v.research||"—"}</span></div>
+      <div class="card card-sm mt-16" style="background:var(--warning-dim);border-color:var(--warning)">
+        <div style="font-size:12.5px;line-height:1.7;color:var(--txt2)">
+          ⚠️ <strong>Disclaimer:</strong> Information is for research and educational purposes only. Not medical advice. Consult a qualified physician before using any peptide. Many of these compounds are not approved for human use in all jurisdictions.
+        </div>
+      </div>`;
+  }
+
+  openModal(
+    `${key} — ${v.fullName}`,
+    tabsHTML+content,
+    `<button class="btn btn-ghost" onclick="closeModal()">Close</button>
+     <button class="btn btn-secondary" onclick="quickAddToPlan('${key}')">Add to Planner</button>`,
+    "lg"
+  );
+}
+
+function libSwitchTab(key,tab) {
+  libModalTab=tab;renderPeptideModalBody(key);
+}
+
+function quickAddToPlan(peptide) {
+  closeModal();
+  navTo("planner");
+  setTimeout(()=>openAddPlan(null,peptide),200);
+}
+
+// ═══════════════════════════════════════════════
+// VIALS
+// ═══════════════════════════════════════════════
+function renderVials() {
+  const data=store.get();
+  const el=$("vial-cards");
+  if(!data.vials.length){
+    el.innerHTML=`<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">🧪</div><div class="empty-title">No vials added yet</div><div class="empty-desc">Track your reconstituted vials here.</div></div></div>`;
+    return;
+  }
+  el.innerHTML=data.vials.map(v=>{
+    const conc=(Number(v.mg)*1000/Number(v.ml)).toFixed(0);
+    const rem=remMcg(data,v.id)||0;
+    const total=Number(v.mg)*1000;
+    const pct=Math.max(0,Math.min(100,Math.round(rem/total*100)));
+    const dosesPer250=rem>0?Math.floor(rem/250):0;
+    return `<div class="vial-card">
+      <div class="flex justify-between items-start">
+        <div class="vial-name">${v.peptide}</div>
+        <div class="flex gap-8">
+          <button class="btn-icon btn-xs" onclick="editVial('${v.id}')">✎</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteVial('${v.id}')">×</button>
+        </div>
+      </div>
+      ${v.notes?`<div class="muted-sm mt-4">${v.notes}</div>`:""}
+      <div class="vial-stat"><span>Concentration</span><span class="val">${conc} mcg/mL</span></div>
+      <div class="vial-stat"><span>Total</span><span class="val">${total.toFixed(0)} mcg</span></div>
+      <div class="vial-stat"><span>Remaining</span><span class="val" style="color:${pct<20?"var(--danger)":pct<50?"var(--warning)":"var(--success)"}">${Math.max(rem,0).toFixed(0)} mcg</span></div>
+      <div class="vial-stat"><span>@ 250mcg doses</span><span class="val">${dosesPer250} remaining</span></div>
+      <div class="vial-progress">
+        <div class="vial-pct">${pct}% remaining</div>
+        <div class="progress"><div class="progress-fill" style="width:${pct}%;background:${pct<20?"var(--danger)":pct<50?"var(--warning)":"linear-gradient(90deg,var(--accent),var(--accent2))"}"></div></div>
+      </div>
+      ${v.addedAt?`<div class="muted-sm mt-8">Added ${formatDate(v.addedAt)}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+function calcRecon() {
+  const mg=Number($("recon-mg").value),ml=Number($("recon-ml").value),dose=Number($("recon-dose").value);
+  const el=$("recon-result");
+  if(!mg||!ml){el.textContent="Enter mg and mL";return;}
+  const conc=(mg*1000)/ml;
+  let out=`Concentration: <b>${conc.toFixed(0)} mcg/mL</b>`;
+  if(dose){const vol=dose/conc;out+=`<br>For ${dose} mcg: <b>${vol.toFixed(3)} mL ≈ ${(vol*100).toFixed(1)} IU</b>`;}
+  el.innerHTML=out;
+}
+$("recon-mg")&&[$("recon-mg"),$("recon-ml"),$("recon-dose")].forEach(el=>{if(el){el.oninput=calcRecon;}});
+
+function openAddVial(editId) {
+  const data=store.get();
+  const existing=editId?data.vials.find(v=>v.id===editId):null;
+  const pepOpts=data.peptides.map(p=>`<option${existing&&existing.peptide===p?" selected":""}>${p}</option>`).join("");
+  openModal(
+    existing?"Edit Vial":"Add Vial",
+    `<div class="grid-3 gap-16 mb-16">
+      <div class="field"><span class="label-text">Peptide</span><select id="m-vpep" class="input-base">${pepOpts}</select></div>
+      <div class="field"><span class="label-text">Peptide mg</span><input id="m-vmg" type="number" step="0.01" class="input-base" placeholder="e.g. 10" value="${existing?.mg||""}"/></div>
+      <div class="field"><span class="label-text">BAC Water mL</span><input id="m-vml" type="number" step="0.01" class="input-base" placeholder="e.g. 2" value="${existing?.ml||""}"/></div>
+    </div>
+    <div class="field"><span class="label-text">Notes (optional)</span><input id="m-vnotes" class="input-base" placeholder="Batch #, date reconstituted…" value="${existing?.notes||""}"/></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="saveVial('${editId||""}')">${existing?"Save Changes":"Add Vial"}</button>`
+  );
+}
+function editVial(id){openAddVial(id);}
+function saveVial(editId) {
+  const peptide=$("m-vpep").value;
+  const mg=Number($("m-vmg").value),ml=Number($("m-vml").value);
+  if(!peptide)return showToast("Select peptide","error");
+  if(!mg||mg<=0)return showToast("mg must be > 0","error");
+  if(!ml||ml<=0)return showToast("mL must be > 0","error");
+  const d=store.get();
+  const item={id:editId||crypto.randomUUID(),peptide,mg,ml,notes:$("m-vnotes").value||"",addedAt:editId?(d.vials.find(v=>v.id===editId)?.addedAt||new Date().toISOString()):new Date().toISOString()};
+  if(editId){d.vials=d.vials.map(v=>v.id===editId?item:v);}else{d.vials.push(item);}
+  store.set(d);closeModal();renderVials();showToast("Vial saved","success");
+}
+function deleteVial(id) {
+  if(!confirm("Delete this vial? Associated dose logs will have vial data removed."))return;
+  const d=store.get();
+  d.vials=d.vials.filter(v=>v.id!==id);
+  d.logs=d.logs.map(l=>l.vialId===id?{...l,vialId:null,volumeMl:null,iu:null}:l);
+  store.set(d);renderVials();showToast("Vial deleted","info");
+}
+
+// ═══════════════════════════════════════════════
+// VENDORS
+// ═══════════════════════════════════════════════
+function renderVendors() {
+  const data=store.get();
+  const el=$("vendor-grid");
+  if(!data.vendors.length){
+    el.innerHTML=`<div style="grid-column:1/-1"><div class="empty"><div class="empty-icon">🏪</div><div class="empty-title">No vendors added</div><div class="empty-desc">Track your peptide suppliers and quality ratings.</div></div></div>`;
+    return;
+  }
+  const trustInfo={verified:{label:"Verified",cls:"trust-verified"},unverified:{label:"Unverified",cls:"trust-unverified"},caution:{label:"Caution",cls:"trust-caution"}};
+  el.innerHTML=data.vendors.map(v=>{
+    const t=trustInfo[v.trust||"unverified"]||trustInfo.unverified;
+    const orderCount=data.orders.filter(o=>o.vendorId===v.id).length;
+    return `<div class="vendor-card">
+      <div class="flex justify-between items-start">
+        <div>
+          <div class="vendor-name">${v.name}</div>
+          ${v.url?`<div class="vendor-url"><a href="${v.url}" target="_blank" rel="noopener">${v.url}</a></div>`:""}
+        </div>
+        <div class="flex gap-8">
+          <button class="btn-icon btn-xs" onclick="editVendor('${v.id}')">✎</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteVendor('${v.id}')">×</button>
+        </div>
+      </div>
+      <div class="flex gap-8 mt-8 items-center flex-wrap">
+        <div class="stars">${stars(v.rating||0)}</div>
+        <span class="vendor-trust ${t.cls}">${t.label}</span>
+        <span class="badge badge-muted">${orderCount} order${orderCount!==1?"s":""}</span>
+      </div>
+      ${v.notes?`<div class="muted-sm mt-8">${v.notes}</div>`:""}
+      ${v.addedAt?`<div class="muted-sm mt-8">Added ${formatDate(v.addedAt)}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+function openAddVendor(editId) {
+  const data=store.get();
+  const existing=editId?data.vendors.find(v=>v.id===editId):null;
+  openModal(
+    existing?"Edit Vendor":"Add Vendor",
+    `<div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Vendor Name</span><input id="m-vname" class="input-base" placeholder="e.g. Peptide Sciences" value="${existing?.name||""}"/></div>
+      <div class="field"><span class="label-text">Website URL</span><input id="m-vurl" class="input-base" placeholder="https://…" value="${existing?.url||""}"/></div>
+    </div>
+    <div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Rating (1–5)</span>
+        <select id="m-vrating" class="input-base">
+          ${[1,2,3,4,5].map(n=>`<option value="${n}"${existing&&existing.rating===n?" selected":""}>${"★".repeat(n)} (${n})</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><span class="label-text">Trust Level</span>
+        <select id="m-vtrust" class="input-base">
+          <option value="verified"${existing?.trust==="verified"?" selected":""}>✓ Verified</option>
+          <option value="unverified"${!existing||existing.trust==="unverified"?" selected":""}>? Unverified</option>
+          <option value="caution"${existing?.trust==="caution"?" selected":""}>⚠ Caution</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><span class="label-text">Notes</span><textarea id="m-vnotes2" class="input-base" placeholder="COAs available, turnaround time, etc.">${existing?.notes||""}</textarea></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="saveVendor('${editId||""}')">${existing?"Save Changes":"Add Vendor"}</button>`
+  );
+}
+function editVendor(id){openAddVendor(id);}
+function saveVendor(editId) {
+  const name=($("m-vname").value||"").trim();
+  if(!name)return showToast("Enter vendor name","error");
+  const d=store.get();
+  const item={id:editId||crypto.randomUUID(),name,url:$("m-vurl").value||"",rating:Number($("m-vrating").value)||3,trust:$("m-vtrust").value||"unverified",notes:$("m-vnotes2").value||"",addedAt:editId?(d.vendors.find(v=>v.id===editId)?.addedAt||new Date().toISOString()):new Date().toISOString()};
+  if(editId){d.vendors=d.vendors.map(v=>v.id===editId?item:v);}else{d.vendors.push(item);}
+  store.set(d);closeModal();renderVendors();showToast("Vendor saved","success");
+}
+function deleteVendor(id) {
+  if(!confirm("Delete this vendor?"))return;
+  const d=store.get();d.vendors=d.vendors.filter(v=>v.id!==id);store.set(d);renderVendors();showToast("Vendor deleted","info");
+}
+
+// ═══════════════════════════════════════════════
+// ORDERS
+// ═══════════════════════════════════════════════
+const ORDER_STATUSES=["Ordered","Processing","Shipped","In Transit","Delivered","Stored","Used","Cancelled"];
+const ORDER_STATUS_COLORS={Ordered:"muted",Processing:"warning",Shipped:"accent",["In Transit"]:"accent2","Delivered":"cyan",Stored:"success",Used:"purple",Cancelled:"danger"};
+let orderFilter="";
+
+function renderOrders() {
+  const data=store.get();
+  const counts={};
+  ORDER_STATUSES.forEach(s=>counts[s]=data.orders.filter(o=>o.status===s).length);
+
+  $("order-pipeline").innerHTML=[{key:"",label:"All",count:data.orders.length},...ORDER_STATUSES.map(s=>({key:s,label:s,count:counts[s]}))].map(s=>`
+    <div class="pipe-step${s.key===orderFilter?" active-filter":""}" onclick="setOrderFilter('${s.key}')">
+      ${s.label}
+      <div class="pipe-count">${s.count}</div>
+    </div>`).join("");
+
+  const filtered=orderFilter?data.orders.filter(o=>o.status===orderFilter):data.orders;
+  const sorted=[...filtered].sort((a,b)=>(b.orderedAt||"").localeCompare(a.orderedAt||""));
+
+  if(!sorted.length) {
+    $("order-list").innerHTML=`<div class="empty"><div class="empty-icon">📦</div><div class="empty-title">No orders ${orderFilter?"in this status":""}</div><div class="empty-desc">Click "+ New Order" to start tracking.</div></div>`;
+    return;
+  }
+
+  $("order-list").innerHTML=sorted.map(o=>{
+    const vendor=data.vendors.find(v=>v.id===o.vendorId);
+    const sc=ORDER_STATUS_COLORS[o.status]||"muted";
+    const itemTags=(o.items||[]).map(i=>`<span class="order-item-tag">${i.peptide}${i.quantity?" · "+i.quantity:""}${i.unit?" "+i.unit:""}</span>`).join("");
+    return `<div class="order-card">
+      <div class="order-header">
+        <div>
+          <div class="order-vendor">${o.vendorName||vendor?.name||"Unknown vendor"}</div>
+          <div class="order-date">${o.orderedAt?formatDate(o.orderedAt):"No date"}</div>
+        </div>
+        <div class="flex gap-8 items-center">
+          <span class="badge badge-${sc}">${o.status}</span>
+          <button class="btn btn-secondary btn-xs" onclick="editOrder('${o.id}')">Edit</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteOrder('${o.id}')">×</button>
+        </div>
+      </div>
+      <div class="order-items">${itemTags}</div>
+      <div class="order-footer">
+        <div class="flex gap-12 flex-wrap">
+          ${o.totalPrice?`<span class="muted-sm">Total: <b style="color:var(--txt)">$${Number(o.totalPrice).toFixed(2)}</b></span>`:""}
+          ${o.trackingNumber?`<span class="muted-sm">Tracking: <span class="mono" style="color:var(--accent)">${o.trackingNumber}</span></span>`:""}
+        </div>
+        <div class="flex gap-6">
+          ${ORDER_STATUSES.indexOf(o.status)<ORDER_STATUSES.length-2?`<button class="btn btn-success btn-xs" onclick="advanceOrder('${o.id}')">→ ${ORDER_STATUSES[Math.min(ORDER_STATUSES.indexOf(o.status)+1,ORDER_STATUSES.length-1)]}</button>`:""}
+        </div>
+      </div>
+      ${o.notes?`<div class="muted-sm mt-8">${o.notes}</div>`:""}
+    </div>`;
+  }).join("");
+}
+
+function setOrderFilter(key) {
+  orderFilter=key;renderOrders();
+}
+
+function advanceOrder(id) {
+  const d=store.get();
+  const o=d.orders.find(x=>x.id===id);
+  if(!o)return;
+  const idx=ORDER_STATUSES.indexOf(o.status);
+  if(idx<ORDER_STATUSES.length-2)o.status=ORDER_STATUSES[idx+1];
+  store.set(d);renderOrders();showToast(`Order status: ${o.status}`,"success");
+}
+
+function openAddOrder(editId) {
+  const data=store.get();
+  const existing=editId?data.orders.find(o=>o.id===editId):null;
+  const vendorOpts=`<option value="">No vendor (manual)</option>`+data.vendors.map(v=>`<option value="${v.id}"${existing&&existing.vendorId===v.id?" selected":""}>${v.name}</option>`).join("");
+  const itemsJSON=existing?JSON.stringify(existing.items||[]):"[]";
+  const existingItems=(existing?.items||[{peptide:"",quantity:"",unit:"mg"}]);
+  const itemRows=existingItems.map((item,i)=>itemRowHTML(i,item)).join("");
+
+  openModal(
+    existing?"Edit Order":"New Order",
+    `<div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Vendor</span>
+        <select id="m-ovendor" class="input-base" onchange="updateOrderVendorName()">${vendorOpts}</select>
+      </div>
+      <div class="field"><span class="label-text">Vendor Name (manual)</span>
+        <input id="m-ovendorname" class="input-base" placeholder="Override or custom name" value="${existing?.vendorName||""}"/>
+      </div>
+    </div>
+    <div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Order Date</span><input id="m-odate" type="date" class="input-base" value="${existing?.orderedAt||ymd(new Date())}"/></div>
+      <div class="field"><span class="label-text">Status</span>
+        <select id="m-ostatus" class="input-base">
+          ${ORDER_STATUSES.map(s=>`<option${existing&&existing.status===s?" selected":""}>${s}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="semibold mb-8">Items</div>
+    <div id="m-order-items">${itemRows}</div>
+    <button class="btn btn-secondary btn-sm mt-8" onclick="addOrderItem()">+ Add Item</button>
+    <div class="grid-2 gap-16 mt-16">
+      <div class="field"><span class="label-text">Total Price ($)</span><input id="m-oprice" type="number" step="0.01" class="input-base" placeholder="0.00" value="${existing?.totalPrice||""}"/></div>
+      <div class="field"><span class="label-text">Tracking Number</span><input id="m-otrack" class="input-base" placeholder="Optional" value="${existing?.trackingNumber||""}"/></div>
+    </div>
+    <div class="field mt-12"><span class="label-text">Notes</span><textarea id="m-onotes" class="input-base" placeholder="Order notes…">${existing?.notes||""}</textarea></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="saveOrder('${editId||""}')">${existing?"Save Changes":"Create Order"}</button>`,
+    "lg"
+  );
+}
+
+let orderItemCount=1;
+function itemRowHTML(i,item={}) {
+  return `<div class="grid-3 gap-8 mb-8 order-item-row" id="order-row-${i}">
+    <input class="input-base" placeholder="Peptide name" id="oi-pep-${i}" value="${item.peptide||""}"/>
+    <input class="input-base" type="number" placeholder="Qty" id="oi-qty-${i}" value="${item.quantity||""}"/>
+    <div class="flex gap-8">
+      <select class="input-base" id="oi-unit-${i}">
+        ${["mg","vials","IU","mL","g"].map(u=>`<option${item.unit===u?" selected":""}>${u}</option>`).join("")}
+      </select>
+      <button class="btn btn-danger btn-xs" onclick="removeOrderRow(${i})">×</button>
+    </div>
+  </div>`;
+}
+function addOrderItem() {
+  orderItemCount++;
+  const wrap=$("m-order-items");
+  const d=document.createElement("div");
+  d.innerHTML=itemRowHTML(orderItemCount,{});
+  wrap.appendChild(d.firstElementChild);
+}
+function removeOrderRow(i) {
+  const row=$(`order-row-${i}`);if(row)row.remove();
+}
+function updateOrderVendorName() {
+  const sel=$("m-ovendor");const nameEl=$("m-ovendorname");
+  if(!sel||!nameEl)return;
+  const data=store.get();const vendor=data.vendors.find(v=>v.id===sel.value);
+  if(vendor)nameEl.value=vendor.name;
+}
+function saveOrder(editId) {
+  const data=store.get();
+  const vendorId=$("m-ovendor").value||null;
+  const vendorName=$("m-ovendorname").value||data.vendors.find(v=>v.id===vendorId)?.name||"";
+  if(!vendorName)return showToast("Add vendor name","error");
+  const items=[];
+  document.querySelectorAll(".order-item-row").forEach(row=>{
+    const id=row.id.replace("order-row-","");
+    const pep=($(`oi-pep-${id}`)?.value||"").trim();
+    if(pep)items.push({peptide:pep,quantity:$(`oi-qty-${id}`)?.value||"",unit:$(`oi-unit-${id}`)?.value||"mg"});
+  });
+  const item={
+    id:editId||crypto.randomUUID(),vendorId,vendorName,
+    orderedAt:$("m-odate").value||ymd(new Date()),
+    status:$("m-ostatus").value||"Ordered",
+    items,totalPrice:$("m-oprice").value||null,
+    trackingNumber:$("m-otrack").value||"",
+    notes:$("m-onotes").value||""
   };
+  if(editId){data.orders=data.orders.map(o=>o.id===editId?item:o);}else{data.orders.push(item);}
+  store.set(data);closeModal();renderOrders();showToast("Order saved","success");
+}
+function editOrder(id){openAddOrder(id);}
+function deleteOrder(id) {
+  if(!confirm("Delete this order?"))return;
+  const d=store.get();d.orders=d.orders.filter(o=>o.id!==id);store.set(d);renderOrders();showToast("Order deleted","info");
+}
 
-  $("deleteLast").onclick=()=>{
-    const d=store.get(); if(!d.logs.length) return;
-    d.logs.pop(); store.set(d); refresh();
+// ═══════════════════════════════════════════════
+// PRICES
+// ═══════════════════════════════════════════════
+let priceFilter="";
+function renderPrices() {
+  const data=store.get();
+  const allPeps=[...new Set(data.prices.map(p=>p.peptide))].sort();
+
+  $("price-filters").innerHTML=[{key:"",label:"All Peptides"},...allPeps.map(p=>({key:p,label:p}))].map(f=>`<span class="chip${f.key===priceFilter?" active":""}" onclick="setPriceFilter('${f.key}')">${f.label}</span>`).join("");
+
+  const filtered=priceFilter?data.prices.filter(p=>p.peptide===priceFilter):data.prices;
+  const wrap=$("price-table-wrap");
+
+  if(!filtered.length){
+    wrap.innerHTML=`<div class="empty"><div class="empty-icon">💰</div><div class="empty-title">No prices added yet</div><div class="empty-desc">Click "+ Add Entry" to track vendor prices.</div></div>`;
+    return;
+  }
+
+  const sorted=[...filtered].sort((a,b)=>(a.peptide||"").localeCompare(b.peptide||"")||Number(a.pricePerMg||99999)-Number(b.pricePerMg||99999));
+  // Find best price per peptide
+  const bestPerPep={};
+  filtered.forEach(p=>{if(!bestPerPep[p.peptide]||Number(p.pricePerMg)<Number(bestPerPep[p.peptide]))bestPerPep[p.peptide]=Number(p.pricePerMg);});
+
+  wrap.innerHTML=`<div class="tbl-wrap"><table>
+    <thead><tr><th>Peptide</th><th>Vendor</th><th>Quantity</th><th>Total Price</th><th>$/mg</th><th>Date</th><th>Notes</th><th class="text-right">Actions</th></tr></thead>
+    <tbody>${sorted.map(p=>{
+      const isBest=Number(p.pricePerMg)===bestPerPep[p.peptide];
+      return `<tr>
+        <td class="semibold">${p.peptide}</td>
+        <td class="td-muted">${p.vendorName||"—"}</td>
+        <td class="td-muted">${p.quantity||""}${p.quantity&&p.unit?" "+p.unit:""}</td>
+        <td class="semibold">${p.totalPrice?`$${Number(p.totalPrice).toFixed(2)}`:"—"}</td>
+        <td><span class="${isBest?"badge price-best":"badge badge-muted"}">${p.pricePerMg?`$${Number(p.pricePerMg).toFixed(3)}/mg`:"—"}</span></td>
+        <td class="td-sm">${p.listedAt?formatDate(p.listedAt):"—"}</td>
+        <td class="td-sm">${p.notes||"—"}</td>
+        <td class="text-right">
+          <div class="flex gap-8" style="justify-content:flex-end">
+            <button class="btn btn-secondary btn-xs" onclick="editPrice('${p.id}')">Edit</button>
+            <button class="btn btn-danger btn-xs" onclick="deletePrice('${p.id}')">×</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+
+function setPriceFilter(key){priceFilter=key;renderPrices();}
+
+function openAddPrice(editId) {
+  const data=store.get();
+  const existing=editId?data.prices.find(p=>p.id===editId):null;
+  const pepOpts=data.peptides.map(p=>`<option${existing&&existing.peptide===p?" selected":""}>${p}</option>`).join("");
+  const vendorOpts=`<option value="">No vendor</option>`+data.vendors.map(v=>`<option value="${v.id}"${existing&&existing.vendorId===v.id?" selected":""}>${v.name}</option>`).join("");
+  openModal(
+    existing?"Edit Price Entry":"Add Price Entry",
+    `<div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Peptide</span><select id="m-ppep" class="input-base">${pepOpts}</select></div>
+      <div class="field"><span class="label-text">Vendor</span><select id="m-pvendor" class="input-base" onchange="updatePriceVendorName()">${vendorOpts}</select></div>
+    </div>
+    <div class="field mb-16"><span class="label-text">Vendor Name (override)</span><input id="m-pvendorname" class="input-base" placeholder="Vendor name" value="${existing?.vendorName||""}"/></div>
+    <div class="grid-3 gap-16 mb-16">
+      <div class="field"><span class="label-text">Quantity</span><input id="m-pqty" type="number" class="input-base" placeholder="e.g. 10" value="${existing?.quantity||""}"/></div>
+      <div class="field"><span class="label-text">Unit</span>
+        <select id="m-punit" class="input-base">
+          ${["mg","g","vials","IU","mL"].map(u=>`<option${existing&&existing.unit===u?" selected":""}>${u}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field"><span class="label-text">Total Price ($)</span><input id="m-ptotal" type="number" step="0.01" class="input-base" placeholder="0.00" value="${existing?.totalPrice||""}" oninput="calcPricePerMg()"/></div>
+    </div>
+    <div class="grid-2 gap-16 mb-16">
+      <div class="field"><span class="label-text">Price per mg ($)</span><input id="m-ppermg" type="number" step="0.001" class="input-base" placeholder="Auto-calculated or manual" value="${existing?.pricePerMg||""}"/></div>
+      <div class="field"><span class="label-text">Date Listed</span><input id="m-pdate" type="date" class="input-base" value="${existing?.listedAt||ymd(new Date())}"/></div>
+    </div>
+    <div class="field"><span class="label-text">Notes</span><input id="m-pnotes" class="input-base" placeholder="Sale, promo code, COA…" value="${existing?.notes||""}"/></div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+     <button class="btn btn-primary" onclick="savePrice('${editId||""}')">${existing?"Save Changes":"Add Entry"}</button>`
+  );
+}
+
+function calcPricePerMg() {
+  const total=Number($("m-ptotal")?.value),qty=Number($("m-pqty")?.value);
+  const el=$("m-ppermg");if(!el)return;
+  if(total&&qty&&$("m-punit")?.value==="mg"){el.value=(total/qty).toFixed(4);}
+}
+
+function updatePriceVendorName() {
+  const sel=$("m-pvendor");const nameEl=$("m-pvendorname");
+  if(!sel||!nameEl)return;
+  const data=store.get();const vendor=data.vendors.find(v=>v.id===sel.value);
+  if(vendor)nameEl.value=vendor.name;
+}
+
+function savePrice(editId) {
+  const peptide=$("m-ppep").value;if(!peptide)return showToast("Select peptide","error");
+  const data=store.get();
+  const vendorId=$("m-pvendor").value||null;
+  const item={
+    id:editId||crypto.randomUUID(),peptide,
+    vendorId,vendorName:$("m-pvendorname").value||data.vendors.find(v=>v.id===vendorId)?.name||"",
+    quantity:$("m-pqty").value||"",unit:$("m-punit").value||"mg",
+    totalPrice:$("m-ptotal").value||null,pricePerMg:$("m-ppermg").value||null,
+    listedAt:$("m-pdate").value||ymd(new Date()),
+    notes:$("m-pnotes").value||""
   };
+  if(editId){data.prices=data.prices.map(p=>p.id===editId?item:p);}else{data.prices.push(item);}
+  store.set(data);closeModal();renderPrices();showToast("Price entry saved","success");
+}
+function editPrice(id){openAddPrice(id);}
+function deletePrice(id) {
+  if(!confirm("Delete this price entry?"))return;
+  const d=store.get();d.prices=d.prices.filter(p=>p.id!==id);store.set(d);renderPrices();showToast("Deleted","info");
+}
 
-  $("export").onclick=()=>{
-    const d=store.get();
-    const esc=s=>{s=String(s??""); return (s.includes(",")||s.includes("\"")||s.includes("\n"))?`"${s.replaceAll("\"","\"\"")}"`:s;};
-    const csv=(rows)=>rows.length?[Object.keys(rows[0]).join(","),...rows.map(r=>Object.keys(rows[0]).map(k=>esc(r[k])).join(","))].join("\n"):"";
-    const bundle =
-`# CYCLE\ncycleStart,cycleEnd\n${esc(d.cycleStart||"")},${esc(d.cycleEnd||"")}\n
-# PLANNER\n${csv(d.planner.map(p=>({day:DAYS[p.day],time:p.time,peptide:p.peptide,route:p.route,doseValue:p.doseValue,unit:p.unit,note:p.note})))}\n
-# VIALS\n${csv(d.vials)}\n
-# LOGS\n${csv(d.logs)}\n`;
-    const blob=new Blob([bundle],{type:"text/plain;charset=utf-8"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="peptide_mini_export.csv.txt"; a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),500);
+// ═══════════════════════════════════════════════
+// HISTORY
+// ═══════════════════════════════════════════════
+function renderHistory() {
+  const data=store.get();
+  const pepSel=$("hist-peptide");
+  const curOpts=new Set([...pepSel.options].map(o=>o.value));
+  const missingPeps=data.peptides.filter(p=>!curOpts.has(p));
+  missingPeps.forEach(p=>{const o=document.createElement("option");o.value=p;o.textContent=p;pepSel.appendChild(o);});
+
+  const pepFilter=pepSel.value;
+  const fromVal=$("hist-from").value;
+  const toVal=$("hist-to").value;
+
+  let logs=[...data.logs].sort((a,b)=>b.takenAt.localeCompare(a.takenAt));
+  if(pepFilter)logs=logs.filter(l=>l.peptide===pepFilter);
+  if(fromVal)logs=logs.filter(l=>l.takenAt>=fromVal);
+  if(toVal)logs=logs.filter(l=>l.takenAt<=toVal+"T23:59:59");
+
+  const tbody=$("histTable");
+  if(!logs.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-icon">📊</div><div class="empty-title">No logs match your filters</div></div></td></tr>`;return;}
+
+  tbody.innerHTML=logs.map(l=>`<tr>
+    <td class="td-muted" style="white-space:nowrap">${formatDateTime(l.takenAt)}</td>
+    <td><span class="badge badge-accent">${l.peptide}</span></td>
+    <td class="semibold">${l.doseValue} ${l.doseUnit}</td>
+    <td class="td-muted">${l.route}</td>
+    <td class="td-sm">${l.volumeMl!=null&&l.iu!=null?`${Number(l.volumeMl).toFixed(3)} mL / ${Number(l.iu).toFixed(1)} IU`:"—"}</td>
+    <td class="td-sm" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${l.notes||"—"}</td>
+    <td class="text-right"><button class="btn btn-danger btn-xs" onclick="deleteLog('${l.id}')">×</button></td>
+  </tr>`).join("");
+}
+
+function deleteLog(id) {
+  if(!confirm("Delete this log entry?"))return;
+  const d=store.get();d.logs=d.logs.filter(l=>l.id!==id);store.set(d);renderHistory();showToast("Log deleted","info");
+}
+function clearHistFilter() {
+  $("hist-peptide").value="";$("hist-from").value="";$("hist-to").value="";renderHistory();
+}
+
+// ═══════════════════════════════════════════════
+// DATA EXPORT / IMPORT
+// ═══════════════════════════════════════════════
+function exportData() {
+  const d=store.get();
+  const esc=s=>{s=String(s??"");return(s.includes(",")||s.includes('"')||s.includes("\n"))?`"${s.replaceAll('"','""')}"`:`${s}`;};
+  const csv=rows=>rows.length?[Object.keys(rows[0]).join(","),...rows.map(r=>Object.keys(rows[0]).map(k=>esc(r[k])).join(","))].join("\n"):"";
+  const bundle=`# LOGS\n${csv(d.logs)}\n\n# PLANNER\n${csv(d.planner)}\n\n# VIALS\n${csv(d.vials)}\n\n# VENDORS\n${csv(d.vendors)}\n\n# ORDERS\n${csv(d.orders.map(o=>({...o,items:JSON.stringify(o.items)})))}\n\n# PRICES\n${csv(d.prices)}\n`;
+  const blob=new Blob([bundle],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`peptideos_export_${ymd(new Date())}.csv`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  showToast("Export downloaded","success");
+}
+
+function exportJSON() {
+  const d=store.get();
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`peptideos_backup_${ymd(new Date())}.json`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+  showToast("JSON backup downloaded","success");
+}
+
+function importJSON(input) {
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.logs||!d.planner)return showToast("Invalid backup file","error");
+      store.set(d);showToast("Data imported successfully","success");
+      setTimeout(()=>renderDashboard(),200);
+    }catch{showToast("Error parsing backup file","error");}
   };
+  reader.readAsText(file);
+}
 
-  $("reset").onclick=()=>{
-    if(!confirm("Delete ALL data on this device?")) return;
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(UIKEY);
-    $("takenAt").value=nowDT();
-    refresh();
-  };
+function resetAll() {
+  if(!confirm("⚠️ This will permanently delete ALL your data. Are you sure?"))return;
+  if(!confirm("Really delete everything? This cannot be undone."))return;
+  localStorage.removeItem(STORE_KEY);
+  showToast("All data reset","info");
+  setTimeout(()=>location.reload(),1000);
+}
 
-  // boot
-  addMinimizeButtons();
-  refresh();
-})();
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+function init() {
+  initTheme();
+  renderLibrary();
+  renderDashboard();
+}
+
+init();
 </script>
 </body>
 </html>
