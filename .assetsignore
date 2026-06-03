@@ -1,0 +1,9 @@
+.git
+.wrangler
+.dev.vars
+docs
+worker
+migrations
+*.toml
+*.md
+node_modules

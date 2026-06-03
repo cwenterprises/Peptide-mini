@@ -21,3 +21,5 @@ APP_URL = "https://peptideos.cwenterprises.net"
 [assets]
 directory = "."
 binding = "ASSETS"
+
+workers_dev = true
