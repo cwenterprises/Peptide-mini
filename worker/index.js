@@ -539,10 +539,9 @@ async function sendWebPush(env, endpoint, p256dhB64url, authB64url, payload) {
 
   function buildInfo(type) {
     const label = new TextEncoder().encode(`Content-Encoding: ${type}\0`);
-    const buf = new Uint8Array(label.length + 1 + 2 + clientPubRaw.length + 2 + serverPubRaw.length);
+    const buf = new Uint8Array(label.length + 2 + clientPubRaw.length + 2 + serverPubRaw.length);
     let off = 0;
     buf.set(label, off); off += label.length;
-    buf[off++] = 0x41; // keyid_len hint
     const cv = new DataView(new ArrayBuffer(2)); cv.setUint16(0, clientPubRaw.length);
     buf.set(new Uint8Array(cv.buffer), off); off += 2;
     buf.set(clientPubRaw, off); off += clientPubRaw.length;
