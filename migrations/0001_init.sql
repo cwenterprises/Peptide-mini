@@ -10,18 +10,20 @@ CREATE TABLE peptides (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL
 );
+CREATE INDEX idx_peptides_user_id ON peptides(user_id);
 
 CREATE TABLE planner (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   peptide TEXT NOT NULL,
-  day INTEGER NOT NULL,
+  day INTEGER NOT NULL CHECK(day BETWEEN 0 AND 6),
   time TEXT,
   route TEXT NOT NULL,
   dose REAL NOT NULL,
   unit TEXT NOT NULL,
   note TEXT
 );
+CREATE INDEX idx_planner_user_id ON planner(user_id);
 
 CREATE TABLE vials (
   id TEXT PRIMARY KEY,
@@ -31,6 +33,7 @@ CREATE TABLE vials (
   ml REAL NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE INDEX idx_vials_user_id ON vials(user_id);
 
 CREATE TABLE logs (
   id TEXT PRIMARY KEY,
@@ -46,6 +49,7 @@ CREATE TABLE logs (
   taken_at TEXT NOT NULL,
   notes TEXT
 );
+CREATE INDEX idx_logs_user_id ON logs(user_id);
 
 CREATE TABLE push_subscriptions (
   id TEXT PRIMARY KEY,
@@ -53,16 +57,19 @@ CREATE TABLE push_subscriptions (
   endpoint TEXT NOT NULL,
   p256dh TEXT NOT NULL,
   auth TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  UNIQUE(user_id, endpoint)
 );
+CREATE INDEX idx_push_subscriptions_user_id ON push_subscriptions(user_id);
 
 CREATE TABLE notifications_sent (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  planner_id TEXT NOT NULL,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  planner_id TEXT NOT NULL REFERENCES planner(id) ON DELETE CASCADE,
   sent_date TEXT NOT NULL,
   UNIQUE(user_id, planner_id, sent_date)
 );
+CREATE INDEX idx_notifications_sent_user_id ON notifications_sent(user_id);
 
 CREATE TABLE user_settings (
   user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
