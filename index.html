@@ -713,7 +713,8 @@ function renderAuth(mode) {
         </div>
       </div>`;
   } else if (mode === 'reset') {
-    const token = new URLSearchParams(window.location.search).get('token');
+    // Capture token in closure — never interpolate into HTML attribute
+    const token = new URLSearchParams(window.location.search).get('token') || '';
     document.getElementById('authScreen').innerHTML = `
       <div class="glass auth-card">
         ${logo}
@@ -721,9 +722,11 @@ function renderAuth(mode) {
           <label>New Password<input type="password" id="authPass" autocomplete="new-password" placeholder="Min 8 characters" /></label>
           <label>Confirm New Password<input type="password" id="authPassConfirm" autocomplete="new-password" placeholder="Repeat password" /></label>
           <div id="authErr" class="auth-error"></div>
-          <button class="btn btn-primary" style="width:100%;" onclick="doReset('${token}')">Set New Password</button>
+          <button id="resetSubmitBtn" class="btn btn-primary" style="width:100%;">Set New Password</button>
         </div>
       </div>`;
+    // Bind via closure so token never touches the DOM
+    document.getElementById('resetSubmitBtn').onclick = () => doReset(token);
   }
 }
 
@@ -866,29 +869,28 @@ function quickLog(planId, dayYmd) {
   const plan = planner.find(p => p.id === planId);
   Tabs.switchTo('logdose');
   if (!plan) return;
-  // Re-render to get fresh form, then pre-fill
+  // Render once, then set ALL form fields including ldTakenAt
   renderLogDose();
   const ldPeptide = document.getElementById('ldPeptide');
   const ldRoute   = document.getElementById('ldRoute');
   const ldDose    = document.getElementById('ldDose');
   const ldUnit    = document.getElementById('ldUnit');
   const ldTakenAt = document.getElementById('ldTakenAt');
+  const now = new Date();
+  const todayYmd  = ymd(now);
+  const currentHHMM = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  const planTime  = plan.time || currentHHMM;
   if (ldPeptide) ldPeptide.value = plan.peptide;
   if (ldRoute)   ldRoute.value   = plan.route;
   if (ldDose)    ldDose.value    = plan.dose;
   if (ldUnit)    ldUnit.value    = plan.unit;
   if (ldTakenAt) {
-    const now = new Date();
-    if (dayYmd !== ymd(now)) {
-      ldTakenAt.value = `${dayYmd}T${plan.time || '08:00'}`;
+    if (dayYmd !== todayYmd) {
+      ldTakenAt.value = `${dayYmd}T${planTime}`;
+    } else {
+      ldTakenAt.value = `${todayYmd}T${planTime}`;
     }
   }
-  // Re-render vial options for this peptide and update draw math
-  renderLogDose();
-  if (ldPeptide) ldPeptide.value = plan.peptide;
-  if (ldRoute)   ldRoute.value   = plan.route;
-  if (ldDose)    ldDose.value    = plan.dose;
-  if (ldUnit)    ldUnit.value    = plan.unit;
   updateDrawMath();
 }
 
@@ -973,15 +975,21 @@ function renderWeek() {
 function calcDrawMath(vialId, doseValue, doseUnit, vials) {
   const vial = vials.find(v => v.id === vialId);
   if (!vial || !vial.mg || !vial.ml) return null;
-  const concMcgMl = (parseFloat(vial.mg) * 1000) / parseFloat(vial.ml);
-  if (!concMcgMl || isNaN(concMcgMl)) return null;
-  let doseMcg = parseFloat(doseValue);
+  const conc = (parseFloat(vial.mg) * 1000) / parseFloat(vial.ml);
+  if (!conc || isNaN(conc)) return null;
+  let doseMcg;
+  if (doseUnit === 'mcg') doseMcg = Number(doseValue);
+  else if (doseUnit === 'mg') doseMcg = Number(doseValue) * 1000;
+  else if (doseUnit === 'IU') {
+    // IU = syringe units on U-100 syringe; 1 IU = 0.01 mL
+    const volFromIU = Number(doseValue) / 100;
+    doseMcg = volFromIU * conc;
+  }
+  else return null; // 'sprays' or other non-injectable units — no draw math
   if (isNaN(doseMcg) || doseMcg <= 0) return null;
-  if (doseUnit === 'mg') doseMcg *= 1000;
-  else if (doseUnit === 'IU') doseMcg = doseMcg * (1000 / concMcgMl); // approximation
-  const volMl = doseMcg / concMcgMl;
+  const volMl = doseMcg / conc;
   const iu    = volMl * 100; // assuming U-100 syringe
-  return { conc: concMcgMl.toFixed(1), vol: volMl.toFixed(3), iu: iu.toFixed(1), mcg: doseMcg.toFixed(1) };
+  return { conc: conc.toFixed(1), vol: volMl.toFixed(3), iu: iu.toFixed(1), mcg: doseMcg.toFixed(1) };
 }
 
 function updateDrawMath() {
@@ -1470,7 +1478,7 @@ function showLibraryDetail(name) {
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;">
         <div>
           <h2 style="font-size:20px;font-weight:800;">${escHtml(p.name)}</h2>
-          <p class="muted">${p.aliases.join(' &middot; ')}</p>
+          <p class="muted">${(p.aliases || []).map(escHtml).join(' · ')}</p>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('libOverlay').remove()">Close</button>
       </div>
@@ -1706,21 +1714,45 @@ async function doSignOut() {
 }
 
 function exportCSV() {
-  const { logs } = App.getData();
-  if (!logs.length) { alert('No logs to export.'); return; }
-  const headers = ['id','peptide','route','dose_value','dose_unit','dose_mcg','volume_ml','iu','taken_at','notes'];
-  const rows = logs.map(l => headers.map(h => {
-    const v = l[h] == null ? '' : String(l[h]);
-    return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g,'""')}"` : v;
-  }).join(','));
-  const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  a.download = `peptideos-logs-${ymd(new Date())}.csv`;
+  const { planner, vials, logs, settings } = App.getData();
+
+  const esc = (s) => {
+    s = String(s ?? '');
+    return (s.includes(',') || s.includes('"') || s.includes('\n'))
+      ? `"${s.replaceAll('"', '""')}"` : s;
+  };
+  const toCsv = (rows) => {
+    if (!rows.length) return '(none)';
+    const keys = Object.keys(rows[0]);
+    return [keys.join(','), ...rows.map(r => keys.map(k => esc(r[k])).join(','))].join('\n');
+  };
+
+  const plannerRows = planner.map(p => ({
+    day: DAYS[p.day], time: p.time || '', peptide: p.peptide,
+    route: p.route, dose: p.dose, unit: p.unit, note: p.note || ''
+  }));
+
+  const content = [
+    `# CYCLE`,
+    `cycle_start,cycle_end`,
+    `${esc(settings.cycle_start || '')},${esc(settings.cycle_end || '')}`,
+    '',
+    `# PLANNER`,
+    toCsv(plannerRows),
+    '',
+    `# VIALS`,
+    toCsv(vials),
+    '',
+    `# LOGS`,
+    toCsv(logs)
+  ].join('\n');
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'peptideos_export.csv';
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(a.href), 500);
 }
 
 async function deleteAllData() {
@@ -1745,6 +1777,7 @@ function showChangePassword() {
     <div class="glass" style="max-width:400px;width:100%;padding:28px;">
       <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Change Password</h3>
       <div class="stack">
+        <label>Current Password<input type="password" id="cpCurrentPass" autocomplete="current-password" placeholder="Current password" /></label>
         <label>New Password<input type="password" id="pwNew" autocomplete="new-password" placeholder="Min 8 characters" /></label>
         <label>Confirm New Password<input type="password" id="pwConfirm" autocomplete="new-password" placeholder="Repeat password" /></label>
         <div id="pwErr" class="auth-error"></div>
@@ -1758,14 +1791,16 @@ function showChangePassword() {
 }
 
 async function submitChangePassword() {
-  const pass    = document.getElementById('pwNew').value;
-  const confirm = document.getElementById('pwConfirm').value;
-  const errEl   = document.getElementById('pwErr');
+  const currentPass = document.getElementById('cpCurrentPass').value;
+  const pass        = document.getElementById('pwNew').value;
+  const confirm     = document.getElementById('pwConfirm').value;
+  const errEl       = document.getElementById('pwErr');
   errEl.textContent = '';
+  if (!currentPass)     { errEl.textContent = 'Current password is required.'; return; }
   if (pass.length < 8)  { errEl.textContent = 'Password must be at least 8 characters.'; return; }
-  if (pass !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+  if (pass !== confirm)  { errEl.textContent = 'Passwords do not match.'; return; }
   try {
-    await API.post('/auth/change-password', { password: pass });
+    await API.post('/auth/change-password', { current_password: currentPass, password: pass });
     document.getElementById('pwOverlay').remove();
     alert('Password updated successfully.');
   } catch (e) {

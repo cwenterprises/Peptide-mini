@@ -453,8 +453,16 @@ async function pushUnsubscribe(request, env, origin) {
 async function authChangePassword(request, env, origin) {
   const userId = await requireAuth(request, env);
   if (!userId) return err('unauthorized', 401, origin);
-  const { password } = await request.json().catch(() => ({}));
+  const { current_password, password } = await request.json().catch(() => ({}));
+  if (!current_password) return err('current_password required', 400, origin);
   if (!password || password.length < 8) return err('password must be at least 8 characters', 400, origin);
+
+  const user = await env.DB.prepare('SELECT password_hash FROM users WHERE id = ?').bind(userId).first();
+  if (!user) return err('user not found', 404, origin);
+
+  const valid = await verifyPassword(current_password, user.password_hash);
+  if (!valid) return err('current password is incorrect', 401, origin);
+
   const hash = await hashPassword(password);
   await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, userId).run();
   return json({ ok: true }, 200, origin);
