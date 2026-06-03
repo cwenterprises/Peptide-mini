@@ -352,7 +352,7 @@ async function logsDeleteLast(request, env, origin) {
     'SELECT id FROM logs WHERE user_id = ? ORDER BY taken_at DESC LIMIT 1'
   ).bind(userId).first();
   if (!last) return json({ ok: true, deleted: false }, 200, origin);
-  await env.DB.prepare('DELETE FROM logs WHERE id = ?').bind(last.id).run();
+  await env.DB.prepare('DELETE FROM logs WHERE id = ? AND user_id = ?').bind(last.id, userId).run();
   return json({ ok: true, deleted: true }, 200, origin);
 }
 
