@@ -16,6 +16,18 @@ export default {
 const toHex = (buf) => Array.from(new Uint8Array(buf))
   .map(b => b.toString(16).padStart(2, '0')).join('');
 
+function base64urlEncode(buf) {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return btoa(String.fromCharCode(...bytes)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64urlDecode(str) {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - padded.length % 4) % 4;
+  const base64 = padded + '='.repeat(padding);
+  return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+}
+
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
@@ -125,6 +137,11 @@ async function handleAPI(request, env, url) {
   // Settings
   if (path === '/settings' && method === 'GET') return settingsGet(request, env, origin);
   if (path === '/settings' && method === 'PUT') return settingsPut(request, env, origin);
+
+  // Push
+  if (path === '/push/vapid-key' && method === 'GET')    return pushVapidKey(request, env, origin);
+  if (path === '/push/subscribe' && method === 'POST')   return pushSubscribe(request, env, origin);
+  if (path === '/push/subscribe' && method === 'DELETE') return pushUnsubscribe(request, env, origin);
 
   return err('Not found', 404, origin);
 }
@@ -385,8 +402,194 @@ async function settingsPut(request, env, origin) {
   return json({ ok: true }, 200, origin);
 }
 
+// ── Push ──────────────────────────────────────────────────────────────────────
+
+async function pushVapidKey(request, env, origin) {
+  return json({ publicKey: env.VAPID_PUBLIC_KEY }, 200, origin);
+}
+
+async function pushSubscribe(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { endpoint, keys } = await request.json().catch(() => ({}));
+  if (!endpoint || !keys?.p256dh || !keys?.auth) return err('invalid subscription', 400, origin);
+
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // Upsert: if endpoint already exists for this user, update it; otherwise insert
+  const existing = await env.DB.prepare(
+    'SELECT id FROM push_subscriptions WHERE user_id = ? AND endpoint = ?'
+  ).bind(userId, endpoint).first();
+
+  if (existing) {
+    await env.DB.prepare(
+      'UPDATE push_subscriptions SET p256dh = ?, auth = ? WHERE id = ?'
+    ).bind(keys.p256dh, keys.auth, existing.id).run();
+  } else {
+    await env.DB.prepare(
+      'INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?,?,?,?,?,?)'
+    ).bind(id, userId, endpoint, keys.p256dh, keys.auth, now).run();
+  }
+
+  return json({ ok: true }, 201, origin);
+}
+
+async function pushUnsubscribe(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { endpoint } = await request.json().catch(() => ({}));
+  if (endpoint) {
+    await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
+      .bind(userId, endpoint).run();
+  }
+  return json({ ok: true }, 200, origin);
+}
+
 // ── Cron ──────────────────────────────────────────────────────────────────────
 
 async function handleCron(env) {
-  // placeholder
+  const now = new Date();
+  const todayDate = now.toISOString().slice(0, 10);
+  const dayOfWeek = now.getUTCDay();
+
+  // 10-minute window centered on now
+  const windowStart = new Date(now.getTime() - 5 * 60 * 1000);
+  const windowEnd   = new Date(now.getTime() + 5 * 60 * 1000);
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const toHHMM = (d) => `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  const wsHHMM = toHHMM(windowStart);
+  const weHHMM = toHHMM(windowEnd);
+
+  const { results: dueItems } = await env.DB.prepare(
+    `SELECT p.id, p.user_id, p.peptide, p.dose, p.unit, p.time
+     FROM planner p
+     WHERE p.day = ? AND p.time >= ? AND p.time <= ?`
+  ).bind(dayOfWeek, wsHHMM, weHHMM).all();
+
+  for (const item of dueItems) {
+    // Deduplication check
+    const alreadySent = await env.DB.prepare(
+      'SELECT id FROM notifications_sent WHERE user_id = ? AND planner_id = ? AND sent_date = ?'
+    ).bind(item.user_id, item.id, todayDate).first();
+    if (alreadySent) continue;
+
+    const { results: subs } = await env.DB.prepare(
+      'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?'
+    ).bind(item.user_id).all();
+
+    const payload = JSON.stringify({
+      title: 'PeptideOS Reminder',
+      body: `Time to take ${item.peptide} — ${item.dose} ${item.unit}`,
+      icon: '/mini.svg'
+    });
+
+    for (const sub of subs) {
+      try {
+        await sendWebPush(env, sub.endpoint, sub.p256dh, sub.auth, payload);
+      } catch (e) {
+        console.error('Push failed:', e.message);
+      }
+    }
+
+    // Record as sent (INSERT OR IGNORE handles race conditions)
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO notifications_sent (id, user_id, planner_id, sent_date) VALUES (?,?,?,?)'
+    ).bind(crypto.randomUUID(), item.user_id, item.id, todayDate).run();
+  }
+}
+
+// ── Web Push (RFC 8291 / RFC 8292) ────────────────────────────────────────────
+
+async function sendWebPush(env, endpoint, p256dhB64url, authB64url, payload) {
+  // --- VAPID JWT ---
+  const privKeyBytes = base64urlDecode(env.VAPID_PRIVATE_KEY);
+  const vapidPrivKey = await crypto.subtle.importKey(
+    'raw', privKeyBytes,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false, ['sign']
+  );
+
+  const audience = new URL(endpoint).origin;
+  const now = Math.floor(Date.now() / 1000);
+  const header  = base64urlEncode(new TextEncoder().encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const claims  = base64urlEncode(new TextEncoder().encode(JSON.stringify({ aud: audience, exp: now + 43200, sub: env.VAPID_SUBJECT })));
+  const sigInput = new TextEncoder().encode(`${header}.${claims}`);
+  const sigBytes = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, vapidPrivKey, sigInput);
+  const jwt = `${header}.${claims}.${base64urlEncode(new Uint8Array(sigBytes))}`;
+
+  // --- ECDH key exchange ---
+  const serverPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  const serverPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', serverPair.publicKey));
+
+  const clientPubRaw = base64urlDecode(p256dhB64url);
+  const clientPubKey = await crypto.subtle.importKey('raw', clientPubRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+
+  const sharedBits = await crypto.subtle.deriveBits({ name: 'ECDH', public: clientPubKey }, serverPair.privateKey, 256);
+
+  const authBytes = base64urlDecode(authB64url);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  // HKDF extraction + expansion (RFC 8291)
+  const hkdfBase = await crypto.subtle.importKey('raw', sharedBits, 'HKDF', false, ['deriveBits']);
+
+  const authInfo = new TextEncoder().encode('Content-Encoding: auth\0');
+  const prkBits  = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: authBytes, info: authInfo }, hkdfBase, 256);
+  const prk      = await crypto.subtle.importKey('raw', prkBits, 'HKDF', false, ['deriveBits']);
+
+  function buildInfo(type) {
+    const label = new TextEncoder().encode(`Content-Encoding: ${type}\0`);
+    const buf = new Uint8Array(label.length + 1 + 2 + clientPubRaw.length + 2 + serverPubRaw.length);
+    let off = 0;
+    buf.set(label, off); off += label.length;
+    buf[off++] = 0x41; // keyid_len hint
+    const cv = new DataView(new ArrayBuffer(2)); cv.setUint16(0, clientPubRaw.length);
+    buf.set(new Uint8Array(cv.buffer), off); off += 2;
+    buf.set(clientPubRaw, off); off += clientPubRaw.length;
+    const sv = new DataView(new ArrayBuffer(2)); sv.setUint16(0, serverPubRaw.length);
+    buf.set(new Uint8Array(sv.buffer), off); off += 2;
+    buf.set(serverPubRaw, off);
+    return buf;
+  }
+
+  const cekBits   = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: buildInfo('aesgcm') }, prk, 128);
+  const nonceBits = await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info: buildInfo('nonce') }, prk, 96);
+
+  const cek = await crypto.subtle.importKey('raw', cekBits, 'AES-GCM', false, ['encrypt']);
+  const plaintext = new TextEncoder().encode(payload);
+  const padded = new Uint8Array(plaintext.length + 2);
+  padded.set(plaintext, 2); // 2-byte zero padding prefix
+
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonceBits, tagLength: 128 }, cek, padded);
+
+  // Build Encrypted Content-Coding body (RFC 8188 aesgcm)
+  const rs = new DataView(new ArrayBuffer(4)); rs.setUint32(0, 4096);
+  const body = new Uint8Array(16 + 4 + 1 + serverPubRaw.length + ciphertext.byteLength);
+  let off = 0;
+  body.set(salt, off); off += 16;
+  body.set(new Uint8Array(rs.buffer), off); off += 4;
+  body[off++] = serverPubRaw.length;
+  body.set(serverPubRaw, off); off += serverPubRaw.length;
+  body.set(new Uint8Array(ciphertext), off);
+
+  const saltB64 = base64urlEncode(salt);
+  const dhB64   = base64urlEncode(serverPubRaw);
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type':     'application/octet-stream',
+      'Content-Encoding': 'aesgcm',
+      'Encryption':       `salt=${saltB64}`,
+      'Crypto-Key':       `dh=${dhB64};vapid t=${jwt},k=${env.VAPID_PUBLIC_KEY}`,
+      'TTL':              '86400',
+      'Authorization':    `vapid t=${jwt},k=${env.VAPID_PUBLIC_KEY}`,
+    },
+    body
+  });
+
+  if (!res.ok && res.status !== 201) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Push HTTP ${res.status}: ${text}`);
+  }
 }
