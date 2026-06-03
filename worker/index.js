@@ -87,12 +87,71 @@ function err(msg, status = 400, origin = '') {
   return json({ error: msg }, status, origin);
 }
 
-// Fix 4: OPTIONS handler
 async function handleAPI(request, env, url) {
   const origin = request.headers.get('Origin') || '';
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
+
+  const path = url.pathname.replace('/api', '');
+  const method = request.method;
+
+  if (path === '/auth/register' && method === 'POST') return authRegister(request, env, origin);
+  if (path === '/auth/login'    && method === 'POST') return authLogin(request, env, origin);
+  if (path === '/auth/logout'   && method === 'POST') return authLogout(request, env, origin);
+
+  return err('Not found', 404, origin);
+}
+
+async function authRegister(request, env, origin) {
+  const { email, password } = await request.json().catch(() => ({}));
+  if (!email || !password) return err('email and password required', 400, origin);
+  if (password.length < 8) return err('password must be at least 8 characters', 400, origin);
+
+  const existing = await env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first();
+  if (existing) return err('email already registered', 400, origin);
+
+  const id = crypto.randomUUID();
+  const hash = await hashPassword(password);
+  const now = new Date().toISOString();
+
+  await env.DB.prepare(
+    'INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)'
+  ).bind(id, email.toLowerCase().trim(), hash, now).run();
+
+  const token = crypto.randomUUID();
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  await env.SESSIONS.put(token, JSON.stringify({ user_id: id, expires_at: expiresAt }), {
+    expirationTtl: 30 * 24 * 60 * 60
+  });
+
+  return json({ token, email: email.toLowerCase().trim() }, 201, origin);
+}
+
+async function authLogin(request, env, origin) {
+  const { email, password } = await request.json().catch(() => ({}));
+  if (!email || !password) return err('email and password required', 400, origin);
+
+  const user = await env.DB.prepare('SELECT id, password_hash FROM users WHERE email = ?')
+    .bind(email.toLowerCase().trim()).first();
+  if (!user) return err('invalid credentials', 401, origin);
+
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) return err('invalid credentials', 401, origin);
+
+  const token = crypto.randomUUID();
+  const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+  await env.SESSIONS.put(token, JSON.stringify({ user_id: user.id, expires_at: expiresAt }), {
+    expirationTtl: 30 * 24 * 60 * 60
+  });
+
+  return json({ token, email: email.toLowerCase().trim() }, 200, origin);
+}
+
+async function authLogout(request, env, origin) {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (token) await env.SESSIONS.delete(token);
   return json({ ok: true }, 200, origin);
 }
 
