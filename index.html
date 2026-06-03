@@ -1874,6 +1874,13 @@ function escHtml(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// Service worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').then(reg => {
+    window.addEventListener('online', () => reg.sync?.register('flush-queue').catch(() => {}));
+  }).catch(err => console.warn('SW registration failed:', err));
+}
   </script>
 </body>
 </html>

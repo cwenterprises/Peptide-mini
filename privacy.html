@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Privacy Policy — PeptideOS</title>
+  <style>
+    body{font-family:-apple-system,system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px 60px;line-height:1.7;color:#1e293b;}
+    h1{font-size:28px;font-weight:800;margin-bottom:8px;}
+    h2{font-size:18px;font-weight:700;margin-top:32px;}
+    p,li{font-size:15px;color:#334155;}
+    a{color:#0ea5e9;}
+    .meta{color:#64748b;font-size:13px;}
+    @media(prefers-color-scheme:dark){body{background:#0a0f1e;color:#f1f5f9;}p,li{color:#94a3b8;}h1,h2{color:#f1f5f9;}}
+  </style>
+</head>
+<body>
+  <a href="/" style="color:#0ea5e9;font-size:14px;">← Back to PeptideOS</a>
+  <h1 style="margin-top:16px;">Privacy Policy</h1>
+  <p class="meta">Effective date: June 3, 2026 · CW Enterprises</p>
+
+  <h2>1. What We Collect</h2>
+  <ul>
+    <li><strong>Account data:</strong> Email address and hashed password (PBKDF2, 100,000 iterations, SHA-256).</li>
+    <li><strong>Tracking data:</strong> Peptide names, planner entries, vial records, dose logs, and cycle dates you enter.</li>
+    <li><strong>Push subscription:</strong> Browser endpoint URL and encryption keys, only if you enable notifications.</li>
+    <li><strong>Session token:</strong> UUID stored in browser localStorage; expires after 30 days.</li>
+  </ul>
+
+  <h2>2. How We Use Your Data</h2>
+  <p>Your data is used solely to provide the PeptideOS service to you. We do not sell, share, or transfer your data to any third party for marketing purposes.</p>
+
+  <h2>3. Storage &amp; Security</h2>
+  <p>Data is stored in Cloudflare D1 (SQLite), which is encrypted at rest. Passwords are never stored in plaintext — only a salted PBKDF2 hash. Session tokens are stored in Cloudflare KV with a 30-day expiry.</p>
+
+  <h2>4. Data Retention</h2>
+  <p>Your data is retained as long as your account is active. You can delete all data at any time from Settings → Danger Zone. Deletion is permanent and immediate.</p>
+
+  <h2>5. No Third-Party Sharing</h2>
+  <p>We do not sell your data. We do not share your data with advertisers, data brokers, or analytics providers.</p>
+
+  <h2>6. Push Notifications</h2>
+  <p>If you enable push notifications, your browser push subscription (endpoint URL and encryption keys) is stored in our database solely to send you dose reminders. You can unsubscribe at any time from Settings.</p>
+
+  <h2>7. GDPR / Rights</h2>
+  <p>If you are in the EU or UK, you have the right to access, correct, or delete your personal data. Contact us at <a href="mailto:claude@cwenterprises.net">claude@cwenterprises.net</a> to exercise these rights.</p>
+
+  <h2>8. Changes</h2>
+  <p>We may update this policy. We'll note the effective date at the top of this page.</p>
+
+  <p style="margin-top:40px;" class="meta">© 2026 CW Enterprises. All rights reserved. · <a href="/terms">Terms of Service</a></p>
+</body>
+</html>

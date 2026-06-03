@@ -1,0 +1,12 @@
+{
+  "name": "PeptideOS",
+  "short_name": "PeptideOS",
+  "description": "Personal peptide tracking and research tool",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e8f4fd",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    { "src": "/mini.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
