@@ -148,6 +148,15 @@ async function handleAPI(request, env, url) {
   return err('Not found', 404, origin);
 }
 
+const WORKER_DEFAULT_PEPTIDES = [
+  "5-amino-1mq","AICAR","AOD-9604","ARA-290","Adalank","Adamax","BPC-157",
+  "Cerebrolysin","CJC-1295","CJC-195/IPA","DSIP","Dihexa","Epithalon",
+  "GHK-CU","GhRIP","Glow","Glutathione","IGF-1 LR3","Ipamorelin","KPV",
+  "Kisspeptin","Klow","LL-37","Lipo-C","MOTS-C","NAD+","Oxytocin","PE-22-28",
+  "PT-141","Pinealon","Retatrutide","SS-31","SLU-PP-332","Semax","Selank",
+  "Sermorelin","TB-500","Tesamorelin","Thymosin Alpha-1","VIP","Wolverine"
+];
+
 async function authRegister(request, env, origin) {
   const { email, password } = await request.json().catch(() => ({}));
   if (!email || !password) return err('email and password required', 400, origin);
@@ -160,9 +169,16 @@ async function authRegister(request, env, origin) {
   const hash = await hashPassword(password);
   const now = new Date().toISOString();
 
-  await env.DB.prepare(
-    'INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)'
-  ).bind(id, email.toLowerCase().trim(), hash, now).run();
+  const peptideStmts = WORKER_DEFAULT_PEPTIDES.map(name =>
+    env.DB.prepare('INSERT INTO peptides (id, user_id, name) VALUES (?, ?, ?)')
+      .bind(crypto.randomUUID(), id, name)
+  );
+
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)')
+      .bind(id, email.toLowerCase().trim(), hash, now),
+    ...peptideStmts
+  ]);
 
   const token = crypto.randomUUID();
   const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
