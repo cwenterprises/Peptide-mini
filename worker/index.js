@@ -102,6 +102,30 @@ async function handleAPI(request, env, url) {
   if (path === '/auth/forgot'   && method === 'POST') return authForgot(request, env, origin);
   if (path === '/auth/reset'    && method === 'POST') return authReset(request, env, origin);
 
+  // Peptides
+  if (path === '/peptides' && method === 'GET')    return peptidesList(request, env, origin);
+  if (path === '/peptides' && method === 'POST')   return peptidesAdd(request, env, origin);
+  if (path.match(/^\/peptides\/[^/]+$/) && method === 'DELETE') return peptidesDelete(request, env, origin, path);
+
+  // Planner
+  if (path === '/planner' && method === 'GET')    return plannerList(request, env, origin);
+  if (path === '/planner' && method === 'POST')   return plannerAdd(request, env, origin);
+  if (path.match(/^\/planner\/[^/]+$/) && method === 'DELETE') return plannerDelete(request, env, origin, path);
+
+  // Vials
+  if (path === '/vials' && method === 'GET')    return vialsList(request, env, origin);
+  if (path === '/vials' && method === 'POST')   return vialsAdd(request, env, origin);
+  if (path.match(/^\/vials\/[^/]+$/) && method === 'DELETE') return vialsDelete(request, env, origin, path);
+
+  // Logs
+  if (path === '/logs' && method === 'GET')    return logsList(request, env, origin);
+  if (path === '/logs' && method === 'POST')   return logsAdd(request, env, origin);
+  if (path === '/logs/last' && method === 'DELETE') return logsDeleteLast(request, env, origin);
+
+  // Settings
+  if (path === '/settings' && method === 'GET') return settingsGet(request, env, origin);
+  if (path === '/settings' && method === 'PUT') return settingsPut(request, env, origin);
+
   return err('Not found', 404, origin);
 }
 
@@ -195,6 +219,173 @@ async function authReset(request, env, origin) {
   await env.SESSIONS.delete(`reset:${token}`);
   return json({ ok: true }, 200, origin);
 }
+
+// ── Peptides ──────────────────────────────────────────────────────────────────
+
+async function peptidesList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT id, name FROM peptides WHERE user_id = ? ORDER BY name'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function peptidesAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { name } = await request.json().catch(() => ({}));
+  if (!name?.trim()) return err('name required', 400, origin);
+  const id = crypto.randomUUID();
+  await env.DB.prepare('INSERT INTO peptides (id, user_id, name) VALUES (?, ?, ?)')
+    .bind(id, userId, name.trim()).run();
+  return json({ id, name: name.trim() }, 201, origin);
+}
+
+async function peptidesDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM peptides WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Planner ───────────────────────────────────────────────────────────────────
+
+async function plannerList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM planner WHERE user_id = ? ORDER BY day, time'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function plannerAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || b.day == null || !b.route || !b.dose || !b.unit) return err('missing fields', 400, origin);
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    'INSERT INTO planner (id, user_id, peptide, day, time, route, dose, unit, note) VALUES (?,?,?,?,?,?,?,?,?)'
+  ).bind(id, userId, b.peptide, b.day, b.time || null, b.route, b.dose, b.unit, b.note || null).run();
+  return json({ id, ...b }, 201, origin);
+}
+
+async function plannerDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM planner WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Vials ─────────────────────────────────────────────────────────────────────
+
+async function vialsList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM vials WHERE user_id = ? ORDER BY created_at DESC'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function vialsAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.mg || !b.ml) return err('peptide, mg, ml required', 400, origin);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    'INSERT INTO vials (id, user_id, peptide, mg, ml, created_at) VALUES (?,?,?,?,?,?)'
+  ).bind(id, userId, b.peptide, b.mg, b.ml, now).run();
+  return json({ id, peptide: b.peptide, mg: b.mg, ml: b.ml, created_at: now }, 201, origin);
+}
+
+async function vialsDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('UPDATE logs SET vial_id = NULL WHERE vial_id = ? AND user_id = ?')
+    .bind(id, userId).run();
+  await env.DB.prepare('DELETE FROM vials WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Logs ──────────────────────────────────────────────────────────────────────
+
+async function logsList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM logs WHERE user_id = ? ORDER BY taken_at DESC LIMIT 200'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function logsAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.route || !b.dose_value || !b.dose_unit || !b.taken_at) return err('missing fields', 400, origin);
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO logs (id, user_id, vial_id, peptide, route, dose_value, dose_unit, dose_mcg, volume_ml, iu, taken_at, notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+  ).bind(
+    id, userId,
+    b.vial_id || null, b.peptide, b.route,
+    b.dose_value, b.dose_unit,
+    b.dose_mcg ?? null, b.volume_ml ?? null, b.iu ?? null,
+    b.taken_at, b.notes || null
+  ).run();
+  return json({ id, ...b }, 201, origin);
+}
+
+async function logsDeleteLast(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const last = await env.DB.prepare(
+    'SELECT id FROM logs WHERE user_id = ? ORDER BY taken_at DESC LIMIT 1'
+  ).bind(userId).first();
+  if (!last) return json({ ok: true, deleted: false }, 200, origin);
+  await env.DB.prepare('DELETE FROM logs WHERE id = ?').bind(last.id).run();
+  return json({ ok: true, deleted: true }, 200, origin);
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+async function settingsGet(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const row = await env.DB.prepare('SELECT * FROM user_settings WHERE user_id = ?').bind(userId).first();
+  return json(row || { user_id: userId, week_start: null, cycle_start: null, cycle_end: null, theme: 'system' }, 200, origin);
+}
+
+async function settingsPut(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  await env.DB.prepare(
+    `INSERT INTO user_settings (user_id, week_start, cycle_start, cycle_end, theme)
+     VALUES (?,?,?,?,?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       week_start = excluded.week_start,
+       cycle_start = excluded.cycle_start,
+       cycle_end = excluded.cycle_end,
+       theme = excluded.theme`
+  ).bind(
+    userId,
+    b.week_start ?? null, b.cycle_start ?? null, b.cycle_end ?? null,
+    b.theme ?? 'system'
+  ).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Cron ──────────────────────────────────────────────────────────────────────
 
 async function handleCron(env) {
   // placeholder
