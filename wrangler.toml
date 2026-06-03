@@ -19,10 +19,6 @@ crons = ["*/5 * * * *"]
 [vars]
 APP_URL = "https://peptideos.cwenterprises.net"
 
-[[routes]]
-pattern = "peptideos.cwenterprises.net"
-custom_domain = true
-
 [assets]
 directory = "."
 binding = "ASSETS"
