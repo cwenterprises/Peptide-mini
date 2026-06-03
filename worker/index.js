@@ -99,6 +99,8 @@ async function handleAPI(request, env, url) {
   if (path === '/auth/register' && method === 'POST') return authRegister(request, env, origin);
   if (path === '/auth/login'    && method === 'POST') return authLogin(request, env, origin);
   if (path === '/auth/logout'   && method === 'POST') return authLogout(request, env, origin);
+  if (path === '/auth/forgot'   && method === 'POST') return authForgot(request, env, origin);
+  if (path === '/auth/reset'    && method === 'POST') return authReset(request, env, origin);
 
   return err('Not found', 404, origin);
 }
@@ -152,6 +154,45 @@ async function authLogout(request, env, origin) {
   const auth = request.headers.get('Authorization') || '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (token) await env.SESSIONS.delete(token);
+  return json({ ok: true }, 200, origin);
+}
+
+async function authForgot(request, env, origin) {
+  const { email } = await request.json().catch(() => ({}));
+  if (!email) return err('email required', 400, origin);
+
+  const user = await env.DB.prepare('SELECT id FROM users WHERE email = ?')
+    .bind(email.toLowerCase().trim()).first();
+
+  if (user) {
+    const resetToken = crypto.randomUUID();
+    await env.SESSIONS.put(
+      `reset:${resetToken}`,
+      JSON.stringify({ user_id: user.id, email: email.toLowerCase().trim() }),
+      { expirationTtl: 15 * 60 }
+    );
+    // DEV only — log token to console so it can be used in testing
+    console.log(`[DEV] Reset token for ${email}: ${resetToken}`);
+  }
+
+  // Always return 200 to prevent email enumeration
+  return json({ ok: true, message: 'If that email is registered, a reset link has been sent.' }, 200, origin);
+}
+
+async function authReset(request, env, origin) {
+  const { token, password } = await request.json().catch(() => ({}));
+  if (!token || !password) return err('token and password required', 400, origin);
+  if (password.length < 8) return err('password must be at least 8 characters', 400, origin);
+
+  const data = await env.SESSIONS.get(`reset:${token}`, 'json');
+  if (!data) return err('invalid or expired reset token', 401, origin);
+
+  const hash = await hashPassword(password);
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(hash, data.user_id).run();
+
+  // One-time use — delete the reset token
+  await env.SESSIONS.delete(`reset:${token}`);
   return json({ ok: true }, 200, origin);
 }
 
