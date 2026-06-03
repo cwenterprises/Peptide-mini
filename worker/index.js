@@ -111,8 +111,10 @@ async function handleAPI(request, env, url) {
   if (path === '/auth/register' && method === 'POST') return authRegister(request, env, origin);
   if (path === '/auth/login'    && method === 'POST') return authLogin(request, env, origin);
   if (path === '/auth/logout'   && method === 'POST') return authLogout(request, env, origin);
-  if (path === '/auth/forgot'   && method === 'POST') return authForgot(request, env, origin);
-  if (path === '/auth/reset'    && method === 'POST') return authReset(request, env, origin);
+  if (path === '/auth/forgot'           && method === 'POST') return authForgot(request, env, origin);
+  if (path === '/auth/reset'            && method === 'POST') return authReset(request, env, origin);
+  if (path === '/auth/change-password'  && method === 'POST') return authChangePassword(request, env, origin);
+  if (path === '/account'               && method === 'DELETE') return deleteAccount(request, env, origin);
 
   // Peptides
   if (path === '/peptides' && method === 'GET')    return peptidesList(request, env, origin);
@@ -443,6 +445,25 @@ async function pushUnsubscribe(request, env, origin) {
     await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
       .bind(userId, endpoint).run();
   }
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Account Management ────────────────────────────────────────────────────────
+
+async function authChangePassword(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { password } = await request.json().catch(() => ({}));
+  if (!password || password.length < 8) return err('password must be at least 8 characters', 400, origin);
+  const hash = await hashPassword(password);
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(hash, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+async function deleteAccount(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
   return json({ ok: true }, 200, origin);
 }
 

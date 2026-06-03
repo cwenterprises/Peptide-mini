@@ -513,15 +513,1332 @@ function renderAllTabs() {
   renderSettings();
 }
 
-// Placeholders — filled in Tasks 9–16
-function renderAuth(mode)  { document.getElementById('authScreen').innerHTML = `<div class="glass auth-card"><p style="padding:20px;color:var(--text-muted);">Auth: ${mode}</p></div>`; }
-function renderToday()     { document.getElementById('today').innerHTML    = '<p class="muted" style="padding:20px;">Today tab</p>'; }
-function renderWeek()      { document.getElementById('week').innerHTML     = '<p class="muted" style="padding:20px;">Week tab</p>'; }
-function renderLogDose()   { document.getElementById('logdose').innerHTML  = '<p class="muted" style="padding:20px;">Log Dose tab</p>'; }
-function renderVials()     { document.getElementById('vials').innerHTML    = '<p class="muted" style="padding:20px;">Vials tab</p>'; }
-function renderCalc()      { document.getElementById('calc').innerHTML     = '<p class="muted" style="padding:20px;">Calculator tab</p>'; }
-function renderLibrary()   { document.getElementById('library').innerHTML  = '<p class="muted" style="padding:20px;">Library tab</p>'; }
-function renderSettings()  { document.getElementById('settings').innerHTML = '<p class="muted" style="padding:20px;">Settings tab</p>'; }
+// ── Shared Helpers ────────────────────────────────────────────────────────────
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function ymd(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+
+function planMatched(plan, logs) {
+  return logs.some(l => {
+    if (l.peptide !== plan.peptide) return false;
+    if (l.route   !== plan.route)   return false;
+    if (l.dose_unit !== plan.unit)  return false;
+    const ratio = Math.abs(parseFloat(l.dose_value) - parseFloat(plan.dose)) / (parseFloat(plan.dose) || 1);
+    return ratio <= 0.02;
+  });
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const PEPTIDE_HALFLIFE = {
+  'BPC-157':          { halfLife: 4,    notes: 'Short acting; split into AM/PM dosing for best results' },
+  'TB-500':           { halfLife: 24,   notes: 'Long-acting systemic; weekly or twice-weekly dosing common' },
+  'Ipamorelin':       { halfLife: 2,    notes: 'GHRP; pulse dose 2–3× daily, ideally fasted' },
+  'CJC-1295':         { halfLife: 168,  notes: 'Long-acting GHRH analogue; once weekly dosing sufficient' },
+  'Tesamorelin':      { halfLife: 0.5,  notes: 'Very short half-life; daily subcutaneous injection' },
+  'Sermorelin':       { halfLife: 0.3,  notes: 'Extremely short; must be injected at bedtime' },
+  'PT-141':           { halfLife: 2.5,  notes: 'Melanocortin; onset ~1h, peak ~2–4h; intranasal or SC' },
+  'Epithalon':        { halfLife: 0.5,  notes: 'Telomerase activator; short half-life, course dosing' },
+  'GHK-Cu':           { halfLife: 1,    notes: 'Copper peptide; topical or SC, frequent application' },
+  'Thymosin Alpha-1': { halfLife: 2,    notes: 'Immune modulator; twice-weekly subcutaneous injection' }
+};
+
+const PEPTIDE_LIBRARY = [
+  {
+    name: 'BPC-157',
+    aliases: ['Body Protection Compound 157'],
+    description: 'A pentadecapeptide derived from human gastric juice. Well-studied for its healing effects on tendons, ligaments, muscles, and gut tissue. One of the most popular and researched peptides in the community.',
+    halfLife: '4 hours',
+    doseRange: '250–500 mcg/day',
+    route: 'Subcutaneous or Oral',
+    mechanism: 'Upregulates growth hormone receptors, promotes angiogenesis, activates the FAK-paxillin pathway for tendon/ligament healing, and modulates nitric oxide synthesis.',
+    protocols: 'Typical protocol: 250 mcg twice daily subcutaneously near injury site, or orally for gut healing. Cycle 4–8 weeks.',
+    cycleLength: '4–8 weeks',
+    stack: 'Commonly stacked with TB-500 for enhanced soft tissue repair. Also pairs with GHK-Cu for wound healing.'
+  },
+  {
+    name: 'TB-500',
+    aliases: ['Thymosin Beta-4'],
+    description: 'A synthetic version of a naturally occurring healing protein. Promotes cell migration and proliferation, reduces inflammation, and accelerates tissue repair throughout the body with systemic effect.',
+    halfLife: '24 hours',
+    doseRange: '2–2.5 mg twice weekly (loading), 2.5 mg once weekly (maintenance)',
+    route: 'Subcutaneous or Intramuscular',
+    mechanism: 'Binds to actin, promotes cell migration, angiogenesis, and tissue regeneration. Reduces oxidative damage and modulates anti-inflammatory cytokines.',
+    protocols: 'Loading: 2–2.5 mg 2× per week for 4–6 weeks. Maintenance: 2–2.5 mg once weekly or bi-weekly.',
+    cycleLength: '4–6 weeks loading, then maintenance',
+    stack: 'Synergistic with BPC-157 for injury recovery. Can be used with Sermorelin or Ipamorelin for combined GH and healing effects.'
+  },
+  {
+    name: 'Ipamorelin',
+    aliases: ['Ipam'],
+    description: 'A selective growth hormone secretagogue and GHRP (growth hormone releasing peptide). Stimulates GH release with minimal impact on cortisol or prolactin, making it one of the cleanest GHRPs available.',
+    halfLife: '2 hours',
+    doseRange: '200–300 mcg per injection, 2–3× daily',
+    route: 'Subcutaneous',
+    mechanism: 'Binds to ghrelin receptors (GHSR) in the pituitary, stimulating GH pulse release without significantly raising cortisol, prolactin, or appetite.',
+    protocols: 'Inject 200–300 mcg 2–3 times daily, ideally fasted (no food 2h before or 30 min after). Often combined with CJC-1295.',
+    cycleLength: '3–6 months',
+    stack: 'Almost always stacked with CJC-1295 (no-DAC) for amplified GH pulses. The CJC/Ipamorelin combo is the most popular GH peptide stack.'
+  },
+  {
+    name: 'CJC-1295',
+    aliases: ['CJC-1295 with DAC', 'CJC-1295 no-DAC', 'Mod GRF 1-29'],
+    description: 'A GHRH analogue that stimulates GH release from the pituitary. The DAC version has an extended half-life due to drug affinity complex technology; the no-DAC version mimics natural GHRH pulses more closely.',
+    halfLife: '168 hours (with DAC), ~0.5 hours (no-DAC)',
+    doseRange: '1–2 mg weekly (with DAC), 100–200 mcg per injection (no-DAC)',
+    route: 'Subcutaneous',
+    mechanism: 'Mimics endogenous GHRH, binding to GHRH receptors in the anterior pituitary to stimulate GH and IGF-1 release.',
+    protocols: 'With DAC: 1–2 mg once weekly. No-DAC: 100–200 mcg per dose, 2–3× daily in combination with a GHRP.',
+    cycleLength: '3–6 months',
+    stack: 'No-DAC version pairs with Ipamorelin or Sermorelin for synergistic GH release.'
+  },
+  {
+    name: 'Semax',
+    aliases: ['ACTH 4-10', 'N-Acetyl Semax'],
+    description: 'A Russian nootropic peptide derived from ACTH. Widely used for cognitive enhancement, focus, neuroprotection, and mood improvement. Approved as a drug in Russia and Ukraine.',
+    halfLife: 'Minutes (intranasal); effects last hours',
+    doseRange: '200–900 mcg intranasal per day',
+    route: 'Intranasal or Subcutaneous',
+    mechanism: 'Increases BDNF and NGF in the brain, modulates serotonin and dopamine signaling, has anti-inflammatory effects in the CNS.',
+    protocols: 'Intranasal: 200–900 mcg per day in divided doses. Typical cycle 2–4 weeks on, 1–2 weeks off.',
+    cycleLength: '2–4 weeks on, 1–2 weeks off',
+    stack: 'Often stacked with Selank for balanced anxiolytic + cognitive enhancement. Also used with racetams or other nootropics.'
+  },
+  {
+    name: 'PT-141',
+    aliases: ['Bremelanotide'],
+    description: 'A melanocortin receptor agonist originally developed as a tanning agent. Now primarily used to treat sexual dysfunction in both men and women. FDA-approved (as Vyleesi) for HSDD in women.',
+    halfLife: '2.5 hours',
+    doseRange: '0.5–2 mg per dose as needed',
+    route: 'Subcutaneous or Intranasal',
+    mechanism: 'Activates melanocortin receptors (MC3R, MC4R) in the CNS, increasing sexual arousal through central mechanisms rather than vascular effects.',
+    protocols: 'Use 1–2 hours before sexual activity. Start low (0.5 mg) to assess side effects (nausea, flushing). No more than once per 72 hours.',
+    cycleLength: 'As needed, not continuous',
+    stack: 'Sometimes used with Oxytocin for enhanced intimacy. Not typically stacked with other melanocortins.'
+  },
+  {
+    name: 'Epithalon',
+    aliases: ['Epitalon', 'Epithalamin'],
+    description: 'A tetrapeptide derived from the pineal gland. Studied extensively by the St. Petersburg Institute of Bioregulation for its effects on telomere length, longevity, and circadian rhythm regulation.',
+    halfLife: '0.5 hours',
+    doseRange: '5–10 mg/day for 10 days, 1–2× per year',
+    route: 'Subcutaneous or Intravenous',
+    mechanism: 'Activates telomerase enzyme, potentially lengthening telomeres. Regulates melatonin production via the pineal gland, normalizes cortisol rhythms.',
+    protocols: 'Course protocol: 5–10 mg daily for 10 consecutive days, repeated 1–2× per year. Some use 3 mg 3× daily.',
+    cycleLength: '10-day course, 1–2× per year',
+    stack: 'Often used as a standalone anti-aging protocol. Some stack with GHK-Cu or Thymosin Alpha-1.'
+  },
+  {
+    name: 'GHK-Cu',
+    aliases: ['Copper peptide GHK', 'Glycyl-L-histidyl-L-lysine copper'],
+    description: 'A naturally occurring copper complex found in human plasma, saliva, and urine. Potent wound healing, anti-aging, and anti-inflammatory effects. Popular in both injectable and topical forms.',
+    halfLife: '1 hour',
+    doseRange: '1–2 mg/day subcutaneous; topical as needed',
+    route: 'Subcutaneous or Topical',
+    mechanism: 'Promotes collagen, elastin, and glycosaminoglycan synthesis. Activates wound-healing genes, reduces oxidative damage, and upregulates antioxidant enzymes.',
+    protocols: 'Injectable: 1–2 mg subcutaneous daily for 4–6 weeks. Topical: apply 1–2× daily to target areas. Cycle and rest as needed.',
+    cycleLength: '4–6 weeks',
+    stack: 'Excellent complement to BPC-157 for skin and tissue healing. Often used topically alongside tretinoin in skincare stacks.'
+  }
+];
+
+const DEFAULT_PEPTIDES = [
+  '5-amino-1mq','AICAR','AOD-9604','ARA-290','Adalank','Adamax','BPC-157',
+  'Cerebrolysin','CJC-1295','CJC-195/IPA','DSIP','Dihexa','Epithalon',
+  'GHK-CU','GhRIP','Glow','Glutathione','IGF-1 LR3','Ipamorelin','KPV',
+  'Kisspeptin','Klow','LL-37','Lipo-C','MOTS-C','NAD+','Oxytocin',
+  'PE-22-28','PT-141','Pinealon','Retatrutide','SS-31','SLU-PP-332',
+  'Semax','Selank','Sermorelin','TB-500','Tesamorelin','Thymosin Alpha-1',
+  'VIP','Wolverine'
+];
+
+// ── Task 9: Auth ──────────────────────────────────────────────────────────────
+function renderAuth(mode) {
+  const logo = `<div class="auth-logo"><h1>PeptideOS</h1><p class="muted" style="margin-top:4px;">Research tracking platform</p></div>`;
+
+  if (mode === 'login') {
+    document.getElementById('authScreen').innerHTML = `
+      <div class="glass auth-card">
+        ${logo}
+        <div class="stack">
+          <label>Email<input type="email" id="authEmail" autocomplete="username" placeholder="you@example.com" /></label>
+          <label>Password<input type="password" id="authPass" autocomplete="current-password" placeholder="••••••••" /></label>
+          <div id="authErr" class="auth-error"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doLogin()">Sign In</button>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <a href="#" style="font-size:13px;color:var(--accent-sky);text-decoration:none;" onclick="renderAuth('forgot');return false;">Forgot password?</a>
+            <a href="#" style="font-size:13px;color:var(--accent-sky);text-decoration:none;" onclick="renderAuth('register');return false;">Create account</a>
+          </div>
+        </div>
+      </div>`;
+  } else if (mode === 'register') {
+    document.getElementById('authScreen').innerHTML = `
+      <div class="glass auth-card">
+        ${logo}
+        <div class="stack">
+          <label>Email<input type="email" id="authEmail" autocomplete="username" placeholder="you@example.com" /></label>
+          <label>Password<input type="password" id="authPass" autocomplete="new-password" placeholder="Min 8 characters" /></label>
+          <label>Confirm Password<input type="password" id="authPassConfirm" autocomplete="new-password" placeholder="Repeat password" /></label>
+          <label style="flex-direction:row;align-items:flex-start;gap:8px;color:var(--text);font-size:13px;">
+            <input type="checkbox" id="checkTos" style="width:auto;margin-top:2px;" required />
+            I agree to the <a href="/terms" style="color:var(--accent-sky);">Terms of Service</a> and <a href="/privacy" style="color:var(--accent-sky);">Privacy Policy</a>
+          </label>
+          <label style="flex-direction:row;align-items:flex-start;gap:8px;color:var(--text);font-size:13px;">
+            <input type="checkbox" id="checkDisclaimer" style="width:auto;margin-top:2px;" required />
+            I understand this app is for personal tracking only and is not medical advice
+          </label>
+          <div id="authErr" class="auth-error"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doRegister()">Create Account</button>
+          <p class="muted" style="text-align:center;line-height:1.5;">By signing up you confirm you are 18+ and agree all peptides are used for research purposes only.</p>
+          <a href="#" style="font-size:13px;color:var(--accent-sky);text-decoration:none;text-align:center;" onclick="renderAuth('login');return false;">Already have an account? Sign in</a>
+        </div>
+      </div>`;
+  } else if (mode === 'forgot') {
+    document.getElementById('authScreen').innerHTML = `
+      <div class="glass auth-card">
+        ${logo}
+        <div class="stack">
+          <label>Email<input type="email" id="authEmail" autocomplete="username" placeholder="you@example.com" /></label>
+          <div id="authErr" class="auth-error"></div>
+          <div id="forgotSuccess" style="display:none;text-align:center;padding:12px;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.3);border-radius:10px;">
+            <div style="font-size:28px;">&#x2709;&#xFE0F;</div>
+            <p style="font-weight:600;margin-top:8px;">Check your inbox</p>
+            <p class="muted" style="margin-top:4px;">If that email is registered, a reset link has been sent. The link expires in 15 minutes.</p>
+          </div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doForgot()">Send Reset Link</button>
+          <a href="#" style="font-size:13px;color:var(--accent-sky);text-decoration:none;text-align:center;" onclick="renderAuth('login');return false;">Back to sign in</a>
+        </div>
+      </div>`;
+  } else if (mode === 'reset') {
+    const token = new URLSearchParams(window.location.search).get('token');
+    document.getElementById('authScreen').innerHTML = `
+      <div class="glass auth-card">
+        ${logo}
+        <div class="stack">
+          <label>New Password<input type="password" id="authPass" autocomplete="new-password" placeholder="Min 8 characters" /></label>
+          <label>Confirm New Password<input type="password" id="authPassConfirm" autocomplete="new-password" placeholder="Repeat password" /></label>
+          <div id="authErr" class="auth-error"></div>
+          <button class="btn btn-primary" style="width:100%;" onclick="doReset('${token}')">Set New Password</button>
+        </div>
+      </div>`;
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPass').value;
+  const err   = document.getElementById('authErr');
+  err.textContent = '';
+  if (!email || !pass) { err.textContent = 'Email and password are required.'; return; }
+  try {
+    await App.login(email, pass);
+    await App.loadAll();
+    showApp();
+    renderAllTabs();
+  } catch (e) {
+    err.textContent = e.message || 'Login failed. Check credentials and try again.';
+  }
+}
+
+async function doRegister() {
+  const email   = document.getElementById('authEmail').value.trim();
+  const pass    = document.getElementById('authPass').value;
+  const confirm = document.getElementById('authPassConfirm').value;
+  const tos     = document.getElementById('checkTos').checked;
+  const disc    = document.getElementById('checkDisclaimer').checked;
+  const err     = document.getElementById('authErr');
+  err.textContent = '';
+  if (!tos)              { err.textContent = 'You must agree to the Terms of Service and Privacy Policy.'; return; }
+  if (!disc)             { err.textContent = 'You must acknowledge this app is for personal tracking only.'; return; }
+  if (pass.length < 8)   { err.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pass !== confirm)  { err.textContent = 'Passwords do not match.'; return; }
+  try {
+    await App.register(email, pass);
+    await App.loadAll();
+    showApp();
+    renderAllTabs();
+  } catch (e) {
+    err.textContent = e.message || 'Registration failed. Please try again.';
+  }
+}
+
+async function doForgot() {
+  const email = document.getElementById('authEmail').value.trim();
+  const err   = document.getElementById('authErr');
+  err.textContent = '';
+  if (!email) { err.textContent = 'Please enter your email.'; return; }
+  try {
+    await API.post('/auth/forgot', { email });
+    document.getElementById('forgotSuccess').style.display = 'block';
+  } catch (e) {
+    err.textContent = e.message || 'Something went wrong. Please try again.';
+  }
+}
+
+async function doReset(token) {
+  const pass    = document.getElementById('authPass').value;
+  const confirm = document.getElementById('authPassConfirm').value;
+  const err     = document.getElementById('authErr');
+  err.textContent = '';
+  if (pass.length < 8)  { err.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pass !== confirm) { err.textContent = 'Passwords do not match.'; return; }
+  try {
+    await API.post('/auth/reset', { token, password: pass });
+    renderAuth('login');
+  } catch (e) {
+    err.textContent = e.message || 'Reset failed. The link may have expired.';
+  }
+}
+
+// ── Task 10: Today ─────────────────────────────────────────────────────────────
+function calcStreak(logs) {
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today.getTime() - i * 86400000);
+    const ds = ymd(d);
+    const hasLog = logs.some(l => l.taken_at && l.taken_at.slice(0, 10) === ds);
+    if (hasLog) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
+
+function renderToday() {
+  const { planner, logs, settings } = App.getData();
+  const today = new Date();
+  const todayYmd = ymd(today);
+  const todayDay = today.getDay();
+
+  const todayPlans = planner.filter(p => p.day === todayDay);
+  const todayLogs  = logs.filter(l => l.taken_at && l.taken_at.slice(0, 10) === todayYmd);
+
+  const doneCount    = todayPlans.filter(p => planMatched(p, todayLogs)).length;
+  const pendingCount = todayPlans.length - doneCount;
+  const streak       = calcStreak(logs);
+  const pct          = todayPlans.length ? Math.round((doneCount / todayPlans.length) * 100) : 0;
+
+  let doseRows = '';
+  if (todayPlans.length === 0) {
+    doseRows = '<p class="muted" style="padding:8px 0;">Add planner items in Settings.</p>';
+  } else {
+    for (const plan of todayPlans) {
+      const done = planMatched(plan, todayLogs);
+      const timeStr = plan.time || '';
+      doseRows += `
+        <div class="dose-row">
+          <span class="badge ${done ? 'badge-done' : 'badge-pending'}">${done ? 'Done' : 'Pending'}</span>
+          <div class="dose-row-info">
+            <div class="dose-row-name">${escHtml(plan.peptide)}</div>
+            <div class="dose-row-meta">${escHtml(plan.route)} &middot; ${plan.dose} ${escHtml(plan.unit)}${timeStr ? ' &middot; ' + escHtml(timeStr) : ''}${plan.note ? ' &middot; ' + escHtml(plan.note) : ''}</div>
+          </div>
+          ${!done ? `<button class="btn btn-sm btn-ghost" onclick="quickLog('${plan.id}','${todayYmd}')">Log</button>` : ''}
+        </div>`;
+    }
+  }
+
+  document.getElementById('today').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:20px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+          <span class="chip">&#x1F4CB; Planned: ${todayPlans.length}</span>
+          <span class="chip">&#x2705; Done: ${doneCount}</span>
+          <span class="chip">&#x23F3; Pending: ${pendingCount}</span>
+          <span class="chip">&#x1F525; Streak: ${streak}d</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+        <p class="muted" style="margin-top:6px;">${pct}% complete today</p>
+      </div>
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Today's Doses &mdash; ${DAYS[todayDay]}, ${todayYmd}</h3>
+        <div class="stack">${doseRows}</div>
+      </div>
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+function quickLog(planId, dayYmd) {
+  const { planner } = App.getData();
+  const plan = planner.find(p => p.id === planId);
+  Tabs.switchTo('logdose');
+  if (!plan) return;
+  // Re-render to get fresh form, then pre-fill
+  renderLogDose();
+  const ldPeptide = document.getElementById('ldPeptide');
+  const ldRoute   = document.getElementById('ldRoute');
+  const ldDose    = document.getElementById('ldDose');
+  const ldUnit    = document.getElementById('ldUnit');
+  const ldTakenAt = document.getElementById('ldTakenAt');
+  if (ldPeptide) ldPeptide.value = plan.peptide;
+  if (ldRoute)   ldRoute.value   = plan.route;
+  if (ldDose)    ldDose.value    = plan.dose;
+  if (ldUnit)    ldUnit.value    = plan.unit;
+  if (ldTakenAt) {
+    const now = new Date();
+    if (dayYmd !== ymd(now)) {
+      ldTakenAt.value = `${dayYmd}T${plan.time || '08:00'}`;
+    }
+  }
+  // Re-render vial options for this peptide and update draw math
+  renderLogDose();
+  if (ldPeptide) ldPeptide.value = plan.peptide;
+  if (ldRoute)   ldRoute.value   = plan.route;
+  if (ldDose)    ldDose.value    = plan.dose;
+  if (ldUnit)    ldUnit.value    = plan.unit;
+  updateDrawMath();
+}
+
+// ── Task 11: Week ─────────────────────────────────────────────────────────────
+function renderWeek() {
+  const { planner, logs, settings } = App.getData();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let weekStart;
+  if (settings.week_start) {
+    weekStart = new Date(settings.week_start + 'T00:00:00');
+  } else {
+    weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+  }
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekStartYmd = ymd(weekStart);
+  const todayYmd = ymd(today);
+
+  let colsHtml = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart.getTime() + i * 86400000);
+    const dayYmd = ymd(d);
+    const dayOfWeek = d.getDay();
+    const isToday = dayYmd === todayYmd;
+    const dayLogs = logs.filter(l => l.taken_at && l.taken_at.slice(0, 10) === dayYmd);
+    const dayPlans = planner.filter(p => p.day === dayOfWeek);
+    const dayDone = dayPlans.filter(p => planMatched(p, dayLogs)).length;
+
+    let rowsHtml = '';
+    for (const plan of dayPlans) {
+      const done = planMatched(plan, dayLogs);
+      rowsHtml += `
+        <div style="padding:6px 8px;border-radius:8px;background:var(--chip-bg);border:1px solid var(--glass-border);margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="badge ${done ? 'badge-done' : 'badge-pending'}" style="font-size:10px;">${done ? '&#x2713;' : '&#x25CB;'}</span>
+            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(plan.peptide)}</span>
+          </div>
+          <div class="muted" style="margin-top:2px;">${plan.dose} ${escHtml(plan.unit)}</div>
+          ${!done ? `<button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px;margin-top:4px;width:100%;" onclick="quickLog('${plan.id}','${dayYmd}')">Log</button>` : ''}
+        </div>`;
+    }
+    if (dayPlans.length === 0) {
+      rowsHtml = '<p class="muted" style="font-size:11px;padding:4px 0;">Rest day</p>';
+    }
+
+    colsHtml += `
+      <div style="border-radius:12px;padding:12px;background:var(--chip-bg);border:${isToday ? '2px solid var(--accent-sky)' : '1px solid var(--glass-border)'};">
+        <div style="font-weight:700;font-size:13px;${isToday ? 'color:var(--accent-sky);' : ''}">${DAYS[dayOfWeek]}</div>
+        <div class="muted" style="margin-bottom:6px;">${pad2(d.getMonth()+1)}/${pad2(d.getDate())}</div>
+        <div class="muted" style="margin-bottom:8px;">${dayDone}/${dayPlans.length} done</div>
+        ${rowsHtml}
+      </div>`;
+  }
+
+  document.getElementById('week').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <h3 style="font-size:15px;font-weight:700;">Week View</h3>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="muted">Week start:</span>
+            <input type="date" id="weekStartInput" value="${weekStartYmd}" style="width:auto;" onchange="
+              API.put('/settings', Object.assign({}, App.getData().settings, {week_start: this.value}))
+                .then(() => App.loadAll())
+                .then(() => renderAllTabs())
+                .catch(e => alert(e.message));
+            " />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;overflow-x:auto;">
+          ${colsHtml}
+        </div>
+      </div>
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+// ── Task 12: Log Dose ──────────────────────────────────────────────────────────
+function calcDrawMath(vialId, doseValue, doseUnit, vials) {
+  const vial = vials.find(v => v.id === vialId);
+  if (!vial || !vial.mg || !vial.ml) return null;
+  const concMcgMl = (parseFloat(vial.mg) * 1000) / parseFloat(vial.ml);
+  if (!concMcgMl || isNaN(concMcgMl)) return null;
+  let doseMcg = parseFloat(doseValue);
+  if (isNaN(doseMcg) || doseMcg <= 0) return null;
+  if (doseUnit === 'mg') doseMcg *= 1000;
+  else if (doseUnit === 'IU') doseMcg = doseMcg * (1000 / concMcgMl); // approximation
+  const volMl = doseMcg / concMcgMl;
+  const iu    = volMl * 100; // assuming U-100 syringe
+  return { conc: concMcgMl.toFixed(1), vol: volMl.toFixed(3), iu: iu.toFixed(1), mcg: doseMcg.toFixed(1) };
+}
+
+function updateDrawMath() {
+  const ldVial   = document.getElementById('ldVial');
+  const ldDose   = document.getElementById('ldDose');
+  const ldUnit   = document.getElementById('ldUnit');
+  const ldMath   = document.getElementById('ldMath');
+  if (!ldMath) return;
+  if (!ldVial || !ldVial.value || !ldDose || !ldDose.value) {
+    ldMath.innerHTML = '<p class="muted" style="padding:12px;text-align:center;">Select a vial and enter dose</p>';
+    return;
+  }
+  const { vials } = App.getData();
+  const result = calcDrawMath(ldVial.value, ldDose.value, ldUnit ? ldUnit.value : 'mcg', vials);
+  if (!result) {
+    ldMath.innerHTML = '<p class="muted" style="padding:12px;text-align:center;">Select a vial and enter dose</p>';
+    return;
+  }
+  ldMath.innerHTML = `
+    <div style="padding:12px;">
+      <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Draw Math</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${result.conc} mcg/mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${result.mcg} mcg</div></div>
+        <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${result.vol} mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Syringe Units</div><div style="font-weight:700;color:var(--accent-indigo);">${result.iu} IU</div></div>
+      </div>
+    </div>`;
+}
+
+function renderLogDose() {
+  const { peptides, vials } = App.getData();
+  const now = new Date();
+  const defaultTime = `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+
+  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+  const routeOpts   = ['Subcutaneous','Intramuscular','Intranasal','Oral','Topical','Intravenous'].map(r => `<option>${r}</option>`).join('');
+  const unitOpts    = ['mcg','mg','IU'].map(u => `<option>${u}</option>`).join('');
+
+  // Get currently selected peptide (if re-rendering with state preserved)
+  const selPeptide = (document.getElementById('ldPeptide') || {}).value || '';
+  const vialOpts   = vials
+    .filter(v => !selPeptide || v.peptide === selPeptide)
+    .map(v => `<option value="${v.id}">${escHtml(v.peptide)} — ${v.mg}mg/${v.ml}mL</option>`)
+    .join('');
+
+  document.getElementById('logdose').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Log a Dose</h3>
+        <div class="stack">
+          <div class="row2">
+            <label>Peptide
+              <select id="ldPeptide" oninput="renderLogDose()">
+                <option value="">Select peptide…</option>
+                ${peptideOpts}
+              </select>
+            </label>
+            <label>Date &amp; Time
+              <input type="datetime-local" id="ldTakenAt" value="${defaultTime}" />
+            </label>
+          </div>
+          <div class="row3">
+            <label>Route
+              <select id="ldRoute">${routeOpts}</select>
+            </label>
+            <label>Dose
+              <input type="number" id="ldDose" min="0" step="any" placeholder="0.00" oninput="updateDrawMath()" />
+            </label>
+            <label>Unit
+              <select id="ldUnit" onchange="updateDrawMath()">${unitOpts}</select>
+            </label>
+          </div>
+          <div class="row2">
+            <label>Vial (optional)
+              <select id="ldVial" onchange="updateDrawMath()">
+                <option value="">None</option>
+                ${vialOpts}
+              </select>
+            </label>
+            <div id="ldMath" class="glass">
+              <p class="muted" style="padding:12px;text-align:center;">Select a vial and enter dose</p>
+            </div>
+          </div>
+          <label>Notes (optional)
+            <textarea id="ldNotes" placeholder="Any notes…"></textarea>
+          </label>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" style="flex:1;" onclick="saveLog()">Save Dose</button>
+            <button class="btn btn-ghost" onclick="deleteLastLog()">Delete Last</button>
+          </div>
+        </div>
+      </div>
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+async function saveLog() {
+  const peptide = document.getElementById('ldPeptide').value;
+  const dose    = document.getElementById('ldDose').value;
+  const unit    = document.getElementById('ldUnit').value;
+  const route   = document.getElementById('ldRoute').value;
+  const takenAt = document.getElementById('ldTakenAt').value;
+  const vialId  = document.getElementById('ldVial').value;
+  const notes   = document.getElementById('ldNotes').value.trim();
+
+  if (!peptide) { alert('Please select a peptide.'); return; }
+  if (!dose || isNaN(parseFloat(dose))) { alert('Please enter a dose value.'); return; }
+  if (!takenAt) { alert('Please select a date and time.'); return; }
+
+  const { vials } = App.getData();
+  const math = vialId ? calcDrawMath(vialId, dose, unit, vials) : null;
+
+  const payload = {
+    peptide, route,
+    dose_value: parseFloat(dose),
+    dose_unit: unit,
+    taken_at: new Date(takenAt).toISOString(),
+    vial_id: vialId || null,
+    dose_mcg: math ? parseFloat(math.mcg) : null,
+    volume_ml: math ? parseFloat(math.vol) : null,
+    iu: math ? parseFloat(math.iu) : null,
+    notes: notes || null
+  };
+
+  try {
+    await API.post('/logs', payload);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('today');
+  } catch (e) {
+    alert('Failed to save: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function deleteLastLog() {
+  if (!confirm('Delete your most recent log entry?')) return;
+  try {
+    await API.delete('/logs/last');
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to delete: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// ── Task 13: Vials ─────────────────────────────────────────────────────────────
+function vialRemMcg(vial, logs) {
+  const totalMcg = parseFloat(vial.mg) * 1000;
+  const usedMcg  = logs
+    .filter(l => l.vial_id === vial.id && l.dose_mcg != null)
+    .reduce((sum, l) => sum + parseFloat(l.dose_mcg), 0);
+  return Math.max(0, totalMcg - usedMcg);
+}
+
+function renderVials() {
+  const { peptides, vials, logs } = App.getData();
+  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+
+  let vialsHtml = '';
+  if (vials.length === 0) {
+    vialsHtml = '<p class="muted" style="padding:8px 0;">No vials added yet.</p>';
+  } else {
+    for (const vial of vials) {
+      const totalMcg = parseFloat(vial.mg) * 1000;
+      const remMcg   = vialRemMcg(vial, logs);
+      const pct      = totalMcg > 0 ? Math.round((remMcg / totalMcg) * 100) : 0;
+      const fillColor = pct > 50 ? 'var(--accent-green)' : pct > 20 ? 'var(--accent-amber)' : '#ef4444';
+      const concMcgMl = totalMcg / parseFloat(vial.ml);
+      vialsHtml += `
+        <div style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div style="flex:1;">
+              <div style="font-weight:700;">${escHtml(vial.peptide)}</div>
+              <div class="muted">${vial.mg}mg / ${vial.ml}mL &middot; ${concMcgMl.toFixed(0)} mcg/mL</div>
+              <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
+              <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="deleteVial('${vial.id}')">Remove</button>
+          </div>
+        </div>`;
+    }
+  }
+
+  document.getElementById('vials').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Add Vial</h3>
+        <div class="stack">
+          <div class="row3">
+            <label>Peptide
+              <select id="vPeptide">
+                <option value="">Select…</option>
+                ${peptideOpts}
+              </select>
+            </label>
+            <label>Amount (mg)
+              <input type="number" id="vMg" min="0" step="any" placeholder="e.g. 5" />
+            </label>
+            <label>Diluent (mL)
+              <input type="number" id="vMl" min="0" step="any" placeholder="e.g. 2" />
+            </label>
+          </div>
+          <button class="btn btn-primary" style="align-self:flex-start;" onclick="addVial()">Add Vial</button>
+        </div>
+      </div>
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Active Vials</h3>
+        <div class="stack">${vialsHtml}</div>
+      </div>
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+async function addVial() {
+  const peptide = document.getElementById('vPeptide').value;
+  const mg      = document.getElementById('vMg').value;
+  const ml      = document.getElementById('vMl').value;
+  if (!peptide) { alert('Please select a peptide.'); return; }
+  if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
+  if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
+  try {
+    await API.post('/vials', { peptide, mg: parseFloat(mg), ml: parseFloat(ml) });
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to add vial: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function deleteVial(id) {
+  if (!confirm('Remove this vial? This will unlink it from existing logs but not delete the logs.')) return;
+  try {
+    await API.delete('/vials/' + id);
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to remove vial: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// ── Task 14: Calculator ────────────────────────────────────────────────────────
+let _calcSubTab = 'recon';
+
+function renderCalc() {
+  const { vials } = App.getData();
+  const vialOpts = vials.map(v => `<option value="${v.id}" data-conc="${(parseFloat(v.mg)*1000/parseFloat(v.ml)).toFixed(1)}">${escHtml(v.peptide)} (${(parseFloat(v.mg)*1000/parseFloat(v.ml)).toFixed(0)} mcg/mL)</option>`).join('');
+  const hlPeptideOpts = Object.keys(PEPTIDE_HALFLIFE).map(k => `<option value="${k}">${k}</option>`).join('');
+
+  document.getElementById('calc').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Calculator</h3>
+        <div class="nav-pill" id="calcNav" style="margin-bottom:16px;">
+          <button class="nav-tab ${_calcSubTab==='recon'?'active':''}" data-ctab="recon">Reconstitution</button>
+          <button class="nav-tab ${_calcSubTab==='draw'?'active':''}" data-ctab="draw">Draw</button>
+          <button class="nav-tab ${_calcSubTab==='cost'?'active':''}" data-ctab="cost">Cycle Cost</button>
+          <button class="nav-tab ${_calcSubTab==='hl'?'active':''}" data-ctab="hl">Half-Life</button>
+        </div>
+
+        <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
+          <div class="stack">
+            <div class="row2">
+              <label>Vial Amount (mg)<input type="number" id="rVialMg" min="0" step="any" placeholder="e.g. 5" oninput="calcRecon()" /></label>
+              <label>Diluent Added (mL)<input type="number" id="rDilMl" min="0" step="any" placeholder="e.g. 2" oninput="calcRecon()" /></label>
+            </div>
+            <div id="rResult" class="glass" style="padding:14px;display:none;"></div>
+            <hr class="divider" />
+            <label>Desired Dose (mcg)<input type="number" id="rDoseMcg" min="0" step="any" placeholder="e.g. 250" oninput="calcRecon()" /></label>
+            <div id="rDrawResult" style="display:none;" class="muted"></div>
+          </div>
+        </div>
+
+        <div id="calcDraw" style="display:${_calcSubTab==='draw'?'block':'none'};">
+          <div class="stack">
+            <div class="row2">
+              <label>Auto-fill from vial
+                <select id="dVialSel" onchange="
+                  const opt = this.options[this.selectedIndex];
+                  const c = opt.dataset.conc;
+                  if (c) document.getElementById('dConc').value = c;
+                  calcDraw();
+                ">
+                  <option value="">Manual entry</option>
+                  ${vialOpts}
+                </select>
+              </label>
+              <label>Concentration (mcg/mL)<input type="number" id="dConc" min="0" step="any" placeholder="e.g. 2500" oninput="calcDraw()" /></label>
+            </div>
+            <div class="row3">
+              <label>Dose<input type="number" id="dDose" min="0" step="any" placeholder="0.00" oninput="calcDraw()" /></label>
+              <label>Unit
+                <select id="dUnit" onchange="calcDraw()">
+                  <option>mcg</option>
+                  <option>mg</option>
+                </select>
+              </label>
+              <div></div>
+            </div>
+            <div id="dResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
+
+        <div id="calcCost" style="display:${_calcSubTab==='cost'?'block':'none'};">
+          <div class="stack">
+            <div class="row2">
+              <label>Dose per injection (mcg)<input type="number" id="cDose" min="0" step="any" placeholder="e.g. 500" oninput="calcCost()" /></label>
+              <label>Frequency (times/week)<input type="number" id="cFreq" min="0" step="any" placeholder="e.g. 7" oninput="calcCost()" /></label>
+            </div>
+            <div class="row2">
+              <label>Cycle length (weeks)<input type="number" id="cWeeks" min="0" step="any" placeholder="e.g. 8" oninput="calcCost()" /></label>
+              <label>Peptide price ($/mg)<input type="number" id="cPrice" min="0" step="any" placeholder="e.g. 0.50" oninput="calcCost()" /></label>
+            </div>
+            <div id="cResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
+
+        <div id="calcHL" style="display:${_calcSubTab==='hl'?'block':'none'};">
+          <div class="stack">
+            <div class="row2">
+              <label>Peptide (auto-fill)
+                <select id="hlPeptide" onchange="hlFromPeptide()">
+                  <option value="">Select peptide…</option>
+                  ${hlPeptideOpts}
+                </select>
+              </label>
+              <label>Half-life (hours)<input type="number" id="hlHours" min="0" step="any" placeholder="e.g. 4" oninput="calcHL()" /></label>
+            </div>
+            <div id="hlNotes" class="muted" style="display:none;"></div>
+            <div id="hlResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
+      </div>
+      <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
+    </div>`;
+
+  document.getElementById('calcNav').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-ctab]');
+    if (!btn) return;
+    _calcSubTab = btn.dataset.ctab;
+    document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
+    ['recon','draw','cost','hl'].forEach(t => {
+      const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
+      if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
+    });
+  });
+}
+
+function calcRecon() {
+  const mg  = parseFloat(document.getElementById('rVialMg').value);
+  const ml  = parseFloat(document.getElementById('rDilMl').value);
+  const res = document.getElementById('rResult');
+  const drawRes = document.getElementById('rDrawResult');
+  if (!mg || !ml || isNaN(mg) || isNaN(ml)) { res.style.display='none'; drawRes.style.display='none'; return; }
+  const totalMcg  = mg * 1000;
+  const concMcgMl = totalMcg / ml;
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${concMcgMl.toFixed(0)} mcg/mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Total Amount</div><div style="font-weight:700;">${totalMcg.toFixed(0)} mcg</div></div>
+    </div>`;
+  const doseMcg = parseFloat(document.getElementById('rDoseMcg').value);
+  if (!doseMcg || isNaN(doseMcg)) { drawRes.style.display='none'; return; }
+  const volMl = doseMcg / concMcgMl;
+  const iu    = volMl * 100;
+  drawRes.style.display = 'block';
+  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-100 syringe) for a ${doseMcg} mcg dose`;
+}
+
+function calcDraw() {
+  const conc = parseFloat(document.getElementById('dConc').value);
+  let   dose = parseFloat(document.getElementById('dDose').value);
+  const unit = document.getElementById('dUnit').value;
+  const res  = document.getElementById('dResult');
+  if (!conc || !dose || isNaN(conc) || isNaN(dose)) { res.style.display='none'; return; }
+  if (unit === 'mg') dose *= 1000;
+  const volMl = dose / conc;
+  const iu    = volMl * 100;
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Syringe Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} IU</div></div>
+    </div>`;
+}
+
+function calcCost() {
+  const dose  = parseFloat(document.getElementById('cDose').value);
+  const freq  = parseFloat(document.getElementById('cFreq').value);
+  const weeks = parseFloat(document.getElementById('cWeeks').value);
+  const price = parseFloat(document.getElementById('cPrice').value);
+  const res   = document.getElementById('cResult');
+  if (!dose||!freq||!weeks||!price||isNaN(dose)||isNaN(freq)||isNaN(weeks)||isNaN(price)) { res.style.display='none'; return; }
+  const totalInj  = Math.ceil(freq * weeks);
+  const totalMcg  = dose * totalInj;
+  const totalMg   = totalMcg / 1000;
+  const vialsNeeded = Math.ceil(totalMg / 10);
+  const cost      = totalMg * price;
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Total Injections</div><div style="font-weight:700;">${totalInj}</div></div>
+      <div><div class="muted" style="font-size:11px;">Total Amount</div><div style="font-weight:700;">${totalMg.toFixed(2)} mg (${totalMcg.toFixed(0)} mcg)</div></div>
+      <div><div class="muted" style="font-size:11px;">Vials Needed (10mg)</div><div style="font-weight:700;">${vialsNeeded}</div></div>
+      <div><div class="muted" style="font-size:11px;">Estimated Cost</div><div style="font-weight:700;color:var(--accent-sky);">$${cost.toFixed(2)}</div></div>
+    </div>`;
+}
+
+function hlFromPeptide() {
+  const sel  = document.getElementById('hlPeptide');
+  const name = sel.value;
+  const hlNotesEl = document.getElementById('hlNotes');
+  if (!name || !PEPTIDE_HALFLIFE[name]) { hlNotesEl.style.display='none'; document.getElementById('hlHours').value=''; return; }
+  const data = PEPTIDE_HALFLIFE[name];
+  document.getElementById('hlHours').value = data.halfLife;
+  hlNotesEl.style.display = 'block';
+  hlNotesEl.textContent = data.notes;
+  calcHL();
+}
+
+function calcHL() {
+  const hours = parseFloat(document.getElementById('hlHours').value);
+  const res   = document.getElementById('hlResult');
+  if (!hours || isNaN(hours) || hours <= 0) { res.style.display='none'; return; }
+  const t50  = hours;
+  const t25  = hours * 2;
+  const t125 = hours * 3;
+  function fmt(h) {
+    if (h < 1) return `${(h*60).toFixed(0)} min`;
+    if (h < 24) return `${h.toFixed(1)} hr`;
+    return `${(h/24).toFixed(1)} days`;
+  }
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">50% remaining</div><div style="font-weight:700;color:var(--accent-green);">${fmt(t50)}</div></div>
+      <div><div class="muted" style="font-size:11px;">25% remaining</div><div style="font-weight:700;color:var(--accent-amber);">${fmt(t25)}</div></div>
+      <div><div class="muted" style="font-size:11px;">12.5% remaining</div><div style="font-weight:700;color:#ef4444;">${fmt(t125)}</div></div>
+    </div>`;
+}
+
+// ── Task 15: Library ───────────────────────────────────────────────────────────
+let _libSearch = '';
+
+function renderLibrary() {
+  const query = _libSearch.toLowerCase();
+  const filtered = PEPTIDE_LIBRARY.filter(p =>
+    p.name.toLowerCase().includes(query) ||
+    p.aliases.some(a => a.toLowerCase().includes(query)) ||
+    p.description.toLowerCase().includes(query)
+  );
+
+  const cardsHtml = filtered.map(p => `
+    <div class="glass" style="padding:16px;cursor:pointer;" onclick="showLibraryDetail('${escHtml(p.name)}')">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+        <span style="font-weight:700;font-size:15px;">${escHtml(p.name)}</span>
+        <span class="muted">${escHtml(p.aliases[0] || '')}</span>
+        <span class="badge badge-info" style="margin-left:auto;">Research</span>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escHtml(p.description)}</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+        <span class="chip">&#x23F1; ${escHtml(p.halfLife)}</span>
+        <span class="chip">&#x1F489; ${escHtml(p.doseRange)}</span>
+        <span class="chip">&#x1F4CD; ${escHtml(p.route)}</span>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('library').innerHTML = `
+    <div class="stack">
+      <input type="search" id="libSearch" placeholder="Search peptides…" value="${escHtml(_libSearch)}"
+        oninput="_libSearch=this.value;renderLibrary();" style="margin-bottom:0;" />
+      ${cardsHtml || '<p class="muted" style="padding:16px;">No results found.</p>'}
+      <p class="disclaimer">All information is for educational and research purposes only. Not medical advice. Consult a licensed healthcare provider before use.</p>
+    </div>`;
+}
+
+function showLibraryDetail(name) {
+  const p = PEPTIDE_LIBRARY.find(x => x.name === name);
+  if (!p) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'libOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto;';
+  overlay.innerHTML = `
+    <div class="glass" style="max-width:560px;width:100%;padding:28px;margin:auto;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;">
+        <div>
+          <h2 style="font-size:20px;font-weight:800;">${escHtml(p.name)}</h2>
+          <p class="muted">${p.aliases.join(' &middot; ')}</p>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('libOverlay').remove()">Close</button>
+      </div>
+      <div class="stack">
+        <p style="font-size:14px;line-height:1.6;">${escHtml(p.description)}</p>
+        <div class="glass" style="padding:14px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;">Mechanism</p>
+          <p style="font-size:13px;">${escHtml(p.mechanism)}</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="glass" style="padding:12px;"><p class="muted" style="font-size:11px;">Half-Life</p><p style="font-weight:600;margin-top:4px;">${escHtml(p.halfLife)}</p></div>
+          <div class="glass" style="padding:12px;"><p class="muted" style="font-size:11px;">Dose Range</p><p style="font-weight:600;margin-top:4px;">${escHtml(p.doseRange)}</p></div>
+          <div class="glass" style="padding:12px;"><p class="muted" style="font-size:11px;">Route</p><p style="font-weight:600;margin-top:4px;">${escHtml(p.route)}</p></div>
+          <div class="glass" style="padding:12px;"><p class="muted" style="font-size:11px;">Cycle Length</p><p style="font-weight:600;margin-top:4px;">${escHtml(p.cycleLength)}</p></div>
+        </div>
+        <div class="glass" style="padding:14px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;">Common Protocols</p>
+          <p style="font-size:13px;">${escHtml(p.protocols)}</p>
+        </div>
+        <div class="glass" style="padding:14px;">
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;">Stack Notes</p>
+          <p style="font-size:13px;">${escHtml(p.stack)}</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" style="flex:1;" onclick="useInCalc('${escHtml(p.name)}')">Use in Calculator</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('libOverlay').remove()">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function useInCalc(name) {
+  const overlay = document.getElementById('libOverlay');
+  if (overlay) overlay.remove();
+  _calcSubTab = 'hl';
+  Tabs.switchTo('calc');
+  renderCalc();
+  const hlSel = document.getElementById('hlPeptide');
+  if (hlSel) {
+    hlSel.value = name;
+    hlFromPeptide();
+  }
+}
+
+// ── Task 16: Settings ──────────────────────────────────────────────────────────
+function renderSettings() {
+  const { peptides, settings } = App.getData();
+  const email = App.getEmail();
+  const theme = App.getTheme();
+
+  const peptideChips = peptides.map(p => `
+    <span class="chip" style="cursor:default;">
+      ${escHtml(p.name)}
+      <button onclick="removePeptide('${escHtml(p.id)}','${escHtml(p.name)}')" style="background:none;border:none;cursor:pointer;padding:0 0 0 4px;color:var(--text-muted);font-size:14px;line-height:1;">&times;</button>
+    </span>`).join('');
+
+  document.getElementById('settings').innerHTML = `
+    <div class="stack">
+
+      <!-- Account -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Account</h3>
+        <p class="muted" style="margin-bottom:14px;">Signed in as <strong style="color:var(--text);">${escHtml(email)}</strong></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="showChangePassword()">Change Password</button>
+          <button class="btn btn-danger btn-sm" onclick="doSignOut()">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Push Notifications -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Push Notifications</h3>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <button id="pushBtn" class="btn btn-ghost btn-sm" onclick="togglePush()">Enable Notifications</button>
+          <span id="pushStatus" class="muted"></span>
+        </div>
+      </div>
+
+      <!-- Theme -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Theme</h3>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm ${theme==='light'?'btn-primary':'btn-ghost'}" onclick="setTheme('light')">Light</button>
+          <button class="btn btn-sm ${theme==='dark'?'btn-primary':'btn-ghost'}" onclick="setTheme('dark')">Dark</button>
+          <button class="btn btn-sm ${theme==='system'?'btn-primary':'btn-ghost'}" onclick="setTheme('system')">System</button>
+        </div>
+      </div>
+
+      <!-- Peptide List -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Peptide List</h3>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+          <input type="text" id="newPeptideInput" placeholder="Peptide name" style="flex:1;min-width:140px;" />
+          <button class="btn btn-ghost btn-sm" onclick="addPeptide()">Add Peptide</button>
+          <button class="btn btn-ghost btn-sm" onclick="resetPeptides()">Reset to Defaults</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          ${peptideChips || '<p class="muted">No peptides added.</p>'}
+        </div>
+      </div>
+
+      <!-- Cycle Dates -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Dates</h3>
+        <div class="row2" style="margin-bottom:12px;">
+          <label>Cycle Start<input type="date" id="cycleStart" value="${settings.cycle_start || ''}" /></label>
+          <label>Cycle End<input type="date" id="cycleEnd" value="${settings.cycle_end || ''}" /></label>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="saveCycleDates()">Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearCycleDates()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Export</h3>
+        <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Download CSV</button>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="glass" style="padding:20px;border-color:rgba(239,68,68,0.4);">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;color:#ef4444;">Danger Zone</h3>
+        <p class="muted" style="margin-bottom:14px;">Permanently delete your account and all data. This cannot be undone.</p>
+        <button class="btn btn-danger btn-sm" onclick="deleteAllData()">Delete All My Data</button>
+      </div>
+
+      <!-- Footer -->
+      <div class="disclaimer">
+        <a href="/terms" style="color:var(--accent-sky);text-decoration:none;">Terms of Service</a>
+        &nbsp;&middot;&nbsp;
+        <a href="/privacy" style="color:var(--accent-sky);text-decoration:none;">Privacy Policy</a>
+        <br/>For research and personal tracking purposes only. Not medical advice.
+        <br/>&copy; ${new Date().getFullYear()} PeptideOS. All rights reserved.
+      </div>
+
+    </div>`;
+
+  updatePushButtonState();
+}
+
+async function setTheme(t) {
+  App.applyTheme(t);
+  const { settings } = App.getData();
+  await API.put('/settings', Object.assign({}, settings, { theme: t })).catch(() => {});
+  renderSettings();
+}
+
+async function addPeptide() {
+  const input = document.getElementById('newPeptideInput');
+  const name  = input.value.trim();
+  if (!name) { alert('Please enter a peptide name.'); return; }
+  try {
+    await API.post('/peptides', { name });
+    input.value = '';
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to add peptide: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function removePeptide(id, name) {
+  const { planner, logs, vials } = App.getData();
+  const inUse =
+    planner.some(p => p.peptide === name) ||
+    logs.some(l => l.peptide === name) ||
+    vials.some(v => v.peptide === name);
+  if (inUse) {
+    alert(`"${name}" is used in your planner, logs, or vials. Remove those entries first.`);
+    return;
+  }
+  try {
+    await API.delete('/peptides/' + id);
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to remove peptide: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function resetPeptides() {
+  if (!confirm('This will add any missing default peptides and remove unused non-default peptides. Continue?')) return;
+  const { peptides, planner, logs, vials } = App.getData();
+  const existingNames = peptides.map(p => p.name);
+  const toAdd = DEFAULT_PEPTIDES.filter(n => !existingNames.includes(n));
+  const toRemove = peptides.filter(p => {
+    if (DEFAULT_PEPTIDES.includes(p.name)) return false;
+    const inUse =
+      planner.some(pl => pl.peptide === p.name) ||
+      logs.some(l => l.peptide === p.name) ||
+      vials.some(v => v.peptide === p.name);
+    return !inUse;
+  });
+  try {
+    await Promise.all(toAdd.map(n => API.post('/peptides', { name: n })));
+    await Promise.all(toRemove.map(p => API.delete('/peptides/' + p.id)));
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Reset error: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function saveCycleDates() {
+  const start = document.getElementById('cycleStart').value;
+  const end   = document.getElementById('cycleEnd').value;
+  const { settings } = App.getData();
+  try {
+    await API.put('/settings', Object.assign({}, settings, { cycle_start: start || null, cycle_end: end || null }));
+    await App.loadAll();
+    renderSettings();
+  } catch (e) {
+    alert('Failed to save: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function clearCycleDates() {
+  const { settings } = App.getData();
+  try {
+    await API.put('/settings', Object.assign({}, settings, { cycle_start: null, cycle_end: null }));
+    await App.loadAll();
+    renderSettings();
+  } catch (e) {
+    alert('Failed to clear: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function doSignOut() {
+  await App.logout();
+  showAuth('login');
+}
+
+function exportCSV() {
+  const { logs } = App.getData();
+  if (!logs.length) { alert('No logs to export.'); return; }
+  const headers = ['id','peptide','route','dose_value','dose_unit','dose_mcg','volume_ml','iu','taken_at','notes'];
+  const rows = logs.map(l => headers.map(h => {
+    const v = l[h] == null ? '' : String(l[h]);
+    return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g,'""')}"` : v;
+  }).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `peptideos-logs-${ymd(new Date())}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function deleteAllData() {
+  if (!confirm('Are you sure? This will permanently delete ALL your data including logs, vials, planner, and account.')) return;
+  if (!confirm('This is irreversible. Type OK in the next prompt to confirm.')) return;
+  const ok = prompt('Type DELETE to confirm permanent deletion:');
+  if (ok !== 'DELETE') return;
+  try {
+    await API.delete('/account');
+    await App.logout();
+    showAuth('login');
+  } catch (e) {
+    alert('Failed: ' + (e.message || 'Unknown error'));
+  }
+}
+
+function showChangePassword() {
+  const overlay = document.createElement('div');
+  overlay.id = 'pwOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML = `
+    <div class="glass" style="max-width:400px;width:100%;padding:28px;">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">Change Password</h3>
+      <div class="stack">
+        <label>New Password<input type="password" id="pwNew" autocomplete="new-password" placeholder="Min 8 characters" /></label>
+        <label>Confirm New Password<input type="password" id="pwConfirm" autocomplete="new-password" placeholder="Repeat password" /></label>
+        <div id="pwErr" class="auth-error"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" style="flex:1;" onclick="submitChangePassword()">Update Password</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('pwOverlay').remove()">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function submitChangePassword() {
+  const pass    = document.getElementById('pwNew').value;
+  const confirm = document.getElementById('pwConfirm').value;
+  const errEl   = document.getElementById('pwErr');
+  errEl.textContent = '';
+  if (pass.length < 8)  { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pass !== confirm) { errEl.textContent = 'Passwords do not match.'; return; }
+  try {
+    await API.post('/auth/change-password', { password: pass });
+    document.getElementById('pwOverlay').remove();
+    alert('Password updated successfully.');
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to update password.';
+  }
+}
+
+function updatePushButtonState() {
+  const btn    = document.getElementById('pushBtn');
+  const status = document.getElementById('pushStatus');
+  if (!btn || !status) return;
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    btn.textContent = 'Not Supported';
+    btn.disabled = true;
+    status.textContent = 'Push notifications are not supported in this browser.';
+    return;
+  }
+  const perm = Notification.permission;
+  if (perm === 'denied') {
+    btn.textContent = 'Blocked';
+    btn.disabled = true;
+    status.textContent = 'Notifications blocked in browser settings.';
+  } else if (perm === 'granted') {
+    btn.textContent = 'Disable Notifications';
+    status.textContent = 'Push notifications are enabled.';
+  } else {
+    btn.textContent = 'Enable Notifications';
+    status.textContent = 'Notifications not yet enabled.';
+  }
+}
+
+function urlBase64ToUint8Array(b64) {
+  const padded = b64.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - padded.length % 4) % 4;
+  const raw = atob(padded + '='.repeat(padding));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function togglePush() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) {
+      await existing.unsubscribe();
+      await API.delete('/push/subscribe', { endpoint: existing.endpoint });
+      updatePushButtonState();
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { updatePushButtonState(); return; }
+    const { publicKey } = await API.get('/push/vapid-key');
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    const json = sub.toJSON();
+    await API.post('/push/subscribe', {
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth }
+    });
+    updatePushButtonState();
+  } catch (e) {
+    alert('Push setup failed: ' + (e.message || 'Unknown error'));
+    updatePushButtonState();
+  }
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
   </script>
 </body>
 </html>
