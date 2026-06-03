@@ -2,6 +2,7 @@ name = "peptideos"
 main = "worker/index.js"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [[d1_databases]]
 binding = "DB"
@@ -18,8 +19,10 @@ crons = ["*/5 * * * *"]
 [vars]
 APP_URL = "https://peptideos.cwenterprises.net"
 
+[[routes]]
+pattern = "peptideos.cwenterprises.net"
+custom_domain = true
+
 [assets]
 directory = "."
 binding = "ASSETS"
-
-workers_dev = true
