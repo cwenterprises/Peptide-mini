@@ -981,15 +981,14 @@ function calcDrawMath(vialId, doseValue, doseUnit, vials) {
   if (doseUnit === 'mcg') doseMcg = Number(doseValue);
   else if (doseUnit === 'mg') doseMcg = Number(doseValue) * 1000;
   else if (doseUnit === 'IU') {
-    // IU = syringe units on U-100 syringe; 1 IU = 0.01 mL
-    const volFromIU = Number(doseValue) / 100;
+    const volFromIU = Number(doseValue) / _syringeType;
     doseMcg = volFromIU * conc;
   }
   else return null; // 'sprays' or other non-injectable units — no draw math
   if (isNaN(doseMcg) || doseMcg <= 0) return null;
   const volMl = doseMcg / conc;
-  const iu    = volMl * 100; // assuming U-100 syringe
-  return { conc: conc.toFixed(1), vol: volMl.toFixed(3), iu: iu.toFixed(1), mcg: doseMcg.toFixed(1) };
+  const iu    = volMl * _syringeType;
+  return { conc: conc.toFixed(1), vol: volMl.toFixed(3), iu: iu.toFixed(1), mcg: doseMcg.toFixed(1), volMl };
 }
 
 function updateDrawMath() {
@@ -1233,6 +1232,41 @@ async function deleteVial(id) {
 
 // ── Task 14: Calculator ────────────────────────────────────────────────────────
 let _calcSubTab = 'recon';
+let _syringeType = 100;       // 100 = U-100 (standard), 40 = U-40
+let _syringeCapacityMl = 1.0; // 0.3 | 0.5 | 1.0
+
+function syringeOverflowWarning(volMl) {
+  if (!volMl || volMl <= _syringeCapacityMl) return '';
+  return `<div class="badge badge-pending" style="margin-top:8px;display:inline-flex;">⚠ Exceeds ${_syringeCapacityMl} mL syringe capacity</div>`;
+}
+
+function recalcActiveSyringe() {
+  if (_calcSubTab === 'recon') calcRecon();
+  else if (_calcSubTab === 'draw') calcDraw();
+  updateDrawMath();
+}
+
+function setSyringeType(type) {
+  _syringeType = type;
+  const t100 = document.getElementById('syrType100');
+  const t40  = document.getElementById('syrType40');
+  if (t100) { t100.className = `btn btn-sm ${type === 100 ? 'btn-primary' : 'btn-ghost'}`; }
+  if (t40)  { t40.className  = `btn btn-sm ${type === 40  ? 'btn-primary' : 'btn-ghost'}`; }
+  const ldSel = document.getElementById('ldSyrType');
+  if (ldSel) ldSel.value = String(type);
+  recalcActiveSyringe();
+}
+
+function setSyringeCapacity(cap) {
+  _syringeCapacityMl = cap;
+  [['syrCap03', 0.3], ['syrCap05', 0.5], ['syrCap10', 1.0]].forEach(([id, val]) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.className = `btn btn-sm ${cap === val ? 'btn-primary' : 'btn-ghost'}`;
+  });
+  const ldSel = document.getElementById('ldSyrCap');
+  if (ldSel) ldSel.value = String(cap);
+  recalcActiveSyringe();
+}
 
 function renderCalc() {
   const { vials } = App.getData();
@@ -1355,9 +1389,9 @@ function calcRecon() {
   const doseMcg = parseFloat(document.getElementById('rDoseMcg').value);
   if (!doseMcg || isNaN(doseMcg)) { drawRes.style.display='none'; return; }
   const volMl = doseMcg / concMcgMl;
-  const iu    = volMl * 100;
+  const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
-  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-100 syringe) for a ${doseMcg} mcg dose`;
+  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
 }
 
 function calcDraw() {
@@ -1368,13 +1402,14 @@ function calcDraw() {
   if (!conc || !dose || isNaN(conc) || isNaN(dose)) { res.style.display='none'; return; }
   if (unit === 'mg') dose *= 1000;
   const volMl = dose / conc;
-  const iu    = volMl * 100;
+  const iu    = volMl * _syringeType;
   res.style.display = 'block';
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
-      <div><div class="muted" style="font-size:11px;">Syringe Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} IU</div></div>
-    </div>`;
+      <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} IU</div></div>
+    </div>
+    ${syringeOverflowWarning(volMl)}`;
 }
 
 function calcCost() {
