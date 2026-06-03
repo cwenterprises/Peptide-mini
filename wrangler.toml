@@ -1,0 +1,19 @@
+name = "peptideos"
+main = "worker/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "peptideos_db"
+database_id = "c2314e19-d18a-4269-bebe-65dd5d85c6c6"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "c77e2cdf73b847bfaa8525373e7f4b09"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+APP_URL = "https://peptideos.cwenterprises.net"
