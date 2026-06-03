@@ -17,3 +17,7 @@ crons = ["*/5 * * * *"]
 
 [vars]
 APP_URL = "https://peptideos.cwenterprises.net"
+
+[assets]
+directory = "."
+binding = "ASSETS"

@@ -4,7 +4,7 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);
     }
-    return new Response('Not found', { status: 404 });
+    return env.ASSETS.fetch(request);
   },
 
   async scheduled(event, env, ctx) {

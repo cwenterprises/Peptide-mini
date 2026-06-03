@@ -334,36 +334,194 @@
   <div id="authScreen" style="display:none;"></div>
   <div id="mainApp" style="display:none;">
     <div id="app">
-      <p style="padding:20px;color:var(--text-muted);">Loading…</p>
+      <nav class="nav-pill" id="navPill" style="margin-bottom:16px;">
+        <button class="nav-tab active" data-tab="today">Today</button>
+        <button class="nav-tab" data-tab="week">Week</button>
+        <button class="nav-tab" data-tab="logdose">Log Dose</button>
+        <button class="nav-tab" data-tab="vials">Vials</button>
+        <button class="nav-tab" data-tab="calc">Calculator</button>
+        <button class="nav-tab" data-tab="library">Library</button>
+        <button class="nav-tab" data-tab="settings">Settings</button>
+      </nav>
+      <div id="today"    class="tab-content active"></div>
+      <div id="week"     class="tab-content"></div>
+      <div id="logdose"  class="tab-content"></div>
+      <div id="vials"    class="tab-content"></div>
+      <div id="calc"     class="tab-content"></div>
+      <div id="library"  class="tab-content"></div>
+      <div id="settings" class="tab-content"></div>
     </div>
   </div>
   <script>
-    // Design system verification
-    document.getElementById('mainApp').style.display = 'block';
-    document.getElementById('mainApp').innerHTML = `
-      <div id="app">
-        <div class="app-header"><span class="app-title">PeptideOS</span></div>
-        <div class="glass" style="padding:20px;margin-bottom:12px;">
-          <h2 style="font-size:16px;font-weight:700;margin-bottom:8px;">Design System Loaded ✓</h2>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <button class="btn btn-primary">Primary</button>
-            <button class="btn btn-ghost">Ghost</button>
-            <button class="btn btn-danger btn-sm">Danger</button>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-            <span class="badge badge-done">DONE</span>
-            <span class="badge badge-pending">PENDING</span>
-            <span class="badge badge-info">Research</span>
-            <span class="chip">📋 Planned: 3</span>
-          </div>
-          <div class="progress-track" style="margin-bottom:8px;"><div class="progress-fill" style="width:66%"></div></div>
-          <div class="row2" style="margin-bottom:8px;">
-            <label>Email<input type="email" placeholder="you@example.com"></label>
-            <label>Route<select><option>SubQ</option><option>IM</option></select></label>
-          </div>
-          <p class="muted">Dark mode: toggle OS appearance to test.</p>
-        </div>
-      </div>`;
+// ── API Client ──────────────────────────────────────────────────────────────
+const API = (() => {
+  const BASE = '/api';
+  const getToken = () => localStorage.getItem('peptideos_token');
+  const setToken = (t) => localStorage.setItem('peptideos_token', t);
+  const clearToken = () => localStorage.removeItem('peptideos_token');
+
+  async function req(method, path, body) {
+    const token = getToken();
+    const opts = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(BASE + path, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(data.error || 'Request failed'), { status: res.status });
+    return data;
+  }
+
+  return {
+    get:    (path)       => req('GET',    path),
+    post:   (path, body) => req('POST',   path, body),
+    put:    (path, body) => req('PUT',    path, body),
+    delete: (path, body) => req('DELETE', path, body),
+    setToken, clearToken, getToken
+  };
+})();
+
+// ── App State ────────────────────────────────────────────────────────────────
+const App = (() => {
+  let _token = API.getToken();
+  let _email = localStorage.getItem('peptideos_email') || '';
+  let _theme = localStorage.getItem('peptideos_theme') || 'system';
+  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {} };
+
+  function applyTheme(t) {
+    _theme = t;
+    localStorage.setItem('peptideos_theme', t);
+    if (t === 'system') document.body.removeAttribute('data-theme');
+    else document.body.setAttribute('data-theme', t);
+  }
+
+  function isLoggedIn() { return !!_token; }
+
+  async function login(email, password) {
+    const { token } = await API.post('/auth/login', { email, password });
+    _token = token; _email = email;
+    API.setToken(token);
+    localStorage.setItem('peptideos_email', email);
+  }
+
+  async function register(email, password) {
+    const { token } = await API.post('/auth/register', { email, password });
+    _token = token; _email = email;
+    API.setToken(token);
+    localStorage.setItem('peptideos_email', email);
+  }
+
+  async function logout() {
+    await API.post('/auth/logout').catch(() => {});
+    API.clearToken();
+    localStorage.removeItem('peptideos_email');
+    _token = null; _email = '';
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {} };
+  }
+
+  async function loadAll() {
+    const [peptides, planner, vials, logs, settings] = await Promise.all([
+      API.get('/peptides'),
+      API.get('/planner'),
+      API.get('/vials'),
+      API.get('/logs'),
+      API.get('/settings')
+    ]);
+    _data = { peptides, planner, vials, logs, settings };
+    applyTheme(settings.theme || 'system');
+    return _data;
+  }
+
+  return {
+    isLoggedIn, login, register, logout, loadAll, applyTheme,
+    getData:  () => _data,
+    getEmail: () => _email,
+    getTheme: () => _theme
+  };
+})();
+
+// ── Tab Navigation ───────────────────────────────────────────────────────────
+const Tabs = (() => {
+  let current = 'today';
+
+  document.getElementById('navPill').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn) return;
+    switchTo(btn.dataset.tab);
+  });
+
+  function switchTo(tabId) {
+    current = tabId;
+    document.querySelectorAll('.nav-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === tabId)
+    );
+    document.querySelectorAll('.tab-content').forEach(c =>
+      c.classList.toggle('active', c.id === tabId)
+    );
+  }
+
+  return { switchTo, current: () => current };
+})();
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async function boot() {
+  const storedTheme = localStorage.getItem('peptideos_theme') || 'system';
+  if (storedTheme !== 'system') document.body.setAttribute('data-theme', storedTheme);
+
+  if (window.location.pathname === '/reset') {
+    document.getElementById('authScreen').style.display = 'flex';
+    renderAuth('reset');
+    return;
+  }
+
+  if (App.isLoggedIn()) {
+    try {
+      await App.loadAll();
+      showApp();
+    } catch (e) {
+      if (e.status === 401) { API.clearToken(); showAuth('login'); }
+      else showApp();
+    }
+  } else {
+    showAuth('login');
+  }
+})();
+
+function showApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  renderAllTabs();
+}
+
+function showAuth(mode) {
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('mainApp').style.display = 'none';
+  renderAuth(mode);
+}
+
+function renderAllTabs() {
+  renderToday();
+  renderWeek();
+  renderLogDose();
+  renderVials();
+  renderCalc();
+  renderLibrary();
+  renderSettings();
+}
+
+// Placeholders — filled in Tasks 9–16
+function renderAuth(mode)  { document.getElementById('authScreen').innerHTML = `<div class="glass auth-card"><p style="padding:20px;color:var(--text-muted);">Auth: ${mode}</p></div>`; }
+function renderToday()     { document.getElementById('today').innerHTML    = '<p class="muted" style="padding:20px;">Today tab</p>'; }
+function renderWeek()      { document.getElementById('week').innerHTML     = '<p class="muted" style="padding:20px;">Week tab</p>'; }
+function renderLogDose()   { document.getElementById('logdose').innerHTML  = '<p class="muted" style="padding:20px;">Log Dose tab</p>'; }
+function renderVials()     { document.getElementById('vials').innerHTML    = '<p class="muted" style="padding:20px;">Vials tab</p>'; }
+function renderCalc()      { document.getElementById('calc').innerHTML     = '<p class="muted" style="padding:20px;">Calculator tab</p>'; }
+function renderLibrary()   { document.getElementById('library').innerHTML  = '<p class="muted" style="padding:20px;">Library tab</p>'; }
+function renderSettings()  { document.getElementById('settings').innerHTML = '<p class="muted" style="padding:20px;">Settings tab</p>'; }
   </script>
 </body>
 </html>
