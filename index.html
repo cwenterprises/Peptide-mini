@@ -428,7 +428,7 @@ const App = (() => {
   }
 
   async function loadAll() {
-    const [peptides, planner, vials, logs, settings, vendors, prices] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
@@ -437,6 +437,11 @@ const App = (() => {
       API.get('/vendors'),
       API.get('/prices')
     ]);
+    // Auto-seed defaults for existing accounts that migrated from localStorage
+    if (!peptides.length) {
+      await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
+      peptides = await API.get('/peptides');
+    }
     _data = { peptides, planner, vials, logs, settings, vendors, prices };
     applyTheme(settings.theme || 'system');
     return _data;
