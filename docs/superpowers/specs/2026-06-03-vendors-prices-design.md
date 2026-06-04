@@ -164,6 +164,9 @@ If vendors exist but no prices: show the "+ Add Price" form prominently with hel
 | `deletePrice(id)` | DELETE to API, reload, re-render |
 | `editPriceCell(id, currentVal)` | Replaces cell text with inline input |
 | `priceToCalc(peptide, price)` | Switches to Calculator → Cycle Cost, fills cPrice |
+| `renderPriceImport()` | Renders the file upload + AI parse UI in the Prices tab |
+| `parsePriceFile()` | Reads selected file, POSTs to `/api/parse-price-file`, renders preview |
+| `confirmParsedPrices(parsed)` | Saves extracted vendors + prices after user review |
 
 ### App.getData() additions
 `App.getData()` returns `{ peptides, planner, vials, logs, settings }` — add `vendors` and `prices` to the data loaded in `App.loadAll()`:
@@ -183,13 +186,61 @@ _data = { peptides, planner, vials, logs, settings, vendors, prices };
 
 ---
 
+## AI Price Import
+
+### Overview
+A file upload panel in the Prices tab lets users drop any file (screenshot, PDF, CSV, text) and have Claude extract vendor names and prices automatically.
+
+### Worker endpoint: `POST /api/parse-price-file`
+- Accepts `multipart/form-data` with a single `file` field
+- Reads the file as a base64-encoded blob
+- Determines media type from the `Content-Type` header or file extension
+- Calls Claude API (`claude-haiku-4-5-20251001`) with the file as a vision or text message
+- Prompt:
+
+```
+Extract peptide vendor pricing data from this document.
+Return ONLY a JSON object with this exact shape:
+{
+  "vendors": [{"name": "string", "url": "string or null"}],
+  "prices": [{"vendor_name": "string", "peptide": "string", "price_per_mg": number}]
+}
+For price_per_mg: if you see price per vial, divide by vial mg to get $/mg.
+If you cannot determine $/mg, omit that price entry.
+Normalize peptide names to title case. Return valid JSON only, no explanation.
+```
+
+- Returns the parsed JSON to the client (does NOT save to D1 — user confirms first)
+- On Claude API error or unparseable response: returns `{"error": "Could not parse file"}` with 422
+
+**Wrangler secret required:** `ANTHROPIC_API_KEY`
+
+### Frontend flow
+1. "Import from file" collapsible section at the top of the Prices tab (collapsed by default)
+2. File input accepting `*/*` (any format). Shows selected filename.
+3. "Parse with AI" button → calls `parsePriceFile()` → shows loading state
+4. On success: preview table renders below showing extracted vendors and prices
+   - Vendor column + peptide column + $/mg column
+   - Each row has a checkbox (all checked by default)
+   - User can uncheck rows to skip them or edit the $/mg value inline before saving
+5. "Save Selected" button → calls `confirmParsedPrices(parsed)`:
+   - For each unique vendor name in checked rows: POST `/api/vendors` if not already in the user's list (matched by name, case-insensitive)
+   - For each checked price row: POST `/api/prices` (upsert with the matched/created vendor_id)
+   - Reload data, re-render Prices tab
+6. "Cancel" clears the preview
+
+### Supported file types
+Any file Claude's vision API can process: PNG, JPG, WEBP, PDF, plain text, CSV, HTML. Claude will do its best with any format — if it can't extract prices it returns an empty array.
+
+---
+
 ## Files Changed
 
 | File | Change |
 |------|--------|
 | `migrations/0003_vendors_prices.sql` | New — vendors + prices tables + indexes |
-| `worker/index.js` | Add 6 vendor/price routes + 6 handler functions |
-| `index.html` | Add vendors/prices to `App.loadAll()`; add 2 nav tabs; add ~8 render/action functions |
+| `worker/index.js` | Add 7 vendor/price routes + 7 handler functions (includes parse-price-file) |
+| `index.html` | Add vendors/prices to `App.loadAll()`; add 2 nav tabs; add ~11 render/action functions |
 
 ---
 
@@ -198,5 +249,5 @@ _data = { peptides, planner, vials, logs, settings, vendors, prices };
 - Orders tab (separate feature, not requested)
 - Vendor images/logos
 - Price history / change tracking
-- Bulk import
 - Sharing vendor lists between users
+- Price history / version tracking of parsed imports
