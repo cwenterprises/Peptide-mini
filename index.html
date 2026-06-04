@@ -677,6 +677,20 @@ const DEFAULT_PEPTIDES = [
   'VIP','Wolverine'
 ];
 
+const ORDER_STATUSES = ['Ordered','Processing','Shipped','In Transit','Delivered','Stored','Used','Cancelled'];
+const ORDER_STATUS_BADGE = {
+  'Ordered':    'badge-info',
+  'Processing': 'badge-pending',
+  'Shipped':    'badge-info',
+  'In Transit': 'badge-info',
+  'Delivered':  'badge-done',
+  'Stored':     'badge-done',
+  'Used':       'badge-done',
+  'Cancelled':  'badge-pending'
+};
+let _orderFilter = '';
+let _orderFormId = undefined;
+
 // ── Task 9: Auth ──────────────────────────────────────────────────────────────
 function renderAuth(mode) {
   const logo = `<div class="auth-logo"><h1>PeptideOS</h1><p class="muted" style="margin-top:4px;">Research tracking platform</p></div>`;
@@ -1603,7 +1617,203 @@ function exportHistoryCSV() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 500);
 }
-function renderOrders()    { document.getElementById('orders').innerHTML    = '<p class="muted" style="padding:20px;">Orders loading...</p>'; }
+function renderOrders() {
+  const { orders, vendors } = App.getData();
+
+  const pipeline = [{ key: '', label: 'All', count: orders.length },
+    ...ORDER_STATUSES.map(s => ({ key: s, label: s, count: orders.filter(o => o.status === s).length }))
+  ].map(s => `<span class="chip" style="cursor:pointer;${_orderFilter===s.key?'background:var(--accent-sky);color:white;':''}" onclick="_orderFilter='${s.key}';renderOrders();">
+    ${escHtml(s.label)} <strong>${s.count}</strong>
+  </span>`).join('');
+
+  const filtered = _orderFilter ? orders.filter(o => o.status === _orderFilter) : orders;
+  const sorted   = [...filtered].sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+
+  const cards = sorted.length ? sorted.map(o => {
+    let items = [];
+    try { items = JSON.parse(o.items || '[]'); } catch {}
+    const itemTags = items.map(it =>
+      `<span class="chip" style="font-size:11px;">${escHtml(it.peptide||'')}${it.qty?' · '+escHtml(it.qty):''}${it.unit?' '+escHtml(it.unit):''}</span>`
+    ).join('');
+    const badgeCls = ORDER_STATUS_BADGE[o.status] || 'badge-info';
+    return `
+      <div class="glass" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:700;font-size:15px;">${escHtml(o.vendor_name)}</div>
+            ${o.ordered_at ? `<div class="muted" style="font-size:12px;margin-top:2px;">${escHtml(o.ordered_at)}</div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+            <span class="badge ${badgeCls}">${escHtml(o.status)}</span>
+            <button class="btn btn-ghost btn-sm" onclick="startEditOrder('${escHtml(o.id)}')">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteOrderConfirm('${escHtml(o.id)}')">×</button>
+          </div>
+        </div>
+        ${itemTags ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">${itemTags}</div>` : ''}
+        ${o.tracking ? `<div class="muted" style="font-size:12px;margin-top:6px;">📦 ${escHtml(o.tracking)}</div>` : ''}
+        ${o.total_cost != null ? `<div class="muted" style="font-size:12px;margin-top:4px;">💰 $${Number(o.total_cost).toFixed(2)}</div>` : ''}
+        ${o.notes ? `<div class="muted" style="font-size:12px;margin-top:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${escHtml(o.notes)}</div>` : ''}
+        <div id="odel-${escHtml(o.id)}" style="display:none;margin-top:10px;">
+          <span class="muted" style="font-size:13px;">Delete this order from <strong>${escHtml(o.vendor_name)}</strong>?</span>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn btn-danger btn-sm" onclick="deleteOrder('${escHtml(o.id)}')">Confirm</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('odel-${escHtml(o.id)}').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('') : `<div class="glass" style="padding:24px;text-align:center;"><div style="font-size:32px;">📦</div><p style="margin-top:8px;font-weight:600;">No orders${_orderFilter?' in this status':''}</p><p class="muted" style="margin-top:4px;">Click "+ Add Order" to start tracking.</p></div>`;
+
+  document.getElementById('orders').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;" id="orderFormWrap">
+        ${_orderFormId !== undefined ? orderFormHTML(_orderFormId) : '<button class="btn btn-primary btn-sm" onclick="_orderFormId=null;renderOrders()">+ Add Order</button>'}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;overflow-x:auto;padding:2px 0;">${pipeline}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;">${cards}</div>
+    </div>`;
+}
+
+function orderFormHTML(editId) {
+  const { orders, vendors, peptides } = App.getData();
+  const o = editId ? orders.find(x => x.id === editId) : null;
+  let items = [];
+  if (o) { try { items = JSON.parse(o.items || '[]'); } catch {} }
+
+  const vendorOpts = vendors.map(v =>
+    `<option value="${escHtml(v.id)}" ${o?.vendor_id===v.id?'selected':''}>${escHtml(v.name)}</option>`
+  ).join('');
+  const statusOpts = ORDER_STATUSES.map(s =>
+    `<option value="${s}" ${(o?.status||'Ordered')===s?'selected':''}>${s}</option>`
+  ).join('');
+  const pepOpts = peptides.map(p =>
+    `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`
+  ).join('');
+  const itemRows = items.map((it, i) => `
+    <div class="row3" style="margin-bottom:6px;" id="oitem-${i}">
+      <label>Peptide<select class="o-item-pep" data-idx="${i}">${pepOpts.replace(`value="${escHtml(it.peptide)}"`,`value="${escHtml(it.peptide)}" selected`)}</select></label>
+      <label>Qty<input class="o-item-qty" data-idx="${i}" type="text" value="${escHtml(it.qty||'')}" placeholder="e.g. 10"></label>
+      <label>Unit
+        <div style="display:flex;gap:4px;">
+          <select class="o-item-unit" data-idx="${i}">
+            <option value="mg" ${it.unit==='mg'?'selected':''}>mg</option>
+            <option value="mcg" ${it.unit==='mcg'?'selected':''}>mcg</option>
+            <option value="IU" ${it.unit==='IU'?'selected':''}>IU</option>
+          </select>
+          <button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="removeOrderItem(${i})">×</button>
+        </div>
+      </label>
+    </div>`).join('');
+
+  return `
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">${o ? 'Edit Order' : 'Add Order'}</h3>
+    <div class="stack" style="gap:10px;">
+      <div class="row2">
+        <label>Vendor (from list)
+          <select id="oVendorId" onchange="document.getElementById('oVendorName').value=this.options[this.selectedIndex].text==='None / Free text'?'':this.options[this.selectedIndex].text;">
+            <option value="">None / Free text</option>${vendorOpts}
+          </select>
+        </label>
+        <label>Vendor name
+          <input id="oVendorName" type="text" value="${escHtml(o?.vendor_name||'')}" placeholder="required" />
+        </label>
+      </div>
+      <div class="row3">
+        <label>Status<select id="oStatus">${statusOpts}</select></label>
+        <label>Order date<input id="oOrderedAt" type="date" value="${escHtml(o?.ordered_at||'')}"></label>
+        <label>Total cost ($)<input id="oTotalCost" type="number" step="0.01" min="0" value="${o?.total_cost!=null?o.total_cost:''}" placeholder="optional"></label>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text-muted);margin-bottom:6px;">Items</div>
+        <div id="oItemsWrap">${itemRows}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="addOrderItem()">+ Add item</button>
+      </div>
+      <label>Tracking<input id="oTracking" type="text" value="${escHtml(o?.tracking||'')}" placeholder="optional"></label>
+      <label>Notes<textarea id="oNotes" style="min-height:60px;">${escHtml(o?.notes||'')}</textarea></label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveOrder(${o?`'${escHtml(o.id)}'`:'null'})">${o?'Save Changes':'+ Add Order'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="_orderFormId=undefined;renderOrders()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function addOrderItem() {
+  const wrap = document.getElementById('oItemsWrap');
+  if (!wrap) return;
+  const i = wrap.children.length;
+  const { peptides } = App.getData();
+  const pepOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'row3';
+  div.style.marginBottom = '6px';
+  div.id = `oitem-${i}`;
+  div.innerHTML = `
+    <label>Peptide<select class="o-item-pep" data-idx="${i}">${pepOpts}</select></label>
+    <label>Qty<input class="o-item-qty" data-idx="${i}" type="text" placeholder="e.g. 10"></label>
+    <label>Unit
+      <div style="display:flex;gap:4px;">
+        <select class="o-item-unit" data-idx="${i}"><option value="mg">mg</option><option value="mcg">mcg</option><option value="IU">IU</option></select>
+        <button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="this.closest('.row3').remove()">×</button>
+      </div>
+    </label>`;
+  wrap.appendChild(div);
+}
+
+function removeOrderItem(idx) {
+  document.getElementById(`oitem-${idx}`)?.remove();
+}
+
+function collectOrderItems() {
+  const peps  = [...document.querySelectorAll('.o-item-pep')];
+  const qtys  = [...document.querySelectorAll('.o-item-qty')];
+  const units = [...document.querySelectorAll('.o-item-unit')];
+  return peps.map((p, i) => ({ peptide: p.value, qty: qtys[i]?.value||'', unit: units[i]?.value||'mg' }))
+    .filter(it => it.peptide);
+}
+
+function startEditOrder(id) {
+  _orderFormId = id;
+  renderOrders();
+  document.getElementById('orderFormWrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function saveOrder(editId) {
+  const vendor_id   = document.getElementById('oVendorId')?.value || null;
+  const vendor_name = document.getElementById('oVendorName')?.value?.trim();
+  const status      = document.getElementById('oStatus')?.value || 'Ordered';
+  const ordered_at  = document.getElementById('oOrderedAt')?.value || null;
+  const total_cost  = Number(document.getElementById('oTotalCost')?.value) || null;
+  const tracking    = document.getElementById('oTracking')?.value?.trim() || null;
+  const notes       = document.getElementById('oNotes')?.value?.trim() || null;
+  const items       = JSON.stringify(collectOrderItems());
+
+  if (!vendor_name) { alert('Vendor name is required.'); return; }
+  const body = { vendor_id, vendor_name, status, ordered_at, items, notes, tracking, total_cost };
+  try {
+    if (editId && editId !== 'null') {
+      await API.put(`/orders/${editId}`, body);
+    } else {
+      await API.post('/orders', body);
+    }
+    _orderFormId = undefined;
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('orders');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function deleteOrderConfirm(id) {
+  const el = document.getElementById(`odel-${id}`);
+  if (el) el.style.display = 'block';
+}
+
+async function deleteOrder(id) {
+  try {
+    await API.delete(`/orders/${id}`);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('orders');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
 
 // ── Task 13a: Vendors ──────────────────────────────────────────────────────────
 let _vendorFormId = undefined; // undefined = hide form, null = add new, string = editing id
