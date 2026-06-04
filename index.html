@@ -1257,8 +1257,128 @@ async function deleteVial(id) {
 }
 
 // ── Task 13a: Vendors ──────────────────────────────────────────────────────────
+let _vendorFormId = undefined; // undefined = hide form, null = add new, string = editing id
+
 function renderVendors() {
-  document.getElementById('vendors').innerHTML = `<p class="muted" style="padding:12px;">Loading vendors…</p>`;
+  const { vendors } = App.getData();
+
+  const cards = vendors.length ? vendors.map(v => {
+    const stars = '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating);
+    const trustClass = { verified: 'badge-done', unverified: 'badge-info', caution: 'badge-pending' }[v.trust] || 'badge-info';
+    const trustLabel = { verified: 'Verified', unverified: 'Unverified', caution: 'Caution' }[v.trust] || 'Unverified';
+    return `
+      <div class="glass" style="padding:16px;" id="vcard-${escHtml(v.id)}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:15px;">${escHtml(v.name)}</div>
+            ${v.url ? `<div style="font-size:12px;margin-top:2px;"><a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="color:var(--accent-sky);">${escHtml(v.url)}</a></div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" onclick="startEditVendor('${escHtml(v.id)}')">✎</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteVendorConfirm('${escHtml(v.id)}')">×</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+          <span style="color:var(--accent-amber);letter-spacing:2px;">${stars}</span>
+          <span class="badge ${trustClass}">${trustLabel}</span>
+        </div>
+        ${v.notes ? `<div class="muted" style="margin-top:8px;font-size:12px;">${escHtml(v.notes)}</div>` : ''}
+        <div id="vdelete-${escHtml(v.id)}" style="display:none;margin-top:10px;">
+          <span class="muted" style="font-size:13px;">Delete <strong>${escHtml(v.name)}</strong> and all their prices?</span>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn btn-danger btn-sm" onclick="deleteVendor('${escHtml(v.id)}')">Confirm</button>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('vdelete-${escHtml(v.id)}').style.display='none'">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('') : `<div class="glass" style="padding:24px;text-align:center;"><div style="font-size:32px;">🏪</div><p style="margin-top:8px;font-weight:600;">No vendors yet</p><p class="muted" style="margin-top:4px;">Add your first vendor below.</p></div>`;
+
+  document.getElementById('vendors').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;" id="vendorFormWrap">
+        ${_vendorFormId !== undefined ? vendorFormHTML(_vendorFormId) : '<button class="btn btn-primary btn-sm" onclick="_vendorFormId=null;renderVendors()">+ Add Vendor</button>'}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">${cards}</div>
+    </div>`;
+}
+
+function vendorFormHTML(editId) {
+  const { vendors } = App.getData();
+  const v = editId ? vendors.find(x => x.id === editId) : null;
+  const title = v ? `Edit: ${escHtml(v.name)}` : 'Add Vendor';
+  const ratingBtns = [1,2,3,4,5].map(n =>
+    `<button type="button" class="btn btn-sm ${(v?.rating||3)===n?'btn-primary':'btn-ghost'}" onclick="document.getElementById('vRating').value=${n};this.parentElement.querySelectorAll('button').forEach((b,i)=>b.className='btn btn-sm '+(i+1===${n}?'btn-primary':'btn-ghost'))">${'★'.repeat(n)}</button>`
+  ).join('');
+  return `
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">${title}</h3>
+    <div class="stack" style="gap:10px;">
+      <div class="row2">
+        <label>Name <input id="vName" type="text" value="${escHtml(v?.name||'')}" placeholder="e.g. PepTrek" /></label>
+        <label>URL <input id="vUrl" type="url" value="${escHtml(v?.url||'')}" placeholder="https://..." /></label>
+      </div>
+      <div class="row2">
+        <label>Rating
+          <div style="display:flex;gap:4px;margin-top:4px;">
+            ${ratingBtns}
+            <input type="hidden" id="vRating" value="${v?.rating||3}" />
+          </div>
+        </label>
+        <label>Trust
+          <select id="vTrust">
+            <option value="verified"   ${v?.trust==='verified'  ?'selected':''}>✓ Verified</option>
+            <option value="unverified" ${!v||v.trust==='unverified'?'selected':''}>? Unverified</option>
+            <option value="caution"    ${v?.trust==='caution'   ?'selected':''}>⚠ Caution</option>
+          </select>
+        </label>
+      </div>
+      <label>Notes <input id="vNotes" type="text" value="${escHtml(v?.notes||'')}" placeholder="optional notes" /></label>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveVendor(${v?`'${escHtml(v.id)}'`:'null'})">
+          ${v ? 'Save Changes' : '+ Add Vendor'}
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="_vendorFormId=undefined;renderVendors()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function startEditVendor(id) {
+  _vendorFormId = id;
+  renderVendors();
+  document.getElementById('vendorFormWrap')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function saveVendor(editId) {
+  const name   = document.getElementById('vName')?.value?.trim();
+  const url    = document.getElementById('vUrl')?.value?.trim() || null;
+  const rating = Number(document.getElementById('vRating')?.value) || 3;
+  const trust  = document.getElementById('vTrust')?.value || 'unverified';
+  const notes  = document.getElementById('vNotes')?.value?.trim() || null;
+  if (!name) { alert('Vendor name is required.'); return; }
+  try {
+    if (editId && editId !== 'null') {
+      await API.put(`/vendors/${editId}`, { name, url, rating, trust, notes });
+    } else {
+      await API.post('/vendors', { name, url, rating, trust, notes });
+    }
+    _vendorFormId = undefined;
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('vendors');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function deleteVendorConfirm(id) {
+  const el = document.getElementById(`vdelete-${id}`);
+  if (el) el.style.display = 'block';
+}
+
+async function deleteVendor(id) {
+  try {
+    await API.delete(`/vendors/${id}`);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('vendors');
+  } catch (e) { alert('Failed: ' + e.message); }
 }
 
 // ── Task 13b: Prices ───────────────────────────────────────────────────────────
