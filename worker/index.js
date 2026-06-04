@@ -135,6 +135,7 @@ async function handleAPI(request, env, url) {
   if (path === '/logs' && method === 'GET')    return logsList(request, env, origin);
   if (path === '/logs' && method === 'POST')   return logsAdd(request, env, origin);
   if (path === '/logs/last' && method === 'DELETE') return logsDeleteLast(request, env, origin);
+  if (path.match(/^\/logs\/[^/]+$/) && method === 'DELETE') return logsDeleteById(request, env, origin, path);
 
   // Settings
   if (path === '/settings' && method === 'GET') return settingsGet(request, env, origin);
@@ -157,6 +158,12 @@ async function handleAPI(request, env, url) {
   if (path.match(/^\/prices\/[^/]+$/) && method === 'DELETE') return pricesDelete(request, env, origin, path);
 
   if (path === '/parse-price-file' && method === 'POST') return parsePriceFile(request, env, origin);
+
+  // Orders
+  if (path === '/orders' && method === 'GET')  return ordersList(request, env, origin);
+  if (path === '/orders' && method === 'POST') return ordersAdd(request, env, origin);
+  if (path.match(/^\/orders\/[^/]+$/) && method === 'PUT')    return ordersUpdate(request, env, origin, path);
+  if (path.match(/^\/orders\/[^/]+$/) && method === 'DELETE') return ordersDelete(request, env, origin, path);
 
   return err('Not found', 404, origin);
 }
@@ -667,6 +674,78 @@ Normalize peptide names to title case. Return valid JSON only, no explanation.`;
   const prices  = Array.isArray(parsed.prices)  ? parsed.prices  : [];
 
   return json({ vendors, prices }, 200, origin);
+}
+
+async function logsDeleteById(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM logs WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+async function ordersList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function ordersAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.vendor_name?.trim()) return err('vendor_name required', 400, origin);
+  let items = '[]';
+  if (b.items) {
+    try { const parsed = JSON.parse(b.items); if (!Array.isArray(parsed)) throw new Error(); items = b.items; }
+    catch { return err('items must be a JSON array string', 400, origin); }
+  }
+  const id  = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const status = ['Ordered','Processing','Shipped','In Transit','Delivered','Stored','Used','Cancelled']
+    .includes(b.status) ? b.status : 'Ordered';
+  await env.DB.prepare(
+    `INSERT INTO orders (id, user_id, vendor_id, vendor_name, status, ordered_at, items, notes, tracking, total_cost, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+  ).bind(id, userId, b.vendor_id || null, b.vendor_name.trim(), status,
+    b.ordered_at || null, items, b.notes || null, b.tracking || null,
+    b.total_cost ? Number(b.total_cost) : null, now).run();
+  return json({ id }, 201, origin);
+}
+
+async function ordersUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const existing = await env.DB.prepare('SELECT id FROM orders WHERE id = ? AND user_id = ?').bind(id, userId).first();
+  if (!existing) return err('not found', 404, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.vendor_name?.trim()) return err('vendor_name required', 400, origin);
+  let items = '[]';
+  if (b.items) {
+    try { const parsed = JSON.parse(b.items); if (!Array.isArray(parsed)) throw new Error(); items = b.items; }
+    catch { return err('items must be a JSON array string', 400, origin); }
+  }
+  const status = ['Ordered','Processing','Shipped','In Transit','Delivered','Stored','Used','Cancelled']
+    .includes(b.status) ? b.status : 'Ordered';
+  await env.DB.prepare(
+    `UPDATE orders SET vendor_id=?, vendor_name=?, status=?, ordered_at=?, items=?, notes=?, tracking=?, total_cost=?
+     WHERE id=? AND user_id=?`
+  ).bind(b.vendor_id || null, b.vendor_name.trim(), status,
+    b.ordered_at || null, items, b.notes || null, b.tracking || null,
+    b.total_cost ? Number(b.total_cost) : null, id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+async function ordersDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM orders WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
 }
 
 // ── Cron ──────────────────────────────────────────────────────────────────────
