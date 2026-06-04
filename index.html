@@ -1485,7 +1485,124 @@ function drawTopPeptidesChart(canvas) {
     ctx.fillText(String(count), padLeft + barW + 4, y + 14);
   });
 }
-function renderHistory()   { document.getElementById('history').innerHTML   = '<p class="muted" style="padding:20px;">History loading...</p>'; }
+function renderHistory() {
+  const { logs, peptides } = App.getData();
+  const pepOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+
+  // Read current filter values (preserve across re-renders)
+  const pepFilter  = document.getElementById('histPep')?.value  || '';
+  const fromFilter = document.getElementById('histFrom')?.value || '';
+  const toFilter   = document.getElementById('histTo')?.value   || '';
+  const txtFilter  = document.getElementById('histSearch')?.value?.toLowerCase() || '';
+
+  // Apply filters client-side
+  let filtered = [...logs].sort((a,b) => (b.taken_at||'').localeCompare(a.taken_at||''));
+  if (pepFilter)  filtered = filtered.filter(l => l.peptide === pepFilter);
+  if (fromFilter) filtered = filtered.filter(l => l.taken_at >= fromFilter);
+  if (toFilter)   filtered = filtered.filter(l => l.taken_at <= toFilter + 'T23:59:59');
+  if (txtFilter)  filtered = filtered.filter(l =>
+    (l.peptide||'').toLowerCase().includes(txtFilter) ||
+    (l.notes||'').toLowerCase().includes(txtFilter));
+
+  const rows = filtered.length ? filtered.map(l => {
+    const dt = new Date(l.taken_at);
+    const dtStr = isNaN(dt) ? escHtml(l.taken_at||'') : escHtml(dt.toLocaleString([], {dateStyle:'short',timeStyle:'short'}));
+    const mlIu = (l.volume_ml != null && l.iu != null)
+      ? `${Number(l.volume_ml).toFixed(3)} mL / ${Number(l.iu).toFixed(1)} IU` : '—';
+    return `<tr>
+      <td style="white-space:nowrap;">${dtStr}</td>
+      <td><span class="badge badge-info">${escHtml(l.peptide)}</span></td>
+      <td>${escHtml(String(l.dose_value))} ${escHtml(l.dose_unit)}</td>
+      <td>${escHtml(l.route)}</td>
+      <td class="muted">${mlIu}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" class="muted">${escHtml(l.notes||'—')}</td>
+      <td><button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="deleteHistoryEntry('${escHtml(l.id)}')">×</button></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="7" style="text-align:center;padding:20px;" class="muted">${
+    logs.length ? 'No logs match your filters.' : 'No doses logged yet.'
+  }</td></tr>`;
+
+  document.getElementById('history').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:14px 18px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="flex-direction:row;align-items:center;gap:6px;font-size:12px;">
+            Peptide
+            <select id="histPep" style="width:auto;" onchange="renderHistory()">
+              <option value="">All</option>${pepOpts}
+            </select>
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:6px;font-size:12px;">
+            From <input id="histFrom" type="date" style="width:auto;" onchange="renderHistory()" value="${escHtml(fromFilter)}">
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:6px;font-size:12px;">
+            To <input id="histTo" type="date" style="width:auto;" onchange="renderHistory()" value="${escHtml(toFilter)}">
+          </label>
+          <input id="histSearch" type="search" placeholder="Search peptide or notes…"
+            style="width:180px;" oninput="renderHistory()" value="${escHtml(txtFilter)}">
+          <button class="btn btn-ghost btn-sm" onclick="clearHistoryFilters()">Clear</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportHistoryCSV()">Export CSV</button>
+          <span class="muted" style="font-size:12px;">${filtered.length} of ${logs.length}</span>
+        </div>
+      </div>
+      <div class="glass" style="padding:0;overflow:auto;">
+        <table>
+          <thead><tr>
+            <th>Date/Time</th><th>Peptide</th><th>Dose</th>
+            <th>Route</th><th>mL / IU</th><th>Notes</th><th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // Restore filter values after re-render
+  if (pepFilter)  { const el = document.getElementById('histPep');  if (el) el.value = pepFilter; }
+}
+
+function clearHistoryFilters() {
+  ['histPep','histFrom','histTo','histSearch'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderHistory();
+}
+
+async function deleteHistoryEntry(id) {
+  try {
+    await API.delete(`/logs/${id}`);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('history');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function exportHistoryCSV() {
+  const { logs } = App.getData();
+  const pepFilter  = document.getElementById('histPep')?.value  || '';
+  const fromFilter = document.getElementById('histFrom')?.value || '';
+  const toFilter   = document.getElementById('histTo')?.value   || '';
+  const txtFilter  = document.getElementById('histSearch')?.value?.toLowerCase() || '';
+
+  let filtered = [...logs].sort((a,b) => (b.taken_at||'').localeCompare(a.taken_at||''));
+  if (pepFilter)  filtered = filtered.filter(l => l.peptide === pepFilter);
+  if (fromFilter) filtered = filtered.filter(l => l.taken_at >= fromFilter);
+  if (toFilter)   filtered = filtered.filter(l => l.taken_at <= toFilter + 'T23:59:59');
+  if (txtFilter)  filtered = filtered.filter(l =>
+    (l.peptide||'').toLowerCase().includes(txtFilter) ||
+    (l.notes||'').toLowerCase().includes(txtFilter));
+
+  const esc = s => { s = String(s ?? ''); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? `"${s.replaceAll('"','""')}"` : s; };
+  const keys = ['taken_at','peptide','dose_value','dose_unit','route','volume_ml','iu','notes'];
+  const csv  = [keys.join(','), ...filtered.map(r => keys.map(k => esc(r[k])).join(','))].join('\n');
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'peptideos_history.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 500);
+}
 function renderOrders()    { document.getElementById('orders').innerHTML    = '<p class="muted" style="padding:20px;">Orders loading...</p>'; }
 
 // ── Task 13a: Vendors ──────────────────────────────────────────────────────────
