@@ -833,6 +833,23 @@ function calcStreak(logs) {
   return streak;
 }
 
+function calcBestStreak(logs) {
+  if (!logs.length) return 0;
+  const days = [...new Set(logs.map(l => l.taken_at?.slice(0, 10)).filter(Boolean))].sort();
+  let best = 0, current = 0, prev = null;
+  for (const day of days) {
+    if (prev) {
+      const diff = (new Date(day) - new Date(prev)) / 86400000;
+      current = diff === 1 ? current + 1 : 1;
+    } else {
+      current = 1;
+    }
+    best = Math.max(best, current);
+    prev = day;
+  }
+  return best;
+}
+
 function renderToday() {
   const { planner, logs, settings } = App.getData();
   const today = new Date();
@@ -1270,7 +1287,204 @@ async function deleteVial(id) {
   }
 }
 
-function renderDashboard() { document.getElementById('dashboard').innerHTML = '<p class="muted" style="padding:20px;">Dashboard loading...</p>'; }
+function renderDashboard() {
+  const { logs, planner, peptides, settings } = App.getData();
+  const streak     = calcStreak(logs);
+  const bestStreak = calcBestStreak(logs);
+  const totalDoses = logs.length;
+  const uniquePeps = new Set(logs.map(l => l.peptide)).size;
+
+  // Cycle info
+  const cs = settings.cycle_start, ce = settings.cycle_end;
+  let cycleHTML = '<p class="muted" style="text-align:center;">No active cycle — set dates in Settings.</p>';
+  if (cs && ce) {
+    const start = new Date(cs + 'T00:00:00'), end = new Date(ce + 'T00:00:00'), now = new Date();
+    const total = end - start, elapsed = now - start;
+    const pct = Math.max(0, Math.min(100, Math.round(elapsed / total * 100)));
+    const dayNum = Math.max(1, Math.ceil(elapsed / 86400000));
+    const daysLeft = Math.max(0, Math.ceil((end - now) / 86400000));
+    cycleHTML = `
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="text-align:center;min-width:60px;">
+          <div class="muted" style="font-size:11px;text-transform:uppercase;">Cycle Day</div>
+          <div style="font-size:28px;font-weight:800;color:var(--accent-sky);">${dayNum}</div>
+        </div>
+        <div style="flex:1;min-width:120px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="muted" style="font-size:12px;">Progress</span>
+            <span class="muted" style="font-size:12px;">${pct}%</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <span class="muted" style="font-size:11px;">${cs}</span>
+            <span class="muted" style="font-size:11px;">${daysLeft}d left</span>
+            <span class="muted" style="font-size:11px;">${ce}</span>
+          </div>
+        </div>
+        <div style="text-align:center;min-width:60px;">
+          <div class="muted" style="font-size:11px;text-transform:uppercase;">Days Left</div>
+          <div style="font-size:28px;font-weight:800;color:var(--accent-indigo);">${daysLeft}</div>
+        </div>
+      </div>`;
+  }
+
+  // Streak calendar — 91 days (13 weeks), CSS grid
+  const calCells = [];
+  const calToday = new Date(); calToday.setHours(0,0,0,0);
+  for (let i = 0; i < 91; i++) {
+    const d = new Date(calToday.getTime() - (90 - i) * 86400000);
+    const ds = ymd(d);
+    const count = logs.filter(l => l.taken_at?.slice(0,10) === ds).length;
+    const color = count === 0 ? 'var(--input-border)' : count <= 2 ? 'rgba(14,165,233,0.4)' : 'var(--accent-sky)';
+    const isToday = ds === ymd(calToday);
+    calCells.push(`<div title="${ds}: ${count} dose${count !== 1 ? 's' : ''}" style="width:12px;height:12px;border-radius:2px;background:${color};${isToday ? 'outline:2px solid var(--accent-sky);outline-offset:1px;' : ''}"></div>`);
+  }
+
+  document.getElementById('dashboard').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="chip">🔥 Streak: <strong style="margin-left:4px;">${streak}d</strong></div>
+          <div class="chip">🏆 Best: <strong style="margin-left:4px;">${bestStreak}d</strong></div>
+          <div class="chip">💉 Total doses: <strong style="margin-left:4px;">${totalDoses}</strong></div>
+          <div class="chip">🧪 Peptides used: <strong style="margin-left:4px;">${uniquePeps}</strong></div>
+        </div>
+      </div>
+
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Progress</h3>
+        ${cycleHTML}
+      </div>
+
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Last 91 Days</h3>
+        <div style="display:grid;grid-template-columns:repeat(13,12px);gap:3px;">${calCells.join('')}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <span class="muted" style="font-size:11px;">Less</span>
+          <div style="width:10px;height:10px;border-radius:2px;background:var(--input-border);"></div>
+          <div style="width:10px;height:10px;border-radius:2px;background:rgba(14,165,233,0.4);"></div>
+          <div style="width:10px;height:10px;border-radius:2px;background:var(--accent-sky);"></div>
+          <span class="muted" style="font-size:11px;">More</span>
+        </div>
+      </div>
+
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">7-Day Compliance</h3>
+        <canvas id="complianceChart" height="120" style="width:100%;max-width:500px;display:block;"></canvas>
+        ${planner.length === 0 ? '<p class="muted" style="margin-top:8px;">Add planner items to see compliance.</p>' : ''}
+      </div>
+
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Top Peptides</h3>
+        <canvas id="topPeptidesChart" height="200" style="width:100%;max-width:500px;display:block;"></canvas>
+        ${uniquePeps < 2 ? '<p class="muted" style="margin-top:8px;">Log more doses to see your top peptides.</p>' : ''}
+      </div>
+    </div>`;
+
+  setTimeout(drawDashboardCharts, 0);
+}
+
+function drawDashboardCharts() {
+  drawComplianceChart(document.getElementById('complianceChart'));
+  drawTopPeptidesChart(document.getElementById('topPeptidesChart'));
+}
+
+function drawComplianceChart(canvas) {
+  if (!canvas) return;
+  const { logs, planner } = App.getData();
+  if (!planner.length) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 500;
+  canvas.width = W;
+  canvas.height = 120;
+  ctx.clearRect(0, 0, W, 120);
+
+  const isDark = document.body.dataset.theme === 'dark' ||
+    (!document.body.dataset.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const textColor = isDark ? '#94a3b8' : '#64748b';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = Array.from({length:7}, (_,i) => {
+    const d = new Date(today.getTime() - (6-i)*86400000);
+    return { label: ['Su','Mo','Tu','We','Th','Fr','Sa'][d.getDay()], ymd: ymd(d), dow: d.getDay() };
+  });
+
+  const maxPlanned = Math.max(1, ...days.map(d => planner.filter(p => p.day === d.dow).length));
+  const barW = Math.floor((W - 40) / 7) - 4;
+  const chartH = 80;
+
+  days.forEach((day, i) => {
+    const x = 20 + i * ((W - 40) / 7);
+    const planned = planner.filter(p => p.day === day.dow).length;
+    const done = planned ? logs.filter(l => {
+      if (l.taken_at?.slice(0,10) !== day.ymd) return false;
+      return planner.some(p => p.day === day.dow && p.peptide === l.peptide && p.unit === l.dose_unit &&
+        Math.abs(Number(l.dose_value) - Number(p.dose)) / Math.max(Number(p.dose), 1e-9) <= 0.02);
+    }).length : 0;
+
+    const plannedH = Math.round((planned / maxPlanned) * chartH);
+    const doneH    = Math.round((done    / maxPlanned) * chartH);
+
+    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    ctx.fillRect(x, 85 - plannedH, barW, plannedH);
+
+    if (doneH > 0) {
+      const grad = ctx.createLinearGradient(0, 85 - doneH, 0, 85);
+      grad.addColorStop(0, '#0ea5e9');
+      grad.addColorStop(1, '#6366f1');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, 85 - doneH, barW, doneH);
+    }
+
+    ctx.fillStyle = textColor;
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(day.label, x + barW / 2, 100);
+    if (planned > 0) ctx.fillText(`${done}/${planned}`, x + barW / 2, 85 - plannedH - 3);
+  });
+}
+
+function drawTopPeptidesChart(canvas) {
+  if (!canvas) return;
+  const { logs } = App.getData();
+  const counts = {};
+  logs.forEach(l => { if (l.peptide) counts[l.peptide] = (counts[l.peptide] || 0) + 1; });
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  if (sorted.length < 2) return;
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 500;
+  canvas.width = W;
+  const rowH = 24, padLeft = 110, padRight = 40;
+  canvas.height = sorted.length * rowH + 10;
+  ctx.clearRect(0, 0, W, canvas.height);
+
+  const isDark = document.body.dataset.theme === 'dark' ||
+    (!document.body.dataset.theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const textColor = isDark ? '#94a3b8' : '#64748b';
+  const max = sorted[0][1];
+  const barArea = W - padLeft - padRight;
+
+  sorted.forEach(([name, count], i) => {
+    const y = i * rowH + 5;
+    const barW = Math.round((count / max) * barArea);
+    const label = name.length > 14 ? name.slice(0,13) + '…' : name;
+
+    ctx.fillStyle = textColor;
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(label, padLeft - 6, y + 14);
+
+    const grad = ctx.createLinearGradient(padLeft, 0, padLeft + barW, 0);
+    grad.addColorStop(0, '#0ea5e9');
+    grad.addColorStop(1, '#6366f130');
+    ctx.fillStyle = grad;
+    ctx.fillRect(padLeft, y + 2, barW, rowH - 6);
+
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(String(count), padLeft + barW + 4, y + 14);
+  });
+}
 function renderHistory()   { document.getElementById('history').innerHTML   = '<p class="muted" style="padding:20px;">History loading...</p>'; }
 function renderOrders()    { document.getElementById('orders').innerHTML    = '<p class="muted" style="padding:20px;">Orders loading...</p>'; }
 
