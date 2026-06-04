@@ -339,6 +339,8 @@
         <button class="nav-tab" data-tab="week">Week</button>
         <button class="nav-tab" data-tab="logdose">Log Dose</button>
         <button class="nav-tab" data-tab="vials">Vials</button>
+        <button class="nav-tab" data-tab="vendors">Vendors</button>
+        <button class="nav-tab" data-tab="prices">Prices</button>
         <button class="nav-tab" data-tab="calc">Calculator</button>
         <button class="nav-tab" data-tab="library">Library</button>
         <button class="nav-tab" data-tab="settings">Settings</button>
@@ -347,6 +349,8 @@
       <div id="week"     class="tab-content"></div>
       <div id="logdose"  class="tab-content"></div>
       <div id="vials"    class="tab-content"></div>
+      <div id="vendors"  class="tab-content"></div>
+      <div id="prices"   class="tab-content"></div>
       <div id="calc"     class="tab-content"></div>
       <div id="library"  class="tab-content"></div>
       <div id="settings" class="tab-content"></div>
@@ -390,7 +394,7 @@ const App = (() => {
   let _token = API.getToken();
   let _email = localStorage.getItem('peptideos_email') || '';
   let _theme = localStorage.getItem('peptideos_theme') || 'system';
-  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {} };
+  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [] };
 
   function applyTheme(t) {
     _theme = t;
@@ -420,18 +424,20 @@ const App = (() => {
     API.clearToken();
     localStorage.removeItem('peptideos_email');
     _token = null; _email = '';
-    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {} };
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [] };
   }
 
   async function loadAll() {
-    const [peptides, planner, vials, logs, settings] = await Promise.all([
+    const [peptides, planner, vials, logs, settings, vendors, prices] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
       API.get('/logs'),
-      API.get('/settings')
+      API.get('/settings'),
+      API.get('/vendors'),
+      API.get('/prices')
     ]);
-    _data = { peptides, planner, vials, logs, settings };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices };
     applyTheme(settings.theme || 'system');
     return _data;
   }
@@ -508,6 +514,8 @@ function renderAllTabs() {
   renderWeek();
   renderLogDose();
   renderVials();
+  renderVendors();
+  renderPrices();
   renderCalc();
   renderLibrary();
   renderSettings();
@@ -1246,6 +1254,16 @@ async function deleteVial(id) {
   } catch (e) {
     alert('Failed to remove vial: ' + (e.message || 'Unknown error'));
   }
+}
+
+// ── Task 13a: Vendors ──────────────────────────────────────────────────────────
+function renderVendors() {
+  document.getElementById('vendors').innerHTML = `<p class="muted" style="padding:12px;">Loading vendors…</p>`;
+}
+
+// ── Task 13b: Prices ───────────────────────────────────────────────────────────
+function renderPrices() {
+  document.getElementById('prices').innerHTML = `<p class="muted" style="padding:12px;">Loading prices…</p>`;
 }
 
 // ── Task 14: Calculator ────────────────────────────────────────────────────────
