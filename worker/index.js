@@ -156,6 +156,8 @@ async function handleAPI(request, env, url) {
   if (path === '/prices' && method === 'POST') return pricesUpsert(request, env, origin);
   if (path.match(/^\/prices\/[^/]+$/) && method === 'DELETE') return pricesDelete(request, env, origin, path);
 
+  if (path === '/parse-price-file' && method === 'POST') return parsePriceFile(request, env, origin);
+
   return err('Not found', 404, origin);
 }
 
@@ -590,6 +592,81 @@ async function pricesDelete(request, env, origin, path) {
   const id = path.split('/').pop();
   await env.DB.prepare('DELETE FROM prices WHERE id = ? AND user_id = ?').bind(id, userId).run();
   return json({ ok: true }, 200, origin);
+}
+
+// ── AI Price File Import ──────────────────────────────────────────────────────
+
+async function parsePriceFile(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+
+  if (!env.ANTHROPIC_API_KEY) return err('AI parsing not configured', 503, origin);
+
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return err('Content-Type must be multipart/form-data', 400, origin);
+  }
+
+  const formData = await request.formData().catch(() => null);
+  if (!formData) return err('invalid form data', 400, origin);
+  const file = formData.get('file');
+  if (!file) return err('file field required', 400, origin);
+
+  const bytes = await file.arrayBuffer();
+  const fileBase64 = btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  const mediaType = file.type || 'application/octet-stream';
+
+  const visionTypes = ['image/jpeg','image/png','image/gif','image/webp','application/pdf'];
+  const isVision = visionTypes.includes(mediaType);
+
+  const prompt = `Extract peptide vendor pricing data from this document.
+Return ONLY a JSON object with this exact shape:
+{"vendors":[{"name":"string","url":"string or null"}],"prices":[{"vendor_name":"string","peptide":"string","price_per_mg":number}]}
+For price_per_mg: if you see price per vial, divide by vial mg to get price per mg.
+If you cannot determine price per mg, omit that price entry.
+Normalize peptide names to title case. Return valid JSON only, no explanation.`;
+
+  const messageContent = isVision
+    ? [{ type: 'image', source: { type: 'base64', media_type: mediaType, data: fileBase64 } }, { type: 'text', text: prompt }]
+    : [{ type: 'text', text: `${prompt}\n\nFile content (base64-decoded text):\n${atob(fileBase64).substring(0, 8000)}` }];
+
+  const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: messageContent }]
+    })
+  });
+
+  if (!claudeRes.ok) {
+    const errText = await claudeRes.text().catch(() => '');
+    console.error('Claude API error:', claudeRes.status, errText);
+    return err('AI parsing failed', 422, origin);
+  }
+
+  const claudeData = await claudeRes.json().catch(() => null);
+  const rawText = claudeData?.content?.[0]?.text || '';
+
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return err('Could not parse file', 422, origin);
+
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    return err('Could not parse file', 422, origin);
+  }
+
+  const vendors = Array.isArray(parsed.vendors) ? parsed.vendors : [];
+  const prices  = Array.isArray(parsed.prices)  ? parsed.prices  : [];
+
+  return json({ vendors, prices }, 200, origin);
 }
 
 // ── Cron ──────────────────────────────────────────────────────────────────────
