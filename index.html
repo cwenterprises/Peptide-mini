@@ -363,6 +363,19 @@
     </div>
   </div>
   <script>
+// Version check — if CDN serves stale cached HTML, redirect to fresh URL
+(function(){
+  const APP_VERSION = 'v20260604-lib43';
+  const stored = sessionStorage.getItem('app_version');
+  if (stored !== APP_VERSION) {
+    sessionStorage.setItem('app_version', APP_VERSION);
+    // If loaded from cache (no version param), redirect to bust the CDN cache
+    if (!location.search.includes('_v=')) {
+      location.replace(location.pathname + '?_v=' + APP_VERSION);
+    }
+  }
+})();
+  </script>
 // ── API Client ──────────────────────────────────────────────────────────────
 const API = (() => {
   const BASE = '/api';
@@ -555,6 +568,7 @@ function planMatched(plan, logs) {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+// Library v2 — 43 peptides — 2026-06-04
 const PEPTIDE_HALFLIFE = {
   'BPC-157':          { halfLife: 4,    notes: 'Short acting; split into AM/PM dosing for best results' },
   'TB-500':           { halfLife: 24,   notes: 'Long-acting systemic; weekly or twice-weekly dosing common' },

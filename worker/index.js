@@ -7,8 +7,11 @@ export default {
     const res = await env.ASSETS.fetch(request);
     if (res.headers.get('content-type')?.includes('text/html')) {
       const headers = new Headers(res.headers);
-      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
       headers.set('Pragma', 'no-cache');
+      headers.set('CDN-Cache-Control', 'no-store');
+      headers.set('Surrogate-Control', 'no-store');
+      headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
       return new Response(res.body, { status: res.status, headers });
     }
     return res;
