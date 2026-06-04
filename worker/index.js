@@ -145,6 +145,17 @@ async function handleAPI(request, env, url) {
   if (path === '/push/subscribe' && method === 'POST')   return pushSubscribe(request, env, origin);
   if (path === '/push/subscribe' && method === 'DELETE') return pushUnsubscribe(request, env, origin);
 
+  // Vendors
+  if (path === '/vendors' && method === 'GET')  return vendorsList(request, env, origin);
+  if (path === '/vendors' && method === 'POST') return vendorsAdd(request, env, origin);
+  if (path.match(/^\/vendors\/[^/]+$/) && method === 'PUT')    return vendorsUpdate(request, env, origin, path);
+  if (path.match(/^\/vendors\/[^/]+$/) && method === 'DELETE') return vendorsDelete(request, env, origin, path);
+
+  // Prices
+  if (path === '/prices' && method === 'GET')  return pricesList(request, env, origin);
+  if (path === '/prices' && method === 'POST') return pricesUpsert(request, env, origin);
+  if (path.match(/^\/prices\/[^/]+$/) && method === 'DELETE') return pricesDelete(request, env, origin, path);
+
   return err('Not found', 404, origin);
 }
 
@@ -488,6 +499,96 @@ async function deleteAccount(request, env, origin) {
   const userId = await requireAuth(request, env);
   if (!userId) return err('unauthorized', 401, origin);
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Vendors ───────────────────────────────────────────────────────────────────
+
+async function vendorsList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM vendors WHERE user_id = ? ORDER BY name'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function vendorsAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.name?.trim()) return err('name required', 400, origin);
+  const rating = Number(b.rating) || 3;
+  if (rating < 1 || rating > 5) return err('rating must be 1–5', 400, origin);
+  const trust = ['verified','unverified','caution'].includes(b.trust) ? b.trust : 'unverified';
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    'INSERT INTO vendors (id, user_id, name, url, rating, trust, notes, created_at) VALUES (?,?,?,?,?,?,?,?)'
+  ).bind(id, userId, b.name.trim(), b.url || null, rating, trust, b.notes || null, now).run();
+  return json({ id, name: b.name.trim(), url: b.url || null, rating, trust, notes: b.notes || null, created_at: now }, 201, origin);
+}
+
+async function vendorsUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const existing = await env.DB.prepare('SELECT id FROM vendors WHERE id = ? AND user_id = ?').bind(id, userId).first();
+  if (!existing) return err('not found', 404, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.name?.trim()) return err('name required', 400, origin);
+  const rating = Number(b.rating) || 3;
+  if (rating < 1 || rating > 5) return err('rating must be 1–5', 400, origin);
+  const trust = ['verified','unverified','caution'].includes(b.trust) ? b.trust : 'unverified';
+  await env.DB.prepare(
+    'UPDATE vendors SET name=?, url=?, rating=?, trust=?, notes=? WHERE id=? AND user_id=?'
+  ).bind(b.name.trim(), b.url || null, rating, trust, b.notes || null, id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+async function vendorsDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM vendors WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Prices ────────────────────────────────────────────────────────────────────
+
+async function pricesList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM prices WHERE user_id = ? ORDER BY peptide, price_per_mg'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function pricesUpsert(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.vendor_id || !b.peptide?.trim() || !b.price_per_mg) return err('vendor_id, peptide, price_per_mg required', 400, origin);
+  const price = Number(b.price_per_mg);
+  if (!Number.isFinite(price) || price <= 0) return err('price_per_mg must be a positive number', 400, origin);
+  const vendor = await env.DB.prepare('SELECT id FROM vendors WHERE id = ? AND user_id = ?').bind(b.vendor_id, userId).first();
+  if (!vendor) return err('vendor not found', 404, origin);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO prices (id, user_id, vendor_id, peptide, price_per_mg, updated_at)
+     VALUES (?,?,?,?,?,?)
+     ON CONFLICT(user_id, vendor_id, peptide) DO UPDATE SET price_per_mg=excluded.price_per_mg, updated_at=excluded.updated_at`
+  ).bind(id, userId, b.vendor_id, b.peptide.trim(), price, now).run();
+  return json({ ok: true }, 201, origin);
+}
+
+async function pricesDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM prices WHERE id = ? AND user_id = ?').bind(id, userId).run();
   return json({ ok: true }, 200, origin);
 }
 
