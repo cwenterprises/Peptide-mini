@@ -363,15 +363,18 @@
     </div>
   </div>
   <script>
-// Version check — if CDN serves stale cached HTML, redirect to fresh URL
+// Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
   const APP_VERSION = 'v20260604-lib43';
+  // Skip entirely on /reset so token query param is never dropped
+  if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
   if (stored !== APP_VERSION) {
     sessionStorage.setItem('app_version', APP_VERSION);
-    // If loaded from cache (no version param), redirect to bust the CDN cache
     if (!location.search.includes('_v=')) {
-      location.replace(location.pathname + '?_v=' + APP_VERSION);
+      // Preserve any existing query params, append _v
+      const sep = location.search ? '&' : '?';
+      location.replace(location.pathname + location.search + sep + '_v=' + APP_VERSION);
     }
   }
 })();
