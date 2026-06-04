@@ -1,4 +1,5 @@
-const CACHE_NAME = 'peptideos-v3';
+const CACHE_NAME = 'peptideos-v4';
+const FRESH_URL = '/?_v=v20260604-lib43';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
@@ -48,11 +49,22 @@ self.addEventListener('activate', (e) => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => clients.forEach(client => {
+        // Navigate all open tabs to the cache-busted fresh URL
+        if (!client.url.includes('_v=')) client.navigate(FRESH_URL);
+      }))
   );
 });
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
+
+  // Redirect bare root requests to versioned URL so CDN cache can't serve stale HTML
+  if (url.pathname === '/' && !url.searchParams.has('_v') && e.request.mode === 'navigate') {
+    e.respondWith(Response.redirect(FRESH_URL, 302));
+    return;
+  }
 
   if (url.pathname.startsWith('/api/')) {
     const method = e.request.method;
