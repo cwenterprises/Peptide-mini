@@ -1382,8 +1382,244 @@ async function deleteVendor(id) {
 }
 
 // ── Task 13b: Prices ───────────────────────────────────────────────────────────
+let _parsedImport = null;
+
 function renderPrices() {
-  document.getElementById('prices').innerHTML = `<p class="muted" style="padding:12px;">Loading prices…</p>`;
+  const { vendors, prices, peptides } = App.getData();
+
+  const priceVendorIds = [...new Set(prices.map(p => p.vendor_id))];
+  const activeCols = vendors.filter(v => priceVendorIds.includes(v.id));
+  const rowPeptides = [...new Set(prices.map(p => p.peptide))].sort();
+
+  const matrix = {};
+  prices.forEach(p => {
+    if (!matrix[p.peptide]) matrix[p.peptide] = {};
+    matrix[p.peptide][p.vendor_id] = { id: p.id, price: p.price_per_mg };
+  });
+
+  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+  const vendorOpts  = vendors.map(v => `<option value="${escHtml(v.id)}">${escHtml(v.name)}</option>`).join('');
+
+  let tableHTML = '';
+  if (rowPeptides.length && activeCols.length) {
+    const headerCols = activeCols.map(v => `<th style="white-space:nowrap;">${escHtml(v.name)}</th>`).join('');
+    const rows = rowPeptides.map(peptide => {
+      const rowPrices = matrix[peptide] || {};
+      const values = activeCols.map(v => rowPrices[v.id]?.price).filter(x => x != null);
+      const best = values.length ? Math.min(...values) : null;
+      const cells = activeCols.map(v => {
+        const entry = rowPrices[v.id];
+        if (!entry) return `<td style="color:var(--text-muted);">—</td>`;
+        const isBest = entry.price === best;
+        return `<td>
+          <span id="pcell-${escHtml(entry.id)}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="${isBest?'badge badge-done':''}" style="cursor:pointer;white-space:nowrap;" onclick="editPriceCell('${escHtml(entry.id)}',${entry.price})">
+              $${Number(entry.price).toFixed(2)}/mg
+            </span>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 5px;font-size:11px;" onclick="deletePrice('${escHtml(entry.id)}')">×</button>
+            <button class="btn btn-ghost btn-sm" style="padding:1px 5px;font-size:11px;" onclick="priceToCalc('${escHtml(peptide)}',${entry.price})">→ Calc</button>
+          </span>
+        </td>`;
+      }).join('');
+      return `<tr><td style="font-weight:600;white-space:nowrap;">${escHtml(peptide)}</td>${cells}</tr>`;
+    }).join('');
+    tableHTML = `
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Peptide</th>${headerCols}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } else if (!vendors.length) {
+    tableHTML = `<div style="text-align:center;padding:20px;"><p class="muted">Add vendors first before tracking prices.</p><button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="Tabs.switchTo('vendors')">Go to Vendors →</button></div>`;
+  } else {
+    tableHTML = `<div style="text-align:center;padding:20px;"><div style="font-size:32px;">💰</div><p style="margin-top:8px;font-weight:600;">No prices yet</p><p class="muted" style="margin-top:4px;">Add your first entry above.</p></div>`;
+  }
+
+  const importPreview = _parsedImport ? buildImportPreview(_parsedImport) : '';
+
+  document.getElementById('prices').innerHTML = `
+    <div class="stack">
+      ${vendors.length ? `
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Add Price</h3>
+        <div class="row3">
+          <label>Peptide<select id="pPeptide">${peptideOpts}</select></label>
+          <label>Vendor<select id="pVendor"><option value="">Select...</option>${vendorOpts}</select></label>
+          <label>Price per mg ($)<input id="pPrice" type="number" step="0.01" min="0" placeholder="e.g. 2.50" /></label>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="savePriceEntry()">+ Add Price</button>
+      </div>` : ''}
+
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Price Comparison</h3>
+        ${tableHTML}
+      </div>
+
+      <details class="glass" style="padding:18px;">
+        <summary style="font-weight:700;font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+          Import from file (AI) <span class="muted" style="font-size:12px;">▸</span>
+        </summary>
+        <div class="stack" style="gap:12px;margin-top:14px;">
+          <p class="muted">Upload any file — screenshot, PDF, CSV, price list. Claude will extract vendor names and prices.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <input id="priceFile" type="file" accept="*/*" style="flex:1;min-width:0;" />
+            <button class="btn btn-primary btn-sm" onclick="parsePriceFile()">Parse with AI</button>
+          </div>
+          <div id="parseStatus" class="muted" style="font-size:13px;"></div>
+          ${importPreview}
+        </div>
+      </details>
+    </div>`;
+}
+
+function buildImportPreview(parsed) {
+  if (!parsed.prices?.length && !parsed.vendors?.length) {
+    return `<div class="muted">No prices found in the file. Try a different file.</div>`;
+  }
+  const rows = (parsed.prices || []).map((p, i) =>
+    `<tr>
+      <td><input type="checkbox" id="imp-${i}" checked style="width:auto;"></td>
+      <td>${escHtml(p.vendor_name)}</td>
+      <td>${escHtml(p.peptide)}</td>
+      <td><input type="number" id="imp-price-${i}" value="${Number(p.price_per_mg).toFixed(2)}" step="0.01" min="0" style="width:90px;"></td>
+    </tr>`
+  ).join('');
+  return `
+    <div style="overflow-x:auto;margin-top:8px;">
+      <table>
+        <thead><tr><th style="width:30px;"></th><th>Vendor</th><th>Peptide</th><th>$/mg</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-primary btn-sm" onclick="confirmParsedPrices()">Save Selected</button>
+      <button class="btn btn-ghost btn-sm" onclick="_parsedImport=null;renderPrices()">Cancel</button>
+    </div>`;
+}
+
+async function savePriceEntry() {
+  const peptide    = document.getElementById('pPeptide')?.value;
+  const vendor_id  = document.getElementById('pVendor')?.value;
+  const price_per_mg = Number(document.getElementById('pPrice')?.value);
+  if (!vendor_id) { alert('Select a vendor.'); return; }
+  if (!peptide)   { alert('Select a peptide.'); return; }
+  if (!price_per_mg || price_per_mg <= 0) { alert('Enter a price > 0.'); return; }
+  try {
+    await API.post('/prices', { vendor_id, peptide, price_per_mg });
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('prices');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function editPriceCell(id, currentVal) {
+  const cell = document.getElementById(`pcell-${id}`);
+  if (!cell) return;
+  cell.innerHTML = `
+    <input type="number" id="pedit-${escHtml(id)}" value="${Number(currentVal).toFixed(2)}" step="0.01" min="0" style="width:80px;">
+    <button class="btn btn-primary btn-sm" onclick="savePriceCellEdit('${escHtml(id)}')">✓</button>
+    <button class="btn btn-ghost btn-sm" onclick="renderPrices()">✕</button>`;
+}
+
+async function savePriceCellEdit(id) {
+  const val = Number(document.getElementById(`pedit-${id}`)?.value);
+  if (!val || val <= 0) { alert('Price must be > 0'); return; }
+  const price = App.getData().prices.find(p => p.id === id);
+  if (!price) return;
+  try {
+    await API.post('/prices', { vendor_id: price.vendor_id, peptide: price.peptide, price_per_mg: val });
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('prices');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function deletePrice(id) {
+  try {
+    await API.delete(`/prices/${id}`);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('prices');
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function priceToCalc(peptide, price) {
+  _calcSubTab = 'cost';
+  Tabs.switchTo('calc');
+  renderCalc();
+  setTimeout(() => {
+    const priceField = document.getElementById('cPrice');
+    if (priceField) { priceField.value = price; calcCost(); }
+  }, 50);
+}
+
+async function parsePriceFile() {
+  const fileInput = document.getElementById('priceFile');
+  const statusEl  = document.getElementById('parseStatus');
+  if (!fileInput?.files?.length) { alert('Select a file first.'); return; }
+  if (statusEl) statusEl.textContent = '⏳ Parsing with AI...';
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  try {
+    const token = API.getToken();
+    const res = await fetch('/api/parse-price-file', {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Parse failed');
+    _parsedImport = data;
+    if (statusEl) statusEl.textContent = `Found ${data.prices?.length || 0} price entries from ${data.vendors?.length || 0} vendors.`;
+    renderPrices();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '❌ ' + e.message;
+  }
+}
+
+async function confirmParsedPrices() {
+  if (!_parsedImport) return;
+  const { vendors: existingVendors } = App.getData();
+
+  const rows = [];
+  (_parsedImport.prices || []).forEach((p, i) => {
+    const cb = document.getElementById(`imp-${i}`);
+    const priceInput = document.getElementById(`imp-price-${i}`);
+    if (cb?.checked) {
+      rows.push({ vendor_name: p.vendor_name, peptide: p.peptide, price_per_mg: Number(priceInput?.value || p.price_per_mg) });
+    }
+  });
+  if (!rows.length) { alert('No rows selected.'); return; }
+
+  const vendorMap = {};
+  existingVendors.forEach(v => { vendorMap[v.name.toLowerCase()] = v.id; });
+
+  for (const parsed of (_parsedImport.vendors || [])) {
+    const key = parsed.name.toLowerCase();
+    if (!vendorMap[key]) {
+      const result = await API.post('/vendors', { name: parsed.name, url: parsed.url || null, rating: 3, trust: 'unverified' }).catch(() => null);
+      if (result?.id) vendorMap[key] = result.id;
+    }
+  }
+
+  await App.loadAll();
+  const freshVendors = App.getData().vendors;
+  freshVendors.forEach(v => { vendorMap[v.name.toLowerCase()] = v.id; });
+
+  let saved = 0;
+  for (const row of rows) {
+    const vid = vendorMap[row.vendor_name.toLowerCase()];
+    if (!vid) continue;
+    await API.post('/prices', { vendor_id: vid, peptide: row.peptide, price_per_mg: row.price_per_mg }).catch(() => {});
+    saved++;
+  }
+
+  _parsedImport = null;
+  await App.loadAll();
+  renderAllTabs();
+  Tabs.switchTo('prices');
+  alert(`Saved ${saved} price entr${saved === 1 ? 'y' : 'ies'}.`);
 }
 
 // ── Task 14: Calculator ────────────────────────────────────────────────────────
