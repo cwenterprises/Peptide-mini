@@ -335,25 +335,31 @@
   <div id="mainApp" style="display:none;">
     <div id="app">
       <nav class="nav-pill" id="navPill" style="margin-bottom:16px;">
-        <button class="nav-tab active" data-tab="today">Today</button>
+        <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
+        <button class="nav-tab" data-tab="today">Today</button>
         <button class="nav-tab" data-tab="week">Week</button>
         <button class="nav-tab" data-tab="logdose">Log Dose</button>
+        <button class="nav-tab" data-tab="history">History</button>
         <button class="nav-tab" data-tab="vials">Vials</button>
         <button class="nav-tab" data-tab="vendors">Vendors</button>
         <button class="nav-tab" data-tab="prices">Prices</button>
         <button class="nav-tab" data-tab="calc">Calculator</button>
         <button class="nav-tab" data-tab="library">Library</button>
         <button class="nav-tab" data-tab="settings">Settings</button>
+        <button class="nav-tab" data-tab="orders">Orders</button>
       </nav>
-      <div id="today"    class="tab-content active"></div>
-      <div id="week"     class="tab-content"></div>
-      <div id="logdose"  class="tab-content"></div>
-      <div id="vials"    class="tab-content"></div>
-      <div id="vendors"  class="tab-content"></div>
-      <div id="prices"   class="tab-content"></div>
-      <div id="calc"     class="tab-content"></div>
-      <div id="library"  class="tab-content"></div>
-      <div id="settings" class="tab-content"></div>
+      <div id="dashboard" class="tab-content active"></div>
+      <div id="today"     class="tab-content"></div>
+      <div id="week"      class="tab-content"></div>
+      <div id="logdose"   class="tab-content"></div>
+      <div id="history"   class="tab-content"></div>
+      <div id="vials"     class="tab-content"></div>
+      <div id="vendors"   class="tab-content"></div>
+      <div id="prices"    class="tab-content"></div>
+      <div id="calc"      class="tab-content"></div>
+      <div id="library"   class="tab-content"></div>
+      <div id="settings"  class="tab-content"></div>
+      <div id="orders"    class="tab-content"></div>
     </div>
   </div>
   <script>
@@ -394,7 +400,7 @@ const App = (() => {
   let _token = API.getToken();
   let _email = localStorage.getItem('peptideos_email') || '';
   let _theme = localStorage.getItem('peptideos_theme') || 'system';
-  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [] };
+  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [] };
 
   function applyTheme(t) {
     _theme = t;
@@ -424,25 +430,25 @@ const App = (() => {
     API.clearToken();
     localStorage.removeItem('peptideos_email');
     _token = null; _email = '';
-    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [] };
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [] };
   }
 
   async function loadAll() {
-    let [peptides, planner, vials, logs, settings, vendors, prices] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices, orders] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
       API.get('/logs'),
       API.get('/settings'),
       API.get('/vendors'),
-      API.get('/prices')
+      API.get('/prices'),
+      API.get('/orders')
     ]);
-    // Auto-seed defaults for existing accounts that migrated from localStorage
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
       peptides = await API.get('/peptides');
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders };
     applyTheme(settings.theme || 'system');
     return _data;
   }
@@ -457,7 +463,7 @@ const App = (() => {
 
 // ── Tab Navigation ───────────────────────────────────────────────────────────
 const Tabs = (() => {
-  let current = 'today';
+  let current = 'dashboard';
 
   document.getElementById('navPill').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-tab]');
@@ -515,15 +521,18 @@ function showAuth(mode) {
 }
 
 function renderAllTabs() {
+  renderDashboard();
   renderToday();
   renderWeek();
   renderLogDose();
+  renderHistory();
   renderVials();
   renderVendors();
   renderPrices();
   renderCalc();
   renderLibrary();
   renderSettings();
+  renderOrders();
 }
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
@@ -1260,6 +1269,10 @@ async function deleteVial(id) {
     alert('Failed to remove vial: ' + (e.message || 'Unknown error'));
   }
 }
+
+function renderDashboard() { document.getElementById('dashboard').innerHTML = '<p class="muted" style="padding:20px;">Dashboard loading...</p>'; }
+function renderHistory()   { document.getElementById('history').innerHTML   = '<p class="muted" style="padding:20px;">History loading...</p>'; }
+function renderOrders()    { document.getElementById('orders').innerHTML    = '<p class="muted" style="padding:20px;">Orders loading...</p>'; }
 
 // ── Task 13a: Vendors ──────────────────────────────────────────────────────────
 let _vendorFormId = undefined; // undefined = hide form, null = add new, string = editing id
