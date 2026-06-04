@@ -4,7 +4,14 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);
     }
-    return env.ASSETS.fetch(request);
+    const res = await env.ASSETS.fetch(request);
+    if (res.headers.get('content-type')?.includes('text/html')) {
+      const headers = new Headers(res.headers);
+      headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      headers.set('Pragma', 'no-cache');
+      return new Response(res.body, { status: res.status, headers });
+    }
+    return res;
   },
 
   async scheduled(event, env, ctx) {

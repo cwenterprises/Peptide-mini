@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peptideos-v2';
+const CACHE_NAME = 'peptideos-v3';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
