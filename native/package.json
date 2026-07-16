@@ -1,0 +1,20 @@
+{
+  "name": "peptideos-native",
+  "private": true,
+  "scripts": {
+    "sync-web": "bash sync-web.sh",
+    "test": "node test/shim.test.cjs",
+    "cap:sync": "bash sync-web.sh && npx cap sync ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6",
+    "@capacitor/browser": "^6",
+    "@capacitor/core": "^6",
+    "@capacitor/ios": "^6",
+    "@capacitor/splash-screen": "^6",
+    "@capacitor/status-bar": "^6"
+  }
+}

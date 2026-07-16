@@ -85,7 +85,10 @@ async function requireAuth(request, env) {
 }
 
 // Fix 3: restricted CORS origin
-const ALLOWED_ORIGINS = ['https://peptideos.cwenterprises.net', 'http://localhost:8787', 'http://localhost:3000'];
+// Native iOS (Capacitor, iosScheme:'https') origin is https://localhost;
+// capacitor://localhost is the fallback custom-scheme origin. Both must be
+// allowed so the wrapped app's cross-origin /api/* calls succeed.
+const ALLOWED_ORIGINS = ['https://peptideos.cwenterprises.net', 'https://localhost', 'capacitor://localhost', 'http://localhost:8787', 'http://localhost:3000'];
 
 function corsHeaders(origin) {
   if (!ALLOWED_ORIGINS.includes(origin)) return {};

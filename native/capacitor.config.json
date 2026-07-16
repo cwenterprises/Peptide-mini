@@ -1,0 +1,7 @@
+{
+  "appId": "net.cwenterprises.peptideos",
+  "appName": "PeptideOS",
+  "webDir": "www",
+  "server": { "iosScheme": "https" },
+  "ios": { "contentInset": "always" }
+}

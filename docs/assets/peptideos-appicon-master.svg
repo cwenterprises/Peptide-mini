@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- PeptideOS app icon — liquid-glass tile + peptide chain (amino-acid hexagon nodes)
+       Brand palette from index.html: bg #080810, accent indigo #6366f1, cyan #22d3ee, purple #a78bfa -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#171727"/>
+      <stop offset="0.5" stop-color="#0e0e1a"/>
+      <stop offset="1" stop-color="#080810"/>
+    </linearGradient>
+    <linearGradient id="chain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#6366f1" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+  </defs>
+
+  <!-- rounded-square glass tile (iOS mask handles the squircle; we fill full bleed) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#tile)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#glow)"/>
+  <!-- diagonal light sweep -->
+  <path d="M0 0 L1024 0 L1024 380 Q560 520 0 300 Z" fill="url(#sweep)"/>
+  <!-- inner hairline -->
+  <rect x="14" y="14" width="996" height="996" rx="212" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+
+  <!-- Peptide chain: three amino-acid hexagon nodes joined by peptide bonds, forming a rising helix -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- bonds (behind nodes), glow -->
+    <g filter="url(#soft)" opacity="0.7">
+      <path d="M320 660 L512 512 L704 364" fill="none" stroke="url(#chain)" stroke-width="34"/>
+    </g>
+    <path d="M320 660 L512 512 L704 364" fill="none" stroke="url(#chain)" stroke-width="26"/>
+
+    <!-- hexagon helper via polygons; node radius ~92 -->
+    <!-- node 1 (bottom-left, cyan end) -->
+    <polygon points="320,568 400,614 400,706 320,752 240,706 240,614"
+             fill="#0e0e1a" stroke="#22d3ee" stroke-width="20"/>
+    <circle cx="320" cy="660" r="20" fill="#22d3ee"/>
+    <!-- node 2 (center, indigo) -->
+    <polygon points="512,420 592,466 592,558 512,604 432,558 432,466"
+             fill="#0e0e1a" stroke="#6366f1" stroke-width="20"/>
+    <circle cx="512" cy="512" r="20" fill="#6366f1"/>
+    <!-- node 3 (top-right, purple end) -->
+    <polygon points="704,272 784,318 784,410 704,456 624,410 624,318"
+             fill="#0e0e1a" stroke="#a78bfa" stroke-width="20"/>
+    <circle cx="704" cy="364" r="20" fill="#a78bfa"/>
+  </g>
+</svg>

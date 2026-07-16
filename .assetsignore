@@ -2,6 +2,7 @@
 .wrangler
 .dev.vars
 docs
+native
 worker
 migrations
 *.toml
