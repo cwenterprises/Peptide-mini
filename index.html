@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-cycles';
+  const APP_VERSION = 'v20260801-cycleedit';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -3696,14 +3696,41 @@ function renderSettings() {
   const theme = App.getTheme();
 
   const cyclesHtml = (cycles && cycles.length)
-    ? cycles.map(c => `
+    ? cycles.map(c => {
+      if (c.id === _editingCycleId) {
+        const isCustom = !peptides.some(p => p.name === c.peptide);
+        return `
+      <div style="padding:12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+        <div class="stack">
+          <div class="row3">
+            <label>Peptide
+              <select id="ecPeptide" onchange="toggleCustomPeptide(this, 'ecPeptideCustom')">
+                ${peptideSelectOpts(peptides, c.peptide)}
+              </select>
+            </label>
+            <label>Start<input type="date" id="ecStart" value="${c.start_date}" /></label>
+            <label>End<input type="date" id="ecEnd" value="${c.end_date}" /></label>
+          </div>
+          <input type="text" id="ecPeptideCustom" placeholder="Custom peptide name" value="${isCustom ? escHtml(c.peptide) : ''}" style="display:${isCustom ? 'block' : 'none'};" />
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-primary" onclick="saveCycleEdit('${c.id}')">Save</button>
+            <button class="btn btn-sm btn-ghost" onclick="_editingCycleId=null;renderSettings();">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+      }
+      return `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
         <div>
           <div style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</div>
           <div class="muted">${c.start_date} → ${c.end_date}</div>
         </div>
-        <button class="btn btn-sm btn-danger" style="padding:2px 8px;" onclick="deleteCycle('${c.id}')">×</button>
-      </div>`).join('')
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="_editingCycleId='${c.id}';renderSettings();">Edit</button>
+          <button class="btn btn-sm btn-danger" style="padding:2px 8px;" onclick="deleteCycle('${c.id}')">×</button>
+        </div>
+      </div>`;
+    }).join('')
     : '<p class="muted" style="padding:4px 0;">No cycles yet — add one above to track per-peptide progress on the Dashboard.</p>';
 
   const peptideChips = peptides.map(p => `
@@ -3876,6 +3903,26 @@ async function resetPeptides() {
     renderAllTabs();
   } catch (e) {
     alert('Reset error: ' + (e.message || 'Unknown error'));
+  }
+}
+
+let _editingCycleId = null;
+
+async function saveCycleEdit(id) {
+  const peptide = resolvePeptideName('ecPeptide', 'ecPeptideCustom');
+  const start   = document.getElementById('ecStart').value;
+  const end     = document.getElementById('ecEnd').value;
+  if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
+  if (!start || !end) { alert('Please set both start and end dates.'); return; }
+  if (end < start) { alert('Cycle end must be after the start.'); return; }
+  try {
+    await API.put('/cycles/' + id, { peptide, start_date: start, end_date: end });
+    _editingCycleId = null;
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('settings');
+  } catch (e) {
+    alert('Failed to update cycle: ' + (e.message || 'Unknown error'));
   }
 }
 
