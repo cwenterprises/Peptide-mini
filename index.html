@@ -161,6 +161,28 @@
       color: var(--text);
       box-shadow: 0 2px 8px rgba(14,30,60,0.10), inset 0 1px 0 rgba(255,255,255,0.9);
     }
+    /* Edge fades hinting the nav pill scrolls horizontally (mobile) */
+    .nav-fade {
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      width: 34px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 2;
+    }
+    .nav-fade-l {
+      left: 1px;
+      border-radius: 14px 0 0 14px;
+      background: linear-gradient(to right, var(--bg), transparent);
+    }
+    .nav-fade-r {
+      right: 1px;
+      border-radius: 0 14px 14px 0;
+      background: linear-gradient(to left, var(--bg), transparent);
+    }
+    .nav-fade.visible { opacity: 0.9; }
 
     /* Buttons */
     .btn {
@@ -334,7 +356,8 @@
   <div id="authScreen" style="display:none;"></div>
   <div id="mainApp" style="display:none;">
     <div id="app">
-      <nav class="nav-pill" id="navPill" style="margin-bottom:16px;">
+      <div class="nav-wrap" style="position:relative;margin-bottom:16px;">
+      <nav class="nav-pill" id="navPill">
         <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button class="nav-tab" data-tab="today">Today</button>
         <button class="nav-tab" data-tab="week">Week</button>
@@ -348,6 +371,9 @@
         <button class="nav-tab" data-tab="settings">Settings</button>
         <button class="nav-tab" data-tab="orders">Orders</button>
       </nav>
+      <div class="nav-fade nav-fade-l" aria-hidden="true"></div>
+      <div class="nav-fade nav-fade-r" aria-hidden="true"></div>
+      </div>
       <div id="dashboard" class="tab-content active"></div>
       <div id="today"     class="tab-content"></div>
       <div id="week"      class="tab-content"></div>
@@ -365,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260604-lib43';
+  const APP_VERSION = 'v20260731-navfade';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -498,7 +524,20 @@ const Tabs = (() => {
     );
   }
 
-  return { switchTo, current: () => current };
+  // Show edge fades only when the pill overflows and isn't at that edge
+  const pill = document.getElementById('navPill');
+  const fadeL = document.querySelector('.nav-fade-l');
+  const fadeR = document.querySelector('.nav-fade-r');
+  function updateNavFades() {
+    const overflow = pill.scrollWidth - pill.clientWidth;
+    fadeL.classList.toggle('visible', overflow > 4 && pill.scrollLeft > 4);
+    fadeR.classList.toggle('visible', overflow > 4 && pill.scrollLeft < overflow - 4);
+  }
+  pill.addEventListener('scroll', updateNavFades, { passive: true });
+  window.addEventListener('resize', updateNavFades);
+  updateNavFades();
+
+  return { switchTo, current: () => current, updateNavFades };
 })();
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -529,6 +568,7 @@ function showApp() {
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
   renderAllTabs();
+  Tabs.updateNavFades();
 }
 
 function showAuth(mode) {
@@ -1844,14 +1884,16 @@ function renderDashboard() {
 
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">7-Day Compliance</h3>
-        <canvas id="complianceChart" height="120" style="width:100%;max-width:500px;display:block;"></canvas>
-        ${planner.length === 0 ? '<p class="muted" style="margin-top:8px;">Add planner items to see compliance.</p>' : ''}
+        ${planner.length === 0
+          ? '<p class="muted">Add planner items to see compliance.</p>'
+          : '<canvas id="complianceChart" height="120" style="width:100%;max-width:500px;display:block;"></canvas>'}
       </div>
 
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Top Peptides</h3>
-        <canvas id="topPeptidesChart" height="200" style="width:100%;max-width:500px;display:block;"></canvas>
-        ${uniquePeps < 2 ? '<p class="muted" style="margin-top:8px;">Log more doses to see your top peptides.</p>' : ''}
+        ${uniquePeps < 2
+          ? '<p class="muted">Log more doses to see your top peptides.</p>'
+          : '<canvas id="topPeptidesChart" height="200" style="width:100%;max-width:500px;display:block;"></canvas>'}
       </div>
     </div>`;
 
