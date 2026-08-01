@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v20';
-const APP_VERSION = 'v20260801-spraymath';
+const CACHE_NAME = 'peptideos-v21';
+const APP_VERSION = 'v20260801-weeklogs';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';

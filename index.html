@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-spraymath';
+  const APP_VERSION = 'v20260801-weeklogs';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1516,15 +1516,36 @@ function renderWeek() {
           ${!done ? `<button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px;margin-top:4px;width:100%;" onclick="quickLog('${plan.id}','${dayYmd}')">Log</button>` : ''}
         </div>`;
     }
-    if (dayPlans.length === 0) {
+    // Logged doses for the day — shown regardless of planner so logs are never invisible.
+    // Doses already represented by a ticked planner row are skipped to avoid doubles.
+    const unplannedLogs = dayLogs.filter(l => !dayPlans.some(p =>
+      p.peptide === l.peptide && p.unit === l.dose_unit &&
+      Math.abs(Number(l.dose_value) - Number(p.dose)) / Math.max(Number(p.dose), 1e-9) <= 0.02));
+    if (unplannedLogs.length) {
+      const sorted = [...unplannedLogs].sort((a, b) => (a.taken_at || '').localeCompare(b.taken_at || ''));
+      for (const l of sorted) {
+        rowsHtml += `
+        <div style="padding:6px 8px;border-radius:8px;background:var(--chip-bg);border:1px solid var(--glass-border);margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span class="badge badge-done" style="font-size:10px;">&#x2713;</span>
+            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.peptide)}</span>
+          </div>
+          <div class="muted" style="margin-top:2px;">${l.dose_value} ${escHtml(l.dose_unit)} logged</div>
+        </div>`;
+      }
+    }
+    if (dayPlans.length === 0 && dayLogs.length === 0) {
       rowsHtml = '<p class="muted" style="font-size:11px;padding:4px 0;">Rest day</p>';
     }
 
+    const statusLine = dayPlans.length
+      ? `${dayDone}/${dayPlans.length} done`
+      : (dayLogs.length ? `${dayLogs.length} logged` : '&nbsp;');
     colsHtml += `
       <div style="border-radius:12px;padding:12px;background:var(--chip-bg);border:${isToday ? '2px solid var(--accent-sky)' : '1px solid var(--glass-border)'};">
         <div style="font-weight:700;font-size:13px;${isToday ? 'color:var(--accent-sky);' : ''}">${DAYS[dayOfWeek]}</div>
         <div class="muted" style="margin-bottom:6px;">${pad2(d.getMonth()+1)}/${pad2(d.getDate())}</div>
-        <div class="muted" style="margin-bottom:8px;">${dayDone}/${dayPlans.length} done</div>
+        <div class="muted" style="margin-bottom:8px;">${statusLine}</div>
         ${rowsHtml}
       </div>`;
   }
