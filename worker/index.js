@@ -149,6 +149,7 @@ async function handleAPI(request, env, url) {
   if (path === '/logs' && method === 'GET')    return logsList(request, env, origin);
   if (path === '/logs' && method === 'POST')   return logsAdd(request, env, origin);
   if (path === '/logs/last' && method === 'DELETE') return logsDeleteLast(request, env, origin);
+  if (path.match(/^\/logs\/[^/]+$/) && method === 'PUT')    return logsUpdate(request, env, origin, path);
   if (path.match(/^\/logs\/[^/]+$/) && method === 'DELETE') return logsDeleteById(request, env, origin, path);
 
   // Settings
@@ -700,6 +701,25 @@ Normalize peptide names to title case. Return valid JSON only, no explanation.`;
   const prices  = Array.isArray(parsed.prices)  ? parsed.prices  : [];
 
   return json({ vendors, prices }, 200, origin);
+}
+
+async function logsUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.route || !b.dose_value || !b.dose_unit || !b.taken_at) return err('missing fields', 400, origin);
+  const r = await env.DB.prepare(
+    `UPDATE logs SET vial_id = ?, peptide = ?, route = ?, dose_value = ?, dose_unit = ?,
+       dose_mcg = ?, volume_ml = ?, iu = ?, taken_at = ?, notes = ?
+     WHERE id = ? AND user_id = ?`
+  ).bind(
+    b.vial_id || null, b.peptide, b.route, b.dose_value, b.dose_unit,
+    b.dose_mcg ?? null, b.volume_ml ?? null, b.iu ?? null, b.taken_at, b.notes || null,
+    id, userId
+  ).run();
+  if (!r.meta.changes) return err('not found', 404, origin);
+  return json({ ok: true }, 200, origin);
 }
 
 async function logsDeleteById(request, env, origin, path) {

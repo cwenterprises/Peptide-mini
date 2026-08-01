@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-todaylog';
+  const APP_VERSION = 'v20260801-logedit';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1413,6 +1413,10 @@ function renderToday() {
             <div class="dose-row-name">${escHtml(l.peptide)}</div>
             <div class="dose-row-meta">${l.dose_value} ${escHtml(l.dose_unit)}${l.route ? ' &middot; ' + escHtml(l.route) : ''}${timeStr ? ' &middot; ' + timeStr : ''}</div>
           </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm btn-ghost" onclick="editLog('${escHtml(l.id)}','today')">Edit</button>
+            <button class="btn btn-sm btn-danger" style="padding:2px 8px;" onclick="deleteLogEntry('${escHtml(l.id)}','today')">×</button>
+          </div>
         </div>`;
     }
   }
@@ -1663,7 +1667,8 @@ function renderLogDose() {
   document.getElementById('logdose').innerHTML = `
     <div class="stack">
       <div class="glass" style="padding:20px;">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Log a Dose</h3>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">${_editingLogId ? 'Edit Dose' : 'Log a Dose'}</h3>
+        ${_editingLogId ? '<div class="badge badge-pending" style="margin-bottom:12px;display:inline-flex;">Editing an existing dose — Save will update it</div>' : ''}
         <div class="stack">
           <div class="row2">
             <label>Peptide
@@ -1720,8 +1725,10 @@ function renderLogDose() {
             <textarea id="ldNotes" placeholder="Any notes…">${escHtml(selNotes)}</textarea>
           </label>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-primary" style="flex:1;" onclick="saveLog()">Save Dose</button>
-            <button class="btn btn-ghost" onclick="deleteLastLog()">Delete Last</button>
+            <button class="btn btn-primary" style="flex:1;" onclick="saveLog()">${_editingLogId ? 'Update Dose' : 'Save Dose'}</button>
+            ${_editingLogId
+              ? '<button class="btn btn-ghost" onclick="cancelEditLog()">Cancel</button>'
+              : '<button class="btn btn-ghost" onclick="deleteLastLog()">Delete Last</button>'}
           </div>
         </div>
       </div>
@@ -1759,7 +1766,13 @@ async function saveLog() {
   };
 
   try {
-    await API.post('/logs', payload);
+    const returnTab = _editingLogId ? _editLogReturnTab : 'today';
+    if (_editingLogId) {
+      await API.put('/logs/' + _editingLogId, payload);
+      _editingLogId = null;
+    } else {
+      await API.post('/logs', payload);
+    }
     // Blank the in-progress fields BEFORE re-render — renderLogDose preserves DOM
     // values, so without this the form comes back looking untouched after a save
     ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt'].forEach(fid => {
@@ -1768,7 +1781,7 @@ async function saveLog() {
     });
     await App.loadAll();
     renderAllTabs();
-    Tabs.switchTo('today');
+    Tabs.switchTo(returnTab);
   } catch (e) {
     alert('Failed to save: ' + (e.message || 'Unknown error'));
   }
@@ -2179,7 +2192,7 @@ function renderHistory() {
       <td>${escHtml(l.route)}</td>
       <td class="muted">${mlIu}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" class="muted">${escHtml(l.notes||'—')}</td>
-      <td><button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="deleteHistoryEntry('${escHtml(l.id)}')">×</button></td>
+      <td style="white-space:nowrap;"><button class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick="editLog('${escHtml(l.id)}','history')">✎</button> <button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="deleteHistoryEntry('${escHtml(l.id)}')">×</button></td>
     </tr>`;
   }).join('') : `<tr><td colspan="7" style="text-align:center;padding:20px;" class="muted">${
     logs.length ? 'No logs match your filters.' : 'No doses logged yet.'
@@ -2231,13 +2244,51 @@ function clearHistoryFilters() {
   renderHistory();
 }
 
-async function deleteHistoryEntry(id) {
+async function deleteLogEntry(id, returnTab = 'history') {
+  if (!confirm('Delete this logged dose?')) return;
   try {
     await API.delete(`/logs/${id}`);
+    if (_editingLogId === id) _editingLogId = null;
     await App.loadAll();
     renderAllTabs();
-    Tabs.switchTo('history');
+    Tabs.switchTo(returnTab);
   } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function deleteHistoryEntry(id) { deleteLogEntry(id, 'history'); }
+
+let _editingLogId = null;
+let _editLogReturnTab = 'today';
+
+function editLog(id, returnTab) {
+  const { logs } = App.getData();
+  const l = logs.find(x => x.id === id);
+  if (!l) return;
+  _editingLogId = id;
+  _editLogReturnTab = returnTab || 'today';
+  Tabs.switchTo('logdose');
+  renderLogDose();
+  const t = new Date(l.taken_at);
+  const set = (fid, val) => { const el = document.getElementById(fid); if (el) el.value = val; };
+  set('ldPeptide', l.peptide);
+  refreshVialOptions();
+  set('ldRoute', l.route);
+  set('ldDose', l.dose_value);
+  set('ldUnit', l.dose_unit);
+  set('ldTakenAt', `${ymd(t)}T${pad2(t.getHours())}:${pad2(t.getMinutes())}`);
+  set('ldVial', l.vial_id || '');
+  set('ldNotes', l.notes || '');
+  renderLogDose(); // re-render with values preserved so the editing banner shows
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEditLog() {
+  _editingLogId = null;
+  ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt'].forEach(fid => {
+    const el = document.getElementById(fid);
+    if (el) el.value = '';
+  });
+  renderLogDose();
 }
 
 function exportHistoryCSV() {
