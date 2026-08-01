@@ -142,6 +142,7 @@ async function handleAPI(request, env, url) {
   // Vials
   if (path === '/vials' && method === 'GET')    return vialsList(request, env, origin);
   if (path === '/vials' && method === 'POST')   return vialsAdd(request, env, origin);
+  if (path.match(/^\/vials\/[^/]+\/reset$/) && method === 'POST') return vialsReset(request, env, origin, path);
   if (path.match(/^\/vials\/[^/]+$/) && method === 'PUT')    return vialsUpdate(request, env, origin, path);
   if (path.match(/^\/vials\/[^/]+$/) && method === 'DELETE') return vialsDelete(request, env, origin, path);
 
@@ -417,9 +418,20 @@ async function vialsAdd(request, env, origin) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await env.DB.prepare(
-    'INSERT INTO vials (id, user_id, peptide, mg, ml, created_at) VALUES (?,?,?,?,?,?)'
-  ).bind(id, userId, b.peptide, b.mg, b.ml, now).run();
-  return json({ id, peptide: b.peptide, mg: b.mg, ml: b.ml, created_at: now }, 201, origin);
+    'INSERT INTO vials (id, user_id, peptide, mg, ml, solution, created_at) VALUES (?,?,?,?,?,?,?)'
+  ).bind(id, userId, b.peptide, b.mg, b.ml, b.solution || null, now).run();
+  return json({ id, peptide: b.peptide, mg: b.mg, ml: b.ml, solution: b.solution || null, created_at: now }, 201, origin);
+}
+
+async function vialsReset(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/')[2];
+  const now = new Date().toISOString();
+  const r = await env.DB.prepare('UPDATE vials SET reset_at = ? WHERE id = ? AND user_id = ?')
+    .bind(now, id, userId).run();
+  if (!r.meta.changes) return err('not found', 404, origin);
+  return json({ ok: true, reset_at: now }, 200, origin);
 }
 
 async function vialsUpdate(request, env, origin, path) {
@@ -428,8 +440,8 @@ async function vialsUpdate(request, env, origin, path) {
   const id = path.split('/').pop();
   const b = await request.json().catch(() => ({}));
   if (!b.peptide || !b.mg || !b.ml) return err('peptide, mg, ml required', 400, origin);
-  const r = await env.DB.prepare('UPDATE vials SET peptide = ?, mg = ?, ml = ? WHERE id = ? AND user_id = ?')
-    .bind(b.peptide, b.mg, b.ml, id, userId).run();
+  const r = await env.DB.prepare('UPDATE vials SET peptide = ?, mg = ?, ml = ?, solution = ? WHERE id = ? AND user_id = ?')
+    .bind(b.peptide, b.mg, b.ml, b.solution || null, id, userId).run();
   if (!r.meta.changes) return err('not found', 404, origin);
   return json({ ok: true }, 200, origin);
 }

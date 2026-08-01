@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-perf';
+  const APP_VERSION = 'v20260801-vialreset';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1926,9 +1926,28 @@ async function deleteLastLog() {
 function vialRemMcg(vial, logs) {
   const totalMcg = parseFloat(vial.mg) * 1000;
   const usedMcg  = logs
-    .filter(l => l.vial_id === vial.id && l.dose_mcg != null)
+    .filter(l => l.vial_id === vial.id && l.dose_mcg != null &&
+      (!vial.reset_at || (l.taken_at || '') > vial.reset_at)) // doses before a reset belong to the previous fill
     .reduce((sum, l) => sum + parseFloat(l.dose_mcg), 0);
   return Math.max(0, totalMcg - usedMcg);
+}
+
+const VIAL_SOLUTIONS = ['Bacteriostatic Water', 'Sterile Water', 'Saline (0.9% NaCl)', 'Acetic Acid (0.6%)', 'Other'];
+
+function solutionOpts(selected) {
+  return `<option value="">Solution…</option>` + VIAL_SOLUTIONS.map(s =>
+    `<option ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
+}
+
+async function resetVial(id) {
+  if (!confirm('Reset this vial to 100%? Use this when you reconstitute a fresh vial with the same recipe. Logged doses stay in History.')) return;
+  try {
+    await API.post('/vials/' + id + '/reset', {});
+    await App.loadAll();
+    renderLogViews();
+  } catch (e) {
+    alert('Failed to reset vial: ' + (e.message || 'Unknown error'));
+  }
 }
 
 function renderVials() {
@@ -1958,6 +1977,9 @@ function renderVials() {
                 <input type="number" id="evMl" min="0" step="any" value="${vial.ml}" />
               </label>
             </div>
+            <label>Reconstitution Solution
+              <select id="evSolution">${solutionOpts(vial.solution || '')}</select>
+            </label>
             <input type="text" id="evPeptideCustom" placeholder="Custom peptide name" value="${isCustom ? escHtml(vial.peptide) : ''}" style="display:${isCustom ? 'block' : 'none'};" />
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm btn-primary" onclick="saveVialEdit('${vial.id}')">Save</button>
@@ -1977,11 +1999,12 @@ function renderVials() {
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
             <div style="flex:1;">
               <div style="font-weight:700;">${escHtml(vial.peptide)}</div>
-              <div class="muted">${vial.mg}mg / ${vial.ml}mL &middot; ${concMcgMl.toFixed(0)} mcg/mL</div>
+              <div class="muted">${vial.mg}mg / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${concMcgMl.toFixed(0)} mcg/mL</div>
               <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
             </div>
             <div style="display:flex;gap:6px;">
+              ${pct === 0 ? `<button class="btn btn-sm btn-primary" onclick="resetVial('${vial.id}')">Reset</button>` : ''}
               <button class="btn btn-sm btn-ghost" onclick="_editingVialId='${vial.id}';renderVials();">Edit</button>
               <button class="btn btn-sm btn-danger" onclick="deleteVial('${vial.id}')">Remove</button>
             </div>
@@ -2009,6 +2032,9 @@ function renderVials() {
               <input type="number" id="vMl" min="0" step="any" placeholder="e.g. 2" />
             </label>
           </div>
+          <label>Reconstitution Solution
+            <select id="vSolution">${solutionOpts('')}</select>
+          </label>
           <input type="text" id="vPeptideCustom" placeholder="Custom peptide name" style="display:none;" />
           <button class="btn btn-primary" style="align-self:flex-start;" onclick="addVial()">Add Vial</button>
         </div>
@@ -2049,7 +2075,7 @@ async function addVial() {
   if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
   if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
   try {
-    await API.post('/vials', { peptide, mg: parseFloat(mg), ml: parseFloat(ml) });
+    await API.post('/vials', { peptide, mg: parseFloat(mg), ml: parseFloat(ml), solution: document.getElementById('vSolution').value || null });
     await App.loadAll();
     renderAllTabs();
   } catch (e) {
@@ -2065,7 +2091,7 @@ async function saveVialEdit(id) {
   if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
   if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
   try {
-    await API.put('/vials/' + id, { peptide, mg: parseFloat(mg), ml: parseFloat(ml) });
+    await API.put('/vials/' + id, { peptide, mg: parseFloat(mg), ml: parseFloat(ml), solution: document.getElementById('evSolution').value || null });
     _editingVialId = null;
     await App.loadAll();
     renderAllTabs();
