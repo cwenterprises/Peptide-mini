@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-drawunit';
+  const APP_VERSION = 'v20260801-todaylog';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1397,6 +1397,26 @@ function renderToday() {
     }
   }
 
+  // Every dose logged today, planner-matched or not — so a fresh save is always visible here
+  let loggedRows = '';
+  if (todayLogs.length === 0) {
+    loggedRows = '<p class="muted" style="padding:8px 0;">No doses logged yet today.</p>';
+  } else {
+    const sorted = [...todayLogs].sort((a, b) => (b.taken_at || '').localeCompare(a.taken_at || ''));
+    for (const l of sorted) {
+      const t = l.taken_at ? new Date(l.taken_at) : null;
+      const timeStr = t ? `${pad2(t.getHours())}:${pad2(t.getMinutes())}` : '';
+      loggedRows += `
+        <div class="dose-row">
+          <span class="badge badge-done">Logged</span>
+          <div class="dose-row-info">
+            <div class="dose-row-name">${escHtml(l.peptide)}</div>
+            <div class="dose-row-meta">${l.dose_value} ${escHtml(l.dose_unit)}${l.route ? ' &middot; ' + escHtml(l.route) : ''}${timeStr ? ' &middot; ' + timeStr : ''}</div>
+          </div>
+        </div>`;
+    }
+  }
+
   document.getElementById('today').innerHTML = `
     <div class="stack">
       <div class="glass" style="padding:20px;">
@@ -1412,6 +1432,10 @@ function renderToday() {
       <div class="glass" style="padding:20px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Today's Doses &mdash; ${DAYS[todayDay]}, ${todayYmd}</h3>
         <div class="stack">${doseRows}</div>
+      </div>
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Logged Today${todayLogs.length ? ` (${todayLogs.length})` : ''}</h3>
+        <div class="stack">${loggedRows}</div>
       </div>
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
@@ -1736,6 +1760,12 @@ async function saveLog() {
 
   try {
     await API.post('/logs', payload);
+    // Blank the in-progress fields BEFORE re-render — renderLogDose preserves DOM
+    // values, so without this the form comes back looking untouched after a save
+    ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt'].forEach(fid => {
+      const el = document.getElementById(fid);
+      if (el) el.value = '';
+    });
     await App.loadAll();
     renderAllTabs();
     Tabs.switchTo('today');
