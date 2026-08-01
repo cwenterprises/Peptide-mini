@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-nasal';
+  const APP_VERSION = 'v20260801-sprays';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1618,6 +1618,23 @@ function setDrawDisplayUnit(u) {
   updateDrawMath();
 }
 
+function doseUnitsForRoute(route) {
+  return route === 'Intranasal' ? ['mcg', 'mg', 'IU', 'sprays'] : ['mcg', 'mg', 'IU'];
+}
+
+// Rewrite the unit dropdown in place when the route changes — "sprays" only makes
+// sense intranasally. Same no-rebuild rule as refreshVialOptions (Safari picker).
+function refreshUnitOptions() {
+  const route = document.getElementById('ldRoute').value;
+  const unitSel = document.getElementById('ldUnit');
+  if (!unitSel) return;
+  const prev = unitSel.value;
+  const units = doseUnitsForRoute(route);
+  unitSel.innerHTML = units.map(u => `<option ${u === prev ? 'selected' : ''}>${u}</option>`).join('');
+  if (!units.includes(prev)) unitSel.value = 'mcg';
+  updateDrawMath();
+}
+
 // Build the vial dropdown's options; the value="" placeholder explains WHY the
 // list is empty instead of a bare "None".
 function vialOptionsHtml(vials, selPeptide, selVial) {
@@ -1660,7 +1677,7 @@ function renderLogDose() {
   vials.forEach(v => { if (!peptideNames.includes(v.peptide)) peptideNames.push(v.peptide); });
   const peptideOpts = peptideNames.map(n => `<option value="${escHtml(n)}" ${n === selPeptide ? 'selected' : ''}>${escHtml(n)}</option>`).join('');
   const routeOpts   = ['Subcutaneous','Intramuscular','Intranasal','Oral','Topical','Intravenous'].map(r => `<option ${r === selRoute ? 'selected' : ''}>${r}</option>`).join('');
-  const unitOpts    = ['mcg','mg','IU'].map(u => `<option ${u === selUnit ? 'selected' : ''}>${u}</option>`).join('');
+  const unitOpts    = doseUnitsForRoute(selRoute).map(u => `<option ${u === selUnit ? 'selected' : ''}>${u}</option>`).join('');
 
   const vialOpts   = vialOptionsHtml(vials, selPeptide, selVial);
 
@@ -1683,7 +1700,7 @@ function renderLogDose() {
           </div>
           <div class="row3">
             <label>Route
-              <select id="ldRoute">${routeOpts}</select>
+              <select id="ldRoute" onchange="refreshUnitOptions()">${routeOpts}</select>
             </label>
             <label>Dose
               <input type="number" id="ldDose" min="0" step="any" placeholder="0.00" value="${escHtml(selDose)}" oninput="updateDrawMath()" />
@@ -2273,6 +2290,7 @@ function editLog(id, returnTab) {
   set('ldPeptide', l.peptide);
   refreshVialOptions();
   set('ldRoute', l.route);
+  refreshUnitOptions(); // route decides whether "sprays" exists before we set the unit
   set('ldDose', l.dose_value);
   set('ldUnit', l.dose_unit);
   set('ldTakenAt', `${ymd(t)}T${pad2(t.getHours())}:${pad2(t.getMinutes())}`);
