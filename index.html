@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-cycleedit';
+  const APP_VERSION = 'v20260801-perf';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -591,6 +591,18 @@ function renderAllTabs() {
   renderLibrary();
   renderSettings();
   renderOrders();
+}
+
+// Dose logging happens many times a day — rebuild only the log-dependent views.
+// Rebuilding all 12 tabs per save (incl. the Library and the vendor price matrix)
+// churns enough DOM on iOS Safari to trigger memory-pressure tab kills.
+function renderLogViews() {
+  renderDashboard();
+  renderToday();
+  renderWeek();
+  renderLogDose();
+  renderHistory();
+  renderVials(); // remaining-mcg bars move with each dose
 }
 
 // ── Shared Helpers ────────────────────────────────────────────────────────────
@@ -1892,7 +1904,7 @@ async function saveLog() {
       if (el) el.value = '';
     });
     await App.loadAll();
-    renderAllTabs();
+    renderLogViews();
     Tabs.switchTo(returnTab);
   } catch (e) {
     alert('Failed to save: ' + (e.message || 'Unknown error'));
@@ -1904,7 +1916,7 @@ async function deleteLastLog() {
   try {
     await API.delete('/logs/last');
     await App.loadAll();
-    renderAllTabs();
+    renderLogViews();
   } catch (e) {
     alert('Failed to delete: ' + (e.message || 'Unknown error'));
   }
@@ -2406,7 +2418,7 @@ async function deleteLogEntry(id, returnTab = 'history') {
     await API.delete(`/logs/${id}`);
     if (_editingLogId === id) _editingLogId = null;
     await App.loadAll();
-    renderAllTabs();
+    renderLogViews();
     Tabs.switchTo(returnTab);
   } catch (e) { alert('Failed: ' + e.message); }
 }
