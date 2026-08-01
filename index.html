@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-trt';
+  const APP_VERSION = 'v20260801-trt2';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -3117,10 +3117,14 @@ function renderCalc() {
                 ">
                   <option value="">Custom</option>
                   <option data-conc="200" selected>Testosterone Cypionate — 200 mg/mL</option>
+                  <option data-conc="250">Testosterone Cypionate — 250 mg/mL</option>
+                  <option data-conc="200">Testosterone Enanthate — 200 mg/mL</option>
                   <option data-conc="250">Testosterone Enanthate — 250 mg/mL</option>
                   <option data-conc="100">Testosterone Propionate — 100 mg/mL</option>
+                  <option data-conc="250">Testosterone Propionate — 250 mg/mL</option>
                   <option data-conc="250">Sustanon 250 — 250 mg/mL</option>
                   <option data-conc="100">Testosterone Undecanoate — 100 mg/mL</option>
+                  <option data-conc="250">Testosterone Undecanoate — 250 mg/mL (Nebido)</option>
                 </select>
               </label>
               <label>Concentration (mg/mL)<input type="number" id="tConc" min="0" step="any" value="200" oninput="calcTRT()" /></label>
