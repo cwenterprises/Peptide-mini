@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-logedit';
+  const APP_VERSION = 'v20260801-trt';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -2955,6 +2955,7 @@ function syringeOverflowWarning(volMl) {
 function recalcActiveSyringe() {
   if (_calcSubTab === 'recon') { calcRecon(); calcCustomRecon(); }
   else if (_calcSubTab === 'draw') calcDraw();
+  else if (_calcSubTab === 'trt') calcTRT();
   updateDrawMath();
 }
 
@@ -3010,6 +3011,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='cost'?'active':''}" data-ctab="cost">Cycle Cost</button>
           <button class="nav-tab ${_calcSubTab==='hl'?'active':''}" data-ctab="hl">Half-Life</button>
           <button class="nav-tab ${_calcSubTab==='conv'?'active':''}" data-ctab="conv">Convert</button>
+          <button class="nav-tab ${_calcSubTab==='trt'?'active':''}" data-ctab="trt">TRT</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -3103,6 +3105,42 @@ function renderCalc() {
             </div>
           </div>
         </div>
+
+        <div id="calcTrt" style="display:${_calcSubTab==='trt'?'block':'none'};">
+          <div class="stack">
+            <div class="row2">
+              <label>Ester (auto-fill)
+                <select id="tEster" onchange="
+                  const c = this.options[this.selectedIndex].dataset.conc;
+                  if (c) document.getElementById('tConc').value = c;
+                  calcTRT();
+                ">
+                  <option value="">Custom</option>
+                  <option data-conc="200" selected>Testosterone Cypionate — 200 mg/mL</option>
+                  <option data-conc="250">Testosterone Enanthate — 250 mg/mL</option>
+                  <option data-conc="100">Testosterone Propionate — 100 mg/mL</option>
+                  <option data-conc="250">Sustanon 250 — 250 mg/mL</option>
+                  <option data-conc="100">Testosterone Undecanoate — 100 mg/mL</option>
+                </select>
+              </label>
+              <label>Concentration (mg/mL)<input type="number" id="tConc" min="0" step="any" value="200" oninput="calcTRT()" /></label>
+            </div>
+            <div class="row3">
+              <label>Weekly Dose (mg)<input type="number" id="tWeekly" min="0" step="any" placeholder="e.g. 150" oninput="calcTRT()" /></label>
+              <label>Injections / Week
+                <select id="tFreq" onchange="calcTRT()">
+                  <option value="1">1× (weekly)</option>
+                  <option value="2" selected>2× (e.g. Mon/Thu)</option>
+                  <option value="3">3× per week</option>
+                  <option value="3.5">Every other day</option>
+                  <option value="7">Daily</option>
+                </select>
+              </label>
+              <label>Vial Size (mL)<input type="number" id="tVialMl" min="0" step="any" value="10" oninput="calcTRT()" /></label>
+            </div>
+            <div id="tResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
       </div>
       <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
     </div>`;
@@ -3112,7 +3150,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -3139,6 +3177,31 @@ function calcRecon() {
   const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
   drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
+}
+
+function calcTRT() {
+  const conc   = parseFloat(document.getElementById('tConc').value);
+  const weekly = parseFloat(document.getElementById('tWeekly').value);
+  const freq   = parseFloat(document.getElementById('tFreq').value);
+  const vialMl = parseFloat(document.getElementById('tVialMl').value);
+  const res    = document.getElementById('tResult');
+  if (!res) return;
+  if (!conc || !weekly || !freq || isNaN(conc) || isNaN(weekly) || isNaN(freq)) { res.style.display = 'none'; return; }
+  const perInjMg  = weekly / freq;
+  const perInjMl  = perInjMg / conc;
+  const iu        = perInjMl * _syringeType;
+  const weeklyMl  = weekly / conc;
+  const vialWeeks = vialMl > 0 ? vialMl / weeklyMl : 0;
+  const vialInj   = vialMl > 0 ? vialMl / perInjMl : 0;
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Per Injection</div><div style="font-weight:700;">${parseFloat(perInjMg.toPrecision(4))} mg</div></div>
+      <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${perInjMl.toFixed(3)} mL (${iu.toFixed(1)} IU on U-${_syringeType})</div></div>
+      <div><div class="muted" style="font-size:11px;">Weekly Volume</div><div style="font-weight:700;">${weeklyMl.toFixed(3)} mL</div></div>
+      <div><div class="muted" style="font-size:11px;">${vialMl || 0} mL Vial Lasts</div><div style="font-weight:700;color:var(--accent-indigo);">${vialWeeks ? `~${vialWeeks.toFixed(1)} weeks (${Math.floor(vialInj)} injections)` : '—'}</div></div>
+    </div>
+    ${syringeOverflowWarning(perInjMl)}`;
 }
 
 function convertMass(src) {
