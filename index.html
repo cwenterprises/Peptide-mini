@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-vialedit';
+  const APP_VERSION = 'v20260801-converter';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -2907,6 +2907,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='draw'?'active':''}" data-ctab="draw">Draw</button>
           <button class="nav-tab ${_calcSubTab==='cost'?'active':''}" data-ctab="cost">Cycle Cost</button>
           <button class="nav-tab ${_calcSubTab==='hl'?'active':''}" data-ctab="hl">Half-Life</button>
+          <button class="nav-tab ${_calcSubTab==='conv'?'active':''}" data-ctab="conv">Convert</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -2990,6 +2991,16 @@ function renderCalc() {
             <div id="hlResult" class="glass" style="padding:14px;display:none;"></div>
           </div>
         </div>
+
+        <div id="calcConv" style="display:${_calcSubTab==='conv'?'block':'none'};">
+          <div class="stack">
+            <p class="muted" style="font-size:12px;">Type in either field — the other converts instantly (1 mg = 1000 mcg).</p>
+            <div class="row2">
+              <label>Micrograms (mcg)<input type="number" id="cvMcg" min="0" step="any" placeholder="e.g. 250" oninput="convertMass('mcg')" /></label>
+              <label>Milligrams (mg)<input type="number" id="cvMg" min="0" step="any" placeholder="e.g. 0.25" oninput="convertMass('mg')" /></label>
+            </div>
+          </div>
+        </div>
       </div>
       <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
     </div>`;
@@ -2999,7 +3010,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl'].forEach(t => {
+    ['recon','draw','cost','hl','conv'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -3026,6 +3037,18 @@ function calcRecon() {
   const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
   drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
+}
+
+function convertMass(src) {
+  const mcgEl = document.getElementById('cvMcg');
+  const mgEl  = document.getElementById('cvMg');
+  if (src === 'mcg') {
+    const v = parseFloat(mcgEl.value);
+    mgEl.value = isNaN(v) ? '' : parseFloat((v / 1000).toPrecision(10));
+  } else {
+    const v = parseFloat(mgEl.value);
+    mcgEl.value = isNaN(v) ? '' : parseFloat((v * 1000).toPrecision(10));
+  }
 }
 
 function calcCustomRecon() {
