@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v5';
-const FRESH_URL = '/?_v=v20260731-navfade';
+const CACHE_NAME = 'peptideos-v6';
+const FRESH_URL = '/?_v=v20260731-logdose';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';

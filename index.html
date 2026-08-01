@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260731-navfade';
+  const APP_VERSION = 'v20260731-logdose';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1576,17 +1576,24 @@ function updateDrawMath() {
 function renderLogDose() {
   const { peptides, vials } = App.getData();
   const now = new Date();
-  const defaultTime = `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 
-  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
-  const routeOpts   = ['Subcutaneous','Intramuscular','Intranasal','Oral','Topical','Intravenous'].map(r => `<option>${r}</option>`).join('');
-  const unitOpts    = ['mcg','mg','IU'].map(u => `<option>${u}</option>`).join('');
+  // Preserve in-progress form state — selecting a peptide re-renders to refilter vials
+  const prev = id => (document.getElementById(id) || {}).value || '';
+  const selPeptide = prev('ldPeptide');
+  const selRoute   = prev('ldRoute');
+  const selDose    = prev('ldDose');
+  const selUnit    = prev('ldUnit');
+  const selVial    = prev('ldVial');
+  const selNotes   = prev('ldNotes');
+  const defaultTime = prev('ldTakenAt') || `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 
-  // Get currently selected peptide (if re-rendering with state preserved)
-  const selPeptide = (document.getElementById('ldPeptide') || {}).value || '';
+  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}" ${p.name === selPeptide ? 'selected' : ''}>${escHtml(p.name)}</option>`).join('');
+  const routeOpts   = ['Subcutaneous','Intramuscular','Intranasal','Oral','Topical','Intravenous'].map(r => `<option ${r === selRoute ? 'selected' : ''}>${r}</option>`).join('');
+  const unitOpts    = ['mcg','mg','IU'].map(u => `<option ${u === selUnit ? 'selected' : ''}>${u}</option>`).join('');
+
   const vialOpts   = vials
     .filter(v => !selPeptide || v.peptide === selPeptide)
-    .map(v => `<option value="${v.id}">${escHtml(v.peptide)} — ${v.mg}mg/${v.ml}mL</option>`)
+    .map(v => `<option value="${v.id}" ${String(v.id) === selVial ? 'selected' : ''}>${escHtml(v.peptide)} — ${v.mg}mg/${v.ml}mL</option>`)
     .join('');
 
   document.getElementById('logdose').innerHTML = `
@@ -1610,7 +1617,7 @@ function renderLogDose() {
               <select id="ldRoute">${routeOpts}</select>
             </label>
             <label>Dose
-              <input type="number" id="ldDose" min="0" step="any" placeholder="0.00" oninput="updateDrawMath()" />
+              <input type="number" id="ldDose" min="0" step="any" placeholder="0.00" value="${escHtml(selDose)}" oninput="updateDrawMath()" />
             </label>
             <label>Unit
               <select id="ldUnit" onchange="updateDrawMath()">${unitOpts}</select>
@@ -1645,7 +1652,7 @@ function renderLogDose() {
             </div>
           </div>
           <label>Notes (optional)
-            <textarea id="ldNotes" placeholder="Any notes…"></textarea>
+            <textarea id="ldNotes" placeholder="Any notes…">${escHtml(selNotes)}</textarea>
           </label>
           <div style="display:flex;gap:8px;">
             <button class="btn btn-primary" style="flex:1;" onclick="saveLog()">Save Dose</button>
@@ -1655,6 +1662,7 @@ function renderLogDose() {
       </div>
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
+  updateDrawMath();
 }
 
 async function saveLog() {
@@ -2755,7 +2763,7 @@ function syringeOverflowWarning(volMl) {
 }
 
 function recalcActiveSyringe() {
-  if (_calcSubTab === 'recon') calcRecon();
+  if (_calcSubTab === 'recon') { calcRecon(); calcCustomRecon(); }
   else if (_calcSubTab === 'draw') calcDraw();
   updateDrawMath();
 }
@@ -2821,6 +2829,15 @@ function renderCalc() {
             <hr class="divider" />
             <label>Desired Dose (mcg)<input type="number" id="rDoseMcg" min="0" step="any" placeholder="e.g. 250" oninput="calcRecon()" /></label>
             <div id="rDrawResult" style="display:none;" class="muted"></div>
+            <hr class="divider" />
+            <h4 style="font-size:13px;font-weight:700;">Custom Reconstitution</h4>
+            <p class="muted" style="font-size:12px;">Work backwards from the syringe: pick the units you want each dose to land on and get the diluent to add.</p>
+            <div class="row3">
+              <label>Vial Amount (mg)<input type="number" id="crVialMg" min="0" step="any" placeholder="e.g. 5" oninput="calcCustomRecon()" /></label>
+              <label>Desired Dose (mcg)<input type="number" id="crDoseMcg" min="0" step="any" placeholder="e.g. 250" oninput="calcCustomRecon()" /></label>
+              <label>Target Units per Dose<input type="number" id="crUnits" min="0" step="any" placeholder="e.g. 10" oninput="calcCustomRecon()" /></label>
+            </div>
+            <div id="crResult" class="glass" style="padding:14px;display:none;"></div>
           </div>
         </div>
 
@@ -2919,6 +2936,30 @@ function calcRecon() {
   const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
   drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
+}
+
+function calcCustomRecon() {
+  const mg      = parseFloat(document.getElementById('crVialMg').value);
+  const doseMcg = parseFloat(document.getElementById('crDoseMcg').value);
+  const units   = parseFloat(document.getElementById('crUnits').value);
+  const res     = document.getElementById('crResult');
+  if (!res) return;
+  if (!mg || !doseMcg || !units || isNaN(mg) || isNaN(doseMcg) || isNaN(units)) { res.style.display = 'none'; return; }
+  const volMl      = units / _syringeType;        // volume one dose occupies at the target reading
+  const conc       = doseMcg / volMl;             // required concentration, mcg/mL
+  const diluentMl  = (mg * 1000) / conc;          // diluent that produces that concentration
+  const dosesPerVial = (mg * 1000) / doseMcg;
+  const bigVialNote = diluentMl > 3
+    ? '<p class="muted" style="margin-top:8px;">⚠️ Needs over 3 mL of diluent — make sure your vial holds it, or raise the target units.</p>' : '';
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Add Diluent</div><div style="font-weight:700;color:var(--accent-sky);">${diluentMl.toFixed(2)} mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${conc.toFixed(0)} mcg/mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Each Dose</div><div style="font-weight:700;color:var(--accent-indigo);">${units} IU (${volMl.toFixed(3)} mL)</div></div>
+      <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${dosesPerVial.toFixed(1)}</div></div>
+    </div>
+    ${bigVialNote}${syringeOverflowWarning(volMl)}`;
 }
 
 function calcDraw() {
