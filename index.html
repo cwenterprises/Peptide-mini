@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-hcg';
+  const APP_VERSION = 'v20260801-nasal';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -3014,6 +3014,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='conv'?'active':''}" data-ctab="conv">Convert</button>
           <button class="nav-tab ${_calcSubTab==='trt'?'active':''}" data-ctab="trt">TRT</button>
           <button class="nav-tab ${_calcSubTab==='hcg'?'active':''}" data-ctab="hcg">HCG</button>
+          <button class="nav-tab ${_calcSubTab==='nasal'?'active':''}" data-ctab="nasal">Nasal</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -3178,6 +3179,26 @@ function renderCalc() {
             <div id="hResult" class="glass" style="padding:14px;display:none;"></div>
           </div>
         </div>
+
+        <div id="calcNasal" style="display:${_calcSubTab==='nasal'?'block':'none'};">
+          <div class="stack">
+            <p class="muted" style="font-size:12px;">Making a spray: total peptide and liquid in the bottle, plus how much your pump delivers per spray.</p>
+            <div class="row3">
+              <label>Peptide in Bottle (mg)<input type="number" id="nMg" min="0" step="any" placeholder="e.g. 30" oninput="calcNasal()" /></label>
+              <label>Bottle Volume (mL)<input type="number" id="nVolMl" min="0" step="any" placeholder="e.g. 10" oninput="calcNasal()" /></label>
+              <label>Pump Output / Spray
+                <select id="nSprayMl" onchange="calcNasal()">
+                  <option value="0.05">0.05 mL</option>
+                  <option value="0.1" selected>0.10 mL (standard)</option>
+                  <option value="0.13">0.13 mL</option>
+                  <option value="0.15">0.15 mL</option>
+                </select>
+              </label>
+            </div>
+            <label>Desired Dose (mcg, optional)<input type="number" id="nDoseMcg" min="0" step="any" placeholder="e.g. 300" oninput="calcNasal()" /></label>
+            <div id="nResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
       </div>
       <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
     </div>`;
@@ -3187,7 +3208,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv','trt','hcg'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt','hcg','nasal'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -3271,6 +3292,41 @@ function calcHCG() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${concIUml.toFixed(0)} IU/mL</div></div>
       <div><div class="muted" style="font-size:11px;">Total in Vial</div><div style="font-weight:700;">${parseFloat(vialIU.toPrecision(6))} IU</div></div>
+    </div>
+    ${doseHtml}`;
+}
+
+function calcNasal() {
+  const mg      = parseFloat(document.getElementById('nMg').value);
+  const volMl   = parseFloat(document.getElementById('nVolMl').value);
+  const sprayMl = parseFloat(document.getElementById('nSprayMl').value);
+  const doseMcg = parseFloat(document.getElementById('nDoseMcg').value);
+  const res     = document.getElementById('nResult');
+  if (!res) return;
+  if (!mg || !volMl || !sprayMl || isNaN(mg) || isNaN(volMl) || isNaN(sprayMl)) { res.style.display = 'none'; return; }
+  const concMcgMl   = (mg * 1000) / volMl;
+  const mcgPerSpray = concMcgMl * sprayMl;
+  const totalSprays = volMl / sprayMl;
+  let doseHtml = '';
+  if (doseMcg && !isNaN(doseMcg)) {
+    const sprays = doseMcg / mcgPerSpray;
+    const rounded = Math.round(sprays);
+    const actualMcg = rounded * mcgPerSpray;
+    doseHtml = `
+      <hr class="divider" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div class="muted" style="font-size:11px;">Sprays for ${parseFloat(doseMcg.toPrecision(6))} mcg</div><div style="font-weight:700;color:var(--accent-indigo);">${parseFloat(sprays.toPrecision(3))} sprays</div></div>
+        <div><div class="muted" style="font-size:11px;">Rounded: ${rounded} spray${rounded === 1 ? '' : 's'}</div><div style="font-weight:700;">= ${actualMcg.toFixed(0)} mcg actual</div></div>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12px;">${Math.floor(totalSprays / Math.max(rounded, 1))} doses per bottle at ${rounded} spray${rounded === 1 ? '' : 's'} each</div>`;
+  }
+  res.style.display = 'block';
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${concMcgMl.toFixed(0)} mcg/mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Per Spray</div><div style="font-weight:700;color:var(--accent-sky);">${mcgPerSpray.toFixed(0)} mcg</div></div>
+      <div><div class="muted" style="font-size:11px;">Total Sprays</div><div style="font-weight:700;">~${Math.floor(totalSprays)}</div></div>
+      <div><div class="muted" style="font-size:11px;">Total Peptide</div><div style="font-weight:700;">${parseFloat(mg.toPrecision(6))} mg</div></div>
     </div>
     ${doseHtml}`;
 }
