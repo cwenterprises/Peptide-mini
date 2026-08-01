@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260731-vialhint';
+  const APP_VERSION = 'v20260801-vialedit';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1610,7 +1610,10 @@ function renderLogDose() {
   const selNotes   = prev('ldNotes');
   const defaultTime = prev('ldTakenAt') || `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 
-  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}" ${p.name === selPeptide ? 'selected' : ''}>${escHtml(p.name)}</option>`).join('');
+  // Library peptides plus any custom names that only exist on vials — so custom vials stay loggable
+  const peptideNames = peptides.map(p => p.name);
+  vials.forEach(v => { if (!peptideNames.includes(v.peptide)) peptideNames.push(v.peptide); });
+  const peptideOpts = peptideNames.map(n => `<option value="${escHtml(n)}" ${n === selPeptide ? 'selected' : ''}>${escHtml(n)}</option>`).join('');
   const routeOpts   = ['Subcutaneous','Intramuscular','Intranasal','Oral','Topical','Intravenous'].map(r => `<option ${r === selRoute ? 'selected' : ''}>${r}</option>`).join('');
   const unitOpts    = ['mcg','mg','IU'].map(u => `<option ${u === selUnit ? 'selected' : ''}>${u}</option>`).join('');
 
@@ -1744,13 +1747,40 @@ function vialRemMcg(vial, logs) {
 
 function renderVials() {
   const { peptides, vials, logs } = App.getData();
-  const peptideOpts = peptides.map(p => `<option value="${escHtml(p.name)}">${escHtml(p.name)}</option>`).join('');
+  const peptideOpts = peptideSelectOpts(peptides, '');
 
   let vialsHtml = '';
   if (vials.length === 0) {
     vialsHtml = '<p class="muted" style="padding:8px 0;">No vials added yet.</p>';
   } else {
     for (const vial of vials) {
+      if (vial.id === _editingVialId) {
+        const isCustom = !peptides.some(p => p.name === vial.peptide);
+        vialsHtml += `
+        <div style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+          <div class="stack">
+            <div class="row3">
+              <label>Peptide
+                <select id="evPeptide" onchange="toggleCustomPeptide(this, 'evPeptideCustom')">
+                  ${peptideSelectOpts(peptides, vial.peptide)}
+                </select>
+              </label>
+              <label>Amount (mg)
+                <input type="number" id="evMg" min="0" step="any" value="${vial.mg}" />
+              </label>
+              <label>Diluent (mL)
+                <input type="number" id="evMl" min="0" step="any" value="${vial.ml}" />
+              </label>
+            </div>
+            <input type="text" id="evPeptideCustom" placeholder="Custom peptide name" value="${isCustom ? escHtml(vial.peptide) : ''}" style="display:${isCustom ? 'block' : 'none'};" />
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-primary" onclick="saveVialEdit('${vial.id}')">Save</button>
+              <button class="btn btn-sm btn-ghost" onclick="_editingVialId=null;renderVials();">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+        continue;
+      }
       const totalMcg = parseFloat(vial.mg) * 1000;
       const remMcg   = vialRemMcg(vial, logs);
       const pct      = totalMcg > 0 ? Math.round((remMcg / totalMcg) * 100) : 0;
@@ -1765,7 +1795,10 @@ function renderVials() {
               <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
             </div>
-            <button class="btn btn-sm btn-danger" onclick="deleteVial('${vial.id}')">Remove</button>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-ghost" onclick="_editingVialId='${vial.id}';renderVials();">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteVial('${vial.id}')">Remove</button>
+            </div>
           </div>
         </div>`;
     }
@@ -1778,7 +1811,7 @@ function renderVials() {
         <div class="stack">
           <div class="row3">
             <label>Peptide
-              <select id="vPeptide">
+              <select id="vPeptide" onchange="toggleCustomPeptide(this, 'vPeptideCustom')">
                 <option value="">Select…</option>
                 ${peptideOpts}
               </select>
@@ -1790,6 +1823,7 @@ function renderVials() {
               <input type="number" id="vMl" min="0" step="any" placeholder="e.g. 2" />
             </label>
           </div>
+          <input type="text" id="vPeptideCustom" placeholder="Custom peptide name" style="display:none;" />
           <button class="btn btn-primary" style="align-self:flex-start;" onclick="addVial()">Add Vial</button>
         </div>
       </div>
@@ -1801,11 +1835,31 @@ function renderVials() {
     </div>`;
 }
 
+let _editingVialId = null;
+
+function peptideSelectOpts(peptides, selected) {
+  const inLibrary = peptides.some(p => p.name === selected);
+  return peptides.map(p => `<option value="${escHtml(p.name)}" ${p.name === selected ? 'selected' : ''}>${escHtml(p.name)}</option>`).join('')
+    + `<option value="__custom__" ${selected && !inLibrary ? 'selected' : ''}>Custom peptide…</option>`;
+}
+
+function toggleCustomPeptide(sel, inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.style.display = sel.value === '__custom__' ? 'block' : 'none';
+  if (sel.value === '__custom__') input.focus();
+}
+
+function resolvePeptideName(selId, customId) {
+  const sel = document.getElementById(selId).value;
+  return sel === '__custom__' ? document.getElementById(customId).value.trim() : sel;
+}
+
 async function addVial() {
-  const peptide = document.getElementById('vPeptide').value;
+  const peptide = resolvePeptideName('vPeptide', 'vPeptideCustom');
   const mg      = document.getElementById('vMg').value;
   const ml      = document.getElementById('vMl').value;
-  if (!peptide) { alert('Please select a peptide.'); return; }
+  if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
   if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
   if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
   try {
@@ -1814,6 +1868,23 @@ async function addVial() {
     renderAllTabs();
   } catch (e) {
     alert('Failed to add vial: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function saveVialEdit(id) {
+  const peptide = resolvePeptideName('evPeptide', 'evPeptideCustom');
+  const mg      = document.getElementById('evMg').value;
+  const ml      = document.getElementById('evMl').value;
+  if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
+  if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
+  if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
+  try {
+    await API.put('/vials/' + id, { peptide, mg: parseFloat(mg), ml: parseFloat(ml) });
+    _editingVialId = null;
+    await App.loadAll();
+    renderAllTabs();
+  } catch (e) {
+    alert('Failed to update vial: ' + (e.message || 'Unknown error'));
   }
 }
 

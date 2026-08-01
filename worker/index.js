@@ -142,6 +142,7 @@ async function handleAPI(request, env, url) {
   // Vials
   if (path === '/vials' && method === 'GET')    return vialsList(request, env, origin);
   if (path === '/vials' && method === 'POST')   return vialsAdd(request, env, origin);
+  if (path.match(/^\/vials\/[^/]+$/) && method === 'PUT')    return vialsUpdate(request, env, origin, path);
   if (path.match(/^\/vials\/[^/]+$/) && method === 'DELETE') return vialsDelete(request, env, origin, path);
 
   // Logs
@@ -371,6 +372,18 @@ async function vialsAdd(request, env, origin) {
     'INSERT INTO vials (id, user_id, peptide, mg, ml, created_at) VALUES (?,?,?,?,?,?)'
   ).bind(id, userId, b.peptide, b.mg, b.ml, now).run();
   return json({ id, peptide: b.peptide, mg: b.mg, ml: b.ml, created_at: now }, 201, origin);
+}
+
+async function vialsUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.mg || !b.ml) return err('peptide, mg, ml required', 400, origin);
+  const r = await env.DB.prepare('UPDATE vials SET peptide = ?, mg = ?, ml = ? WHERE id = ? AND user_id = ?')
+    .bind(b.peptide, b.mg, b.ml, id, userId).run();
+  if (!r.meta.changes) return err('not found', 404, origin);
+  return json({ ok: true }, 200, origin);
 }
 
 async function vialsDelete(request, env, origin, path) {
