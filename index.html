@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-sweep';
+  const APP_VERSION = 'v20260801-cycles';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -443,7 +443,7 @@ const App = (() => {
   let _token = API.getToken();
   let _email = localStorage.getItem('peptideos_email') || '';
   let _theme = localStorage.getItem('peptideos_theme') || 'system';
-  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [] };
+  let _data  = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [] };
 
   function applyTheme(t) {
     _theme = t;
@@ -473,11 +473,11 @@ const App = (() => {
     API.clearToken();
     localStorage.removeItem('peptideos_email');
     _token = null; _email = '';
-    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [] };
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [] };
   }
 
   async function loadAll() {
-    let [peptides, planner, vials, logs, settings, vendors, prices, orders] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
@@ -485,13 +485,14 @@ const App = (() => {
       API.get('/settings'),
       API.get('/vendors'),
       API.get('/prices'),
-      API.get('/orders')
+      API.get('/orders'),
+      API.get('/cycles').catch(() => [])
     ]);
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
       peptides = await API.get('/peptides');
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles };
     applyTheme(settings.theme || 'system');
     return _data;
   }
@@ -2073,16 +2074,60 @@ async function deleteVial(id) {
 }
 
 function renderDashboard() {
-  const { logs, planner, peptides, settings } = App.getData();
+  const { logs, planner, peptides, settings, cycles } = App.getData();
   const streak     = calcStreak(logs);
   const bestStreak = calcBestStreak(logs);
   const totalDoses = logs.length;
   const uniquePeps = new Set(logs.map(l => l.peptide)).size;
 
-  // Cycle info
+  // Cycle info — per-peptide cycles first; legacy single date range as fallback
   const cs = settings.cycle_start, ce = settings.cycle_end;
-  let cycleHTML = '<p class="muted" style="text-align:center;">No active cycle — set dates in Settings.</p>';
-  if (cs && ce) {
+  let cycleHTML = '<p class="muted" style="text-align:center;">No active cycle — add peptide cycles in Settings.</p>';
+  if (cycles && cycles.length) {
+    const todayD = new Date(); todayD.setHours(0, 0, 0, 0);
+    const rows = cycles
+      .filter(c => {
+        const end = new Date(c.end_date + 'T00:00:00');
+        return (todayD - end) / 86400000 <= 7; // hide cycles finished more than a week ago
+      })
+      .map(c => {
+        const start = new Date(c.start_date + 'T00:00:00');
+        const end   = new Date(c.end_date + 'T00:00:00');
+        const totalDays = Math.max(1, Math.round((end - start) / 86400000));
+        let statusHtml;
+        if (todayD < start) {
+          const inDays = Math.ceil((start - todayD) / 86400000);
+          statusHtml = `<span class="muted" style="font-size:12px;">starts in ${inDays}d</span>`;
+        } else if (todayD > end) {
+          statusHtml = '<span class="badge badge-done" style="font-size:10px;">Completed</span>';
+        } else {
+          const dayNum = Math.round((todayD - start) / 86400000) + 1;
+          const daysLeft = Math.round((end - todayD) / 86400000);
+          const pct = Math.max(0, Math.min(100, Math.round((dayNum / totalDays) * 100)));
+          statusHtml = `<span class="muted" style="font-size:12px;">Day ${dayNum}/${totalDays} · ${daysLeft}d left</span>`;
+          return `
+            <div style="padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</span>
+                ${statusHtml}
+              </div>
+              <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+              <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                <span class="muted" style="font-size:11px;">${c.start_date}</span>
+                <span class="muted" style="font-size:11px;">${c.end_date}</span>
+              </div>
+            </div>`;
+        }
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+            <span style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</span>
+            <span class="muted" style="font-size:12px;">${c.start_date} → ${c.end_date}</span>
+            ${statusHtml}
+          </div>`;
+      });
+    cycleHTML = rows.length ? `<div class="stack">${rows.join('')}</div>`
+      : '<p class="muted" style="text-align:center;">All cycles finished — add the next one in Settings.</p>';
+  } else if (cs && ce) {
     const start = new Date(cs + 'T00:00:00'), end = new Date(ce + 'T00:00:00'), now = new Date();
     const total = end - start, elapsed = now - start;
     const pct = Math.max(0, Math.min(100, Math.round(elapsed / total * 100)));
@@ -3646,9 +3691,20 @@ function useInCalc(name) {
 
 // ── Task 16: Settings ──────────────────────────────────────────────────────────
 function renderSettings() {
-  const { peptides, settings } = App.getData();
+  const { peptides, settings, cycles } = App.getData();
   const email = App.getEmail();
   const theme = App.getTheme();
+
+  const cyclesHtml = (cycles && cycles.length)
+    ? cycles.map(c => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+        <div>
+          <div style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</div>
+          <div class="muted">${c.start_date} → ${c.end_date}</div>
+        </div>
+        <button class="btn btn-sm btn-danger" style="padding:2px 8px;" onclick="deleteCycle('${c.id}')">×</button>
+      </div>`).join('')
+    : '<p class="muted" style="padding:4px 0;">No cycles yet — add one above to track per-peptide progress on the Dashboard.</p>';
 
   const peptideChips = peptides.map(p => `
     <span class="chip" style="cursor:default;">
@@ -3701,9 +3757,28 @@ function renderSettings() {
         </div>
       </div>
 
-      <!-- Cycle Dates -->
+      <!-- Peptide Cycles -->
       <div class="glass" style="padding:20px;">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Dates</h3>
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Peptide Cycles</h3>
+        <div class="row3" style="margin-bottom:8px;">
+          <label>Peptide
+            <select id="cyPeptide" onchange="toggleCustomPeptide(this, 'cyPeptideCustom')">
+              <option value="">Select…</option>
+              ${peptideSelectOpts(peptides, '')}
+            </select>
+          </label>
+          <label>Start<input type="date" id="cyStart" /></label>
+          <label>End<input type="date" id="cyEnd" /></label>
+        </div>
+        <input type="text" id="cyPeptideCustom" placeholder="Custom peptide name" style="display:none;margin-bottom:8px;" />
+        <button class="btn btn-primary btn-sm" style="margin-bottom:14px;" onclick="addCycle()">Add Cycle</button>
+        <div class="stack">${cyclesHtml}</div>
+      </div>
+
+      <!-- Legacy single cycle dates (kept until peptide cycles replace it) -->
+      <div class="glass" style="padding:20px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">Cycle Dates (legacy)</h3>
+        <p class="muted" style="margin-bottom:12px;">The old single date range. Peptide Cycles above supersede it on the Dashboard.</p>
         <div class="row2" style="margin-bottom:12px;">
           <label>Cycle Start<input type="date" id="cycleStart" value="${settings.cycle_start || ''}" /></label>
           <label>Cycle End<input type="date" id="cycleEnd" value="${settings.cycle_end || ''}" /></label>
@@ -3801,6 +3876,35 @@ async function resetPeptides() {
     renderAllTabs();
   } catch (e) {
     alert('Reset error: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function addCycle() {
+  const peptide = resolvePeptideName('cyPeptide', 'cyPeptideCustom');
+  const start   = document.getElementById('cyStart').value;
+  const end     = document.getElementById('cyEnd').value;
+  if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
+  if (!start || !end) { alert('Please set both start and end dates.'); return; }
+  if (end < start) { alert('Cycle end must be after the start.'); return; }
+  try {
+    await API.post('/cycles', { peptide, start_date: start, end_date: end });
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('settings');
+  } catch (e) {
+    alert('Failed to add cycle: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function deleteCycle(id) {
+  if (!confirm('Delete this cycle?')) return;
+  try {
+    await API.delete('/cycles/' + id);
+    await App.loadAll();
+    renderAllTabs();
+    Tabs.switchTo('settings');
+  } catch (e) {
+    alert('Failed to delete cycle: ' + (e.message || 'Unknown error'));
   }
 }
 

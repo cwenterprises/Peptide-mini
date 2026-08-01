@@ -153,6 +153,10 @@ async function handleAPI(request, env, url) {
   if (path.match(/^\/logs\/[^/]+$/) && method === 'DELETE') return logsDeleteById(request, env, origin, path);
 
   // Settings
+  if (path === '/cycles' && method === 'GET')  return cyclesList(request, env, origin);
+  if (path === '/cycles' && method === 'POST') return cyclesAdd(request, env, origin);
+  if (path.match(/^\/cycles\/[^/]+$/) && method === 'PUT')    return cyclesUpdate(request, env, origin, path);
+  if (path.match(/^\/cycles\/[^/]+$/) && method === 'DELETE') return cyclesDelete(request, env, origin, path);
   if (path === '/settings' && method === 'GET') return settingsGet(request, env, origin);
   if (path === '/settings' && method === 'PUT') return settingsPut(request, env, origin);
 
@@ -352,6 +356,49 @@ async function plannerDelete(request, env, origin, path) {
 }
 
 // ── Vials ─────────────────────────────────────────────────────────────────────
+
+async function cyclesList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM cycles WHERE user_id = ? ORDER BY start_date ASC'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function cyclesAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.start_date || !b.end_date) return err('peptide, start_date, end_date required', 400, origin);
+  const id = crypto.randomUUID();
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    'INSERT INTO cycles (id, user_id, peptide, start_date, end_date, created_at) VALUES (?,?,?,?,?,?)'
+  ).bind(id, userId, b.peptide, b.start_date, b.end_date, now).run();
+  return json({ id, peptide: b.peptide, start_date: b.start_date, end_date: b.end_date, created_at: now }, 201, origin);
+}
+
+async function cyclesUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide || !b.start_date || !b.end_date) return err('peptide, start_date, end_date required', 400, origin);
+  const r = await env.DB.prepare(
+    'UPDATE cycles SET peptide = ?, start_date = ?, end_date = ? WHERE id = ? AND user_id = ?'
+  ).bind(b.peptide, b.start_date, b.end_date, id, userId).run();
+  if (!r.meta.changes) return err('not found', 404, origin);
+  return json({ ok: true }, 200, origin);
+}
+
+async function cyclesDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM cycles WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
 
 async function vialsList(request, env, origin) {
   const userId = await requireAuth(request, env);
