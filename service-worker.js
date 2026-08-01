@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v21';
-const APP_VERSION = 'v20260801-weeklogs';
+const CACHE_NAME = 'peptideos-v22';
+const APP_VERSION = 'v20260801-sweep';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';

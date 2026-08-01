@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-weeklogs';
+  const APP_VERSION = 'v20260801-sweep';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1430,8 +1430,10 @@ function renderToday() {
           <span class="chip">&#x23F3; Pending: ${pendingCount}</span>
           <span class="chip">&#x1F525; Streak: ${streak}d</span>
         </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
-        <p class="muted" style="margin-top:6px;">${pct}% complete today</p>
+        ${todayPlans.length
+          ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+        <p class="muted" style="margin-top:6px;">${pct}% complete today</p>`
+          : `<p class="muted">No plan set for today${todayLogs.length ? ` — ${todayLogs.length} dose${todayLogs.length === 1 ? '' : 's'} logged` : ''}.</p>`}
       </div>
       <div class="glass" style="padding:20px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Today's Doses &mdash; ${DAYS[todayDay]}, ${todayYmd}</h3>
