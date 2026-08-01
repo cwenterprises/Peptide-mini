@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-trt2';
+  const APP_VERSION = 'v20260801-hcg';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -2956,6 +2956,7 @@ function recalcActiveSyringe() {
   if (_calcSubTab === 'recon') { calcRecon(); calcCustomRecon(); }
   else if (_calcSubTab === 'draw') calcDraw();
   else if (_calcSubTab === 'trt') calcTRT();
+  else if (_calcSubTab === 'hcg') calcHCG();
   updateDrawMath();
 }
 
@@ -3012,6 +3013,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='hl'?'active':''}" data-ctab="hl">Half-Life</button>
           <button class="nav-tab ${_calcSubTab==='conv'?'active':''}" data-ctab="conv">Convert</button>
           <button class="nav-tab ${_calcSubTab==='trt'?'active':''}" data-ctab="trt">TRT</button>
+          <button class="nav-tab ${_calcSubTab==='hcg'?'active':''}" data-ctab="hcg">HCG</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -3129,8 +3131,16 @@ function renderCalc() {
               </label>
               <label>Concentration (mg/mL)<input type="number" id="tConc" min="0" step="any" value="200" oninput="calcTRT()" /></label>
             </div>
-            <div class="row3">
-              <label>Weekly Dose (mg)<input type="number" id="tWeekly" min="0" step="any" placeholder="e.g. 150" oninput="calcTRT()" /></label>
+            <div class="row2">
+              <label>Dose (mg)<input type="number" id="tWeekly" min="0" step="any" placeholder="e.g. 150" oninput="calcTRT()" /></label>
+              <label>Dose Is
+                <select id="tDosePer" onchange="calcTRT()">
+                  <option value="week" selected>Per Week</option>
+                  <option value="day">Per Day</option>
+                </select>
+              </label>
+            </div>
+            <div class="row2">
               <label>Injections / Week
                 <select id="tFreq" onchange="calcTRT()">
                   <option value="1">1× (weekly)</option>
@@ -3145,6 +3155,29 @@ function renderCalc() {
             <div id="tResult" class="glass" style="padding:14px;display:none;"></div>
           </div>
         </div>
+
+        <div id="calcHcg" style="display:${_calcSubTab==='hcg'?'block':'none'};">
+          <div class="stack">
+            <p class="muted" style="font-size:12px;">HCG doses are in IU of hormone — not the same as syringe units. This converts between the two.</p>
+            <div class="row3">
+              <label>Vial Size (IU)
+                <select id="hVialSel" onchange="
+                  if (this.value) document.getElementById('hVialIU').value = this.value;
+                  calcHCG();
+                ">
+                  <option value="5000" selected>5,000 IU</option>
+                  <option value="10000">10,000 IU</option>
+                  <option value="2000">2,000 IU</option>
+                  <option value="">Custom</option>
+                </select>
+              </label>
+              <label>Vial Amount (IU)<input type="number" id="hVialIU" min="0" step="any" value="5000" oninput="calcHCG()" /></label>
+              <label>Bac Water Added (mL)<input type="number" id="hBacMl" min="0" step="any" placeholder="e.g. 5" oninput="calcHCG()" /></label>
+            </div>
+            <label>Desired Dose (IU of HCG)<input type="number" id="hDoseIU" min="0" step="any" placeholder="e.g. 500" oninput="calcHCG()" /></label>
+            <div id="hResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
       </div>
       <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
     </div>`;
@@ -3154,7 +3187,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv','trt'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt','hcg'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -3185,12 +3218,14 @@ function calcRecon() {
 
 function calcTRT() {
   const conc   = parseFloat(document.getElementById('tConc').value);
-  const weekly = parseFloat(document.getElementById('tWeekly').value);
+  const dose   = parseFloat(document.getElementById('tWeekly').value);
+  const per    = document.getElementById('tDosePer').value;
   const freq   = parseFloat(document.getElementById('tFreq').value);
   const vialMl = parseFloat(document.getElementById('tVialMl').value);
   const res    = document.getElementById('tResult');
   if (!res) return;
-  if (!conc || !weekly || !freq || isNaN(conc) || isNaN(weekly) || isNaN(freq)) { res.style.display = 'none'; return; }
+  if (!conc || !dose || !freq || isNaN(conc) || isNaN(dose) || isNaN(freq)) { res.style.display = 'none'; return; }
+  const weekly = per === 'day' ? dose * 7 : dose;
   const perInjMg  = weekly / freq;
   const perInjMl  = perInjMg / conc;
   const iu        = perInjMl * _syringeType;
@@ -3202,10 +3237,42 @@ function calcTRT() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Per Injection</div><div style="font-weight:700;">${parseFloat(perInjMg.toPrecision(4))} mg</div></div>
       <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${perInjMl.toFixed(3)} mL (${iu.toFixed(1)} IU on U-${_syringeType})</div></div>
-      <div><div class="muted" style="font-size:11px;">Weekly Volume</div><div style="font-weight:700;">${weeklyMl.toFixed(3)} mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Weekly Total</div><div style="font-weight:700;">${parseFloat(weekly.toPrecision(4))} mg (${weeklyMl.toFixed(3)} mL)</div></div>
       <div><div class="muted" style="font-size:11px;">${vialMl || 0} mL Vial Lasts</div><div style="font-weight:700;color:var(--accent-indigo);">${vialWeeks ? `~${vialWeeks.toFixed(1)} weeks (${Math.floor(vialInj)} injections)` : '—'}</div></div>
     </div>
     ${syringeOverflowWarning(perInjMl)}`;
+}
+
+function calcHCG() {
+  const vialIU = parseFloat(document.getElementById('hVialIU').value);
+  const bacMl  = parseFloat(document.getElementById('hBacMl').value);
+  const doseIU = parseFloat(document.getElementById('hDoseIU').value);
+  const res    = document.getElementById('hResult');
+  if (!res) return;
+  if (!vialIU || !bacMl || isNaN(vialIU) || isNaN(bacMl)) { res.style.display = 'none'; return; }
+  const concIUml = vialIU / bacMl;
+  res.style.display = 'block';
+  let doseHtml = '<p class="muted" style="margin-top:8px;">Enter a desired dose to get the draw amount.</p>';
+  if (doseIU && !isNaN(doseIU)) {
+    const volMl = doseIU / concIUml;
+    const syrUnits = volMl * _syringeType;
+    const dosesPerVial = vialIU / doseIU;
+    doseHtml = `
+      <hr class="divider" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Syringe Reading</div><div style="font-weight:700;color:var(--accent-indigo);">${syrUnits.toFixed(1)} units on U-${_syringeType}</div></div>
+        <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${parseFloat(doseIU.toPrecision(6))} IU HCG</div></div>
+        <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${dosesPerVial.toFixed(1)}</div></div>
+      </div>
+      ${syringeOverflowWarning(volMl)}`;
+  }
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${concIUml.toFixed(0)} IU/mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Total in Vial</div><div style="font-weight:700;">${parseFloat(vialIU.toPrecision(6))} IU</div></div>
+    </div>
+    ${doseHtml}`;
 }
 
 function convertMass(src) {
