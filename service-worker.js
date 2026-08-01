@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v10';
-const APP_VERSION = 'v20260801-converter';
+const CACHE_NAME = 'peptideos-v11';
+const APP_VERSION = 'v20260801-syringes';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';

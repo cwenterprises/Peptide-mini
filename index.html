@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-converter';
+  const APP_VERSION = 'v20260801-syringes';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1666,6 +1666,8 @@ function renderLogDose() {
                   <option value="0.3" ${_syringeCapacityMl===0.3?'selected':''}>0.3 mL</option>
                   <option value="0.5" ${_syringeCapacityMl===0.5?'selected':''}>0.5 mL</option>
                   <option value="1.0" ${_syringeCapacityMl===1.0?'selected':''}>1 mL</option>
+                  <option value="3.0" ${_syringeCapacityMl===3.0?'selected':''}>3 mL</option>
+                  <option value="5.0" ${_syringeCapacityMl===5.0?'selected':''}>5 mL</option>
                 </select>
               </label>
             </div>
@@ -2845,7 +2847,7 @@ async function confirmParsedPrices() {
 // ── Task 14: Calculator ────────────────────────────────────────────────────────
 let _calcSubTab = 'recon';
 let _syringeType = 100;       // 100 = U-100 (standard), 40 = U-40
-let _syringeCapacityMl = 1.0; // 0.3 | 0.5 | 1.0
+let _syringeCapacityMl = 1.0; // 0.3 | 0.5 | 1.0 | 3.0 | 5.0
 
 function syringeOverflowWarning(volMl) {
   if (!volMl || volMl <= _syringeCapacityMl) return '';
@@ -2871,7 +2873,7 @@ function setSyringeType(type) {
 
 function setSyringeCapacity(cap) {
   _syringeCapacityMl = cap;
-  [['syrCap03', 0.3], ['syrCap05', 0.5], ['syrCap10', 1.0]].forEach(([id, val]) => {
+  [['syrCap03', 0.3], ['syrCap05', 0.5], ['syrCap10', 1.0], ['syrCap30', 3.0], ['syrCap50', 5.0]].forEach(([id, val]) => {
     const btn = document.getElementById(id);
     if (btn) btn.className = `btn btn-sm ${cap === val ? 'btn-primary' : 'btn-ghost'}`;
   });
@@ -2900,6 +2902,8 @@ function renderCalc() {
             <button id="syrCap03" class="btn btn-sm ${_syringeCapacityMl===0.3?'btn-primary':'btn-ghost'}" onclick="setSyringeCapacity(0.3)">0.3 mL</button>
             <button id="syrCap05" class="btn btn-sm ${_syringeCapacityMl===0.5?'btn-primary':'btn-ghost'}" onclick="setSyringeCapacity(0.5)">0.5 mL</button>
             <button id="syrCap10" class="btn btn-sm ${_syringeCapacityMl===1.0?'btn-primary':'btn-ghost'}" onclick="setSyringeCapacity(1.0)">1 mL</button>
+            <button id="syrCap30" class="btn btn-sm ${_syringeCapacityMl===3.0?'btn-primary':'btn-ghost'}" onclick="setSyringeCapacity(3.0)">3 mL</button>
+            <button id="syrCap50" class="btn btn-sm ${_syringeCapacityMl===5.0?'btn-primary':'btn-ghost'}" onclick="setSyringeCapacity(5.0)">5 mL</button>
           </div>
         </div>
         <div class="nav-pill" id="calcNav" style="margin-bottom:16px;">
