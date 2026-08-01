@@ -1,5 +1,6 @@
-const CACHE_NAME = 'peptideos-v6';
-const FRESH_URL = '/?_v=v20260731-logdose';
+const CACHE_NAME = 'peptideos-v7';
+const APP_VERSION = 'v20260731-logdose2';
+const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
@@ -51,8 +52,9 @@ self.addEventListener('activate', (e) => {
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
       .then(clients => clients.forEach(client => {
-        // Navigate all open tabs to the cache-busted fresh URL
-        if (!client.url.includes('_v=')) client.navigate(FRESH_URL);
+        // Navigate every tab not already on the CURRENT version to the fresh URL —
+        // a tab parked on an old _v= URL must be refreshed too, or it keeps the stale shell
+        if (!client.url.includes('_v=' + APP_VERSION)) client.navigate(FRESH_URL);
       }))
   );
 });

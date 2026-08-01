@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260731-logdose';
+  const APP_VERSION = 'v20260731-logdose2';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1573,11 +1573,26 @@ function updateDrawMath() {
     </div>`;
 }
 
+// Refilter the vial dropdown in place when the peptide changes — never rebuild the
+// form here: replacing a <select> mid-interaction breaks Safari's native picker.
+function refreshVialOptions() {
+  const { vials } = App.getData();
+  const selPeptide = document.getElementById('ldPeptide').value;
+  const vialSel = document.getElementById('ldVial');
+  if (!vialSel) return;
+  const prevVial = vialSel.value;
+  vialSel.innerHTML = '<option value="">None</option>' + vials
+    .filter(v => !selPeptide || v.peptide === selPeptide)
+    .map(v => `<option value="${v.id}" ${String(v.id) === prevVial ? 'selected' : ''}>${escHtml(v.peptide)} — ${v.mg}mg/${v.ml}mL</option>`)
+    .join('');
+  updateDrawMath();
+}
+
 function renderLogDose() {
   const { peptides, vials } = App.getData();
   const now = new Date();
 
-  // Preserve in-progress form state — selecting a peptide re-renders to refilter vials
+  // Preserve in-progress form state across full re-renders (e.g. after saving a dose)
   const prev = id => (document.getElementById(id) || {}).value || '';
   const selPeptide = prev('ldPeptide');
   const selRoute   = prev('ldRoute');
@@ -1603,7 +1618,7 @@ function renderLogDose() {
         <div class="stack">
           <div class="row2">
             <label>Peptide
-              <select id="ldPeptide" oninput="renderLogDose()">
+              <select id="ldPeptide" onchange="refreshVialOptions()">
                 <option value="">Select peptide…</option>
                 ${peptideOpts}
               </select>
