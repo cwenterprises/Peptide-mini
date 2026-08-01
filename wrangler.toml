@@ -11,7 +11,7 @@ database_id = "c2314e19-d18a-4269-bebe-65dd5d85c6c6"
 
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "c77e2cdf73b847bfaa8525373e7f4b09"
+id = "740034324a014312b217e995ea0326b3"
 
 [triggers]
 crons = ["*/5 * * * *"]
