@@ -391,7 +391,7 @@
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-sprays';
+  const APP_VERSION = 'v20260801-spraymath';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1583,6 +1583,30 @@ function updateDrawMath() {
     return;
   }
   const { vials } = App.getData();
+  const route = (document.getElementById('ldRoute') || {}).value;
+  if (route === 'Intranasal') {
+    const m = calcSprayMath(ldVial.value, ldDose.value, ldUnit ? ldUnit.value : 'mcg', vials);
+    if (!m) {
+      ldMath.innerHTML = '<p class="muted" style="padding:12px;text-align:center;">Select the vial your spray bottle was filled from and enter a dose (mcg, mg, or sprays)</p>';
+      return;
+    }
+    const spraysExact = parseFloat(m.sprays.toPrecision(3));
+    const spraysRounded = Math.max(1, Math.round(m.sprays));
+    ldMath.innerHTML = `
+      <div style="padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">
+          <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Spray Math</p>
+          <span class="muted" style="font-size:11px;">${_sprayPumpMl.toFixed(2)} mL/spray pump</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${m.conc.toFixed(0)} mcg/mL</div></div>
+          <div><div class="muted" style="font-size:11px;">Per Spray</div><div style="font-weight:700;">${m.perSprayMcg.toFixed(0)} mcg</div></div>
+          <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;color:var(--accent-sky);">${m.doseMcg.toFixed(0)} mcg</div></div>
+          <div><div class="muted" style="font-size:11px;">Sprays</div><div style="font-weight:700;color:var(--accent-indigo);">${spraysExact}${Math.abs(m.sprays - spraysRounded) > 0.01 ? ` (≈${spraysRounded})` : ''}</div></div>
+        </div>
+      </div>`;
+    return;
+  }
   const result = calcDrawMath(ldVial.value, ldDose.value, ldUnit ? ldUnit.value : 'mcg', vials);
   if (!result) {
     ldMath.innerHTML = '<p class="muted" style="padding:12px;text-align:center;">Select a vial and enter dose</p>';
@@ -1618,6 +1642,30 @@ function setDrawDisplayUnit(u) {
   updateDrawMath();
 }
 
+let _sprayPumpMl = parseFloat(localStorage.getItem('peptideos_spray_ml')) || 0.1;
+function setSprayPump(v) {
+  _sprayPumpMl = parseFloat(v);
+  localStorage.setItem('peptideos_spray_ml', v);
+  updateDrawMath();
+}
+
+// Spray math for intranasal doses: vial concentration × pump output per spray
+function calcSprayMath(vialId, doseValue, doseUnit, vials) {
+  const vial = vials.find(v => v.id === vialId);
+  if (!vial || !vial.mg || !vial.ml) return null;
+  const conc = (parseFloat(vial.mg) * 1000) / parseFloat(vial.ml);
+  if (!conc || isNaN(conc) || !_sprayPumpMl) return null;
+  const perSprayMcg = conc * _sprayPumpMl;
+  const d = Number(doseValue);
+  if (isNaN(d) || d <= 0) return null;
+  let doseMcg, sprays;
+  if (doseUnit === 'sprays')   { sprays = d; doseMcg = d * perSprayMcg; }
+  else if (doseUnit === 'mcg') { doseMcg = d; sprays = d / perSprayMcg; }
+  else if (doseUnit === 'mg')  { doseMcg = d * 1000; sprays = doseMcg / perSprayMcg; }
+  else return null; // IU has no intranasal meaning
+  return { conc, perSprayMcg, doseMcg, sprays, volMl: sprays * _sprayPumpMl };
+}
+
 function doseUnitsForRoute(route) {
   return route === 'Intranasal' ? ['mcg', 'mg', 'IU', 'sprays'] : ['mcg', 'mg', 'IU'];
 }
@@ -1632,6 +1680,12 @@ function refreshUnitOptions() {
   const units = doseUnitsForRoute(route);
   unitSel.innerHTML = units.map(u => `<option ${u === prev ? 'selected' : ''}>${u}</option>`).join('');
   if (!units.includes(prev)) unitSel.value = 'mcg';
+  // Intranasal swaps the syringe controls for the spray-pump selector
+  const isNasal = route === 'Intranasal';
+  const show = (id, disp) => { const el = document.getElementById(id); if (el) el.style.display = disp; };
+  show('ldPumpWrap', isNasal ? 'flex' : 'none');
+  show('ldSyrTypeWrap', isNasal ? 'none' : 'flex');
+  show('ldSyrCapWrap', isNasal ? 'none' : 'flex');
   updateDrawMath();
 }
 
@@ -1716,14 +1770,23 @@ function renderLogDose() {
               </select>
             </label>
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-              <label style="flex-direction:row;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;">
+              <label id="ldPumpWrap" style="flex-direction:row;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;display:${selRoute === 'Intranasal' ? 'flex' : 'none'};">
+                Pump
+                <select id="ldPumpMl" style="width:auto;" onchange="setSprayPump(this.value)">
+                  <option value="0.05" ${_sprayPumpMl === 0.05 ? 'selected' : ''}>0.05 mL</option>
+                  <option value="0.1"  ${_sprayPumpMl === 0.1  ? 'selected' : ''}>0.10 mL</option>
+                  <option value="0.13" ${_sprayPumpMl === 0.13 ? 'selected' : ''}>0.13 mL</option>
+                  <option value="0.15" ${_sprayPumpMl === 0.15 ? 'selected' : ''}>0.15 mL</option>
+                </select>
+              </label>
+              <label id="ldSyrTypeWrap" style="flex-direction:row;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;display:${selRoute === 'Intranasal' ? 'none' : 'flex'};">
                 Syringe
                 <select id="ldSyrType" style="width:auto;" onchange="_syringeType=parseInt(this.value);updateDrawMath();">
                   <option value="100" ${_syringeType===100?'selected':''}>U-100</option>
                   <option value="40"  ${_syringeType===40 ?'selected':''}>U-40</option>
                 </select>
               </label>
-              <label style="flex-direction:row;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;">
+              <label id="ldSyrCapWrap" style="flex-direction:row;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;display:${selRoute === 'Intranasal' ? 'none' : 'flex'};">
                 Capacity
                 <select id="ldSyrCap" style="width:auto;" onchange="_syringeCapacityMl=parseFloat(this.value);updateDrawMath();">
                   <option value="0.3" ${_syringeCapacityMl===0.3?'selected':''}>0.3 mL</option>
@@ -1768,7 +1831,15 @@ async function saveLog() {
   if (!takenAt) { alert('Please select a date and time.'); return; }
 
   const { vials } = App.getData();
-  const math = vialId ? calcDrawMath(vialId, dose, unit, vials) : null;
+  let math = null;
+  if (vialId) {
+    if (route === 'Intranasal') {
+      const m = calcSprayMath(vialId, dose, unit, vials);
+      if (m) math = { mcg: m.doseMcg.toFixed(1), vol: m.volMl.toFixed(3), iu: null };
+    } else {
+      math = calcDrawMath(vialId, dose, unit, vials);
+    }
+  }
 
   const payload = {
     peptide, route,
@@ -1778,7 +1849,7 @@ async function saveLog() {
     vial_id: vialId || null,
     dose_mcg: math ? parseFloat(math.mcg) : null,
     volume_ml: math ? parseFloat(math.vol) : null,
-    iu: math ? parseFloat(math.iu) : null,
+    iu: math && math.iu != null ? parseFloat(math.iu) : null,
     notes: notes || null
   };
 
