@@ -1650,10 +1650,10 @@ function updateDrawMath() {
   }
   const doseMcg = parseFloat(result.mcg);
   const doseDisplay = _drawDisplayUnit === 'mg' ? `${parseFloat((doseMcg / 1000).toPrecision(6))} mg`
-    : _drawDisplayUnit === 'IU' ? `${result.iu} IU`
+    : _drawDisplayUnit === 'IU' ? `${result.iu} units`
     : `${result.mcg} mcg`;
   const unitBtns = ['mcg', 'mg', 'IU'].map(u =>
-    `<button class="btn btn-sm ${_drawDisplayUnit === u ? 'btn-primary' : 'btn-ghost'}" style="padding:2px 8px;font-size:11px;" onclick="setDrawDisplayUnit('${u}')">${u}</button>`
+    `<button class="btn btn-sm ${_drawDisplayUnit === u ? 'btn-primary' : 'btn-ghost'}" style="padding:2px 8px;font-size:11px;" onclick="setDrawDisplayUnit('${u}')">${u === 'IU' ? 'units' : u}</button>`
   ).join('');
   ldMath.innerHTML = `
     <div style="padding:12px;">
@@ -1665,7 +1665,7 @@ function updateDrawMath() {
         <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${result.conc} mcg/mL</div></div>
         <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${doseDisplay}</div></div>
         <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${result.vol} mL</div></div>
-        <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${result.iu} IU</div></div>
+        <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${result.iu} units</div></div>
       </div>
       ${syringeOverflowWarning(result.volMl)}
     </div>`;
@@ -2378,7 +2378,7 @@ function renderHistory() {
     const dt = new Date(l.taken_at);
     const dtStr = isNaN(dt) ? escHtml(l.taken_at||'') : escHtml(dt.toLocaleString([], {dateStyle:'short',timeStyle:'short'}));
     const mlIu = (l.volume_ml != null && l.iu != null)
-      ? `${Number(l.volume_ml).toFixed(3)} mL / ${Number(l.iu).toFixed(1)} IU` : '—';
+      ? `${Number(l.volume_ml).toFixed(3)} mL / ${Number(l.iu).toFixed(1)} units` : '—';
     return `<tr>
       <td style="white-space:nowrap;">${dtStr}</td>
       <td><span class="badge badge-info">${escHtml(l.peptide)}</span></td>
@@ -2419,7 +2419,7 @@ function renderHistory() {
         <table>
           <thead><tr>
             <th>Date/Time</th><th>Peptide</th><th>Dose</th>
-            <th>Route</th><th>mL / IU</th><th>Notes</th><th></th>
+            <th>Route</th><th>mL / units</th><th>Notes</th><th></th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
@@ -3429,7 +3429,7 @@ function calcRecon() {
   const volMl = doseMcg / concMcgMl;
   const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
-  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} IU on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
+  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} units on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
 }
 
 function calcTRT() {
@@ -3452,7 +3452,7 @@ function calcTRT() {
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Per Injection</div><div style="font-weight:700;">${parseFloat(perInjMg.toPrecision(4))} mg</div></div>
-      <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${perInjMl.toFixed(3)} mL (${iu.toFixed(1)} IU on U-${_syringeType})</div></div>
+      <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${perInjMl.toFixed(3)} mL (${iu.toFixed(1)} units on U-${_syringeType})</div></div>
       <div><div class="muted" style="font-size:11px;">Weekly Total</div><div style="font-weight:700;">${parseFloat(weekly.toPrecision(4))} mg (${weeklyMl.toFixed(3)} mL)</div></div>
       <div><div class="muted" style="font-size:11px;">${vialMl || 0} mL Vial Lasts</div><div style="font-weight:700;color:var(--accent-indigo);">${vialWeeks ? `~${vialWeeks.toFixed(1)} weeks (${Math.floor(vialInj)} injections)` : '—'}</div></div>
     </div>
@@ -3556,7 +3556,7 @@ function calcCustomRecon() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Add Diluent</div><div style="font-weight:700;color:var(--accent-sky);">${diluentMl.toFixed(2)} mL</div></div>
       <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${conc.toFixed(0)} mcg/mL</div></div>
-      <div><div class="muted" style="font-size:11px;">Each Dose</div><div style="font-weight:700;color:var(--accent-indigo);">${units} IU (${volMl.toFixed(3)} mL)</div></div>
+      <div><div class="muted" style="font-size:11px;">Each Dose</div><div style="font-weight:700;color:var(--accent-indigo);">${units} units (${volMl.toFixed(3)} mL)</div></div>
       <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${dosesPerVial.toFixed(1)}</div></div>
     </div>
     ${bigVialNote}${syringeOverflowWarning(volMl)}`;
@@ -3575,7 +3575,7 @@ function calcDraw() {
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
-      <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} IU</div></div>
+      <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} units</div></div>
     </div>
     ${syringeOverflowWarning(volMl)}`;
 }
