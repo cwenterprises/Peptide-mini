@@ -1968,7 +1968,6 @@ function renderLogDose() {
   const selVial    = prev('ldVial');
   const selSite    = prev('ldSite');
   const selNotes   = prev('ldNotes');
-  const siteDetailsOpen = !!document.getElementById('ldSiteDetails')?.open;
   const defaultTime = prev('ldTakenAt') || `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 
   // Library peptides plus any custom names that only exist on vials — so custom vials stay loggable
@@ -2051,10 +2050,8 @@ function renderLogDose() {
           <label>Application Site (optional)
             <select id="ldSite" onchange="updateSitePicker()">${siteOpts}</select>
           </label>
-          <details id="ldSiteDetails" ${siteDetailsOpen ? 'open' : ''}>
-            <summary class="muted" style="cursor:pointer;font-size:12px;">Pick on body diagram</summary>
-            <div id="ldSitePicker" style="display:flex;gap:12px;justify-content:center;padding-top:10px;"></div>
-          </details>
+          <div id="ldSitePicker" style="display:flex;gap:12px;justify-content:center;padding-top:4px;"></div>
+          <p class="muted" style="font-size:11px;text-align:center;">Tap a dot to set the site — the pulsing ring is the suggested rotation</p>
           <label>Notes (optional)
             <textarea id="ldNotes" placeholder="Any notes…">${escHtml(selNotes)}</textarea>
           </label>
