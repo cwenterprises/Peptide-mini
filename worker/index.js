@@ -474,14 +474,14 @@ async function logsAdd(request, env, origin) {
   if (!b.peptide || !b.route || !b.dose_value || !b.dose_unit || !b.taken_at) return err('missing fields', 400, origin);
   const id = crypto.randomUUID();
   await env.DB.prepare(
-    `INSERT INTO logs (id, user_id, vial_id, peptide, route, dose_value, dose_unit, dose_mcg, volume_ml, iu, taken_at, notes)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO logs (id, user_id, vial_id, peptide, route, dose_value, dose_unit, dose_mcg, volume_ml, iu, taken_at, notes, site)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).bind(
     id, userId,
     b.vial_id || null, b.peptide, b.route,
     b.dose_value, b.dose_unit,
     b.dose_mcg ?? null, b.volume_ml ?? null, b.iu ?? null,
-    b.taken_at, b.notes || null
+    b.taken_at, b.notes || null, b.site || null
   ).run();
   return json({ id, ...b }, 201, origin);
 }
@@ -770,11 +770,12 @@ async function logsUpdate(request, env, origin, path) {
   if (!b.peptide || !b.route || !b.dose_value || !b.dose_unit || !b.taken_at) return err('missing fields', 400, origin);
   const r = await env.DB.prepare(
     `UPDATE logs SET vial_id = ?, peptide = ?, route = ?, dose_value = ?, dose_unit = ?,
-       dose_mcg = ?, volume_ml = ?, iu = ?, taken_at = ?, notes = ?
+       dose_mcg = ?, volume_ml = ?, iu = ?, taken_at = ?, notes = ?, site = ?
      WHERE id = ? AND user_id = ?`
   ).bind(
     b.vial_id || null, b.peptide, b.route, b.dose_value, b.dose_unit,
     b.dose_mcg ?? null, b.volume_ml ?? null, b.iu ?? null, b.taken_at, b.notes || null,
+    b.site || null,
     id, userId
   ).run();
   if (!r.meta.changes) return err('not found', 404, origin);

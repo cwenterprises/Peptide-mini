@@ -346,6 +346,15 @@
     /* Disclaimer */
     .disclaimer { font-size: 11px; color: var(--text-muted); padding: 10px 14px; text-align: center; opacity: 0.8; }
 
+    /* Application site body diagrams */
+    .site-figure { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
+    .site-figure-caption { font-size: 11px; color: var(--text-muted); }
+    .site-pulse { animation: sitePulse 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+    @keyframes sitePulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.35; transform: scale(1.35); }
+    }
+
     @media (max-width: 640px) {
       .row2, .row3 { grid-template-columns: 1fr; }
       .app-title { font-size: 18px; }
@@ -1456,6 +1465,7 @@ function renderToday() {
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Logged Today${todayLogs.length ? ` (${todayLogs.length})` : ''}</h3>
         <div class="stack">${loggedRows}</div>
       </div>
+      ${appSiteCardHtml(logs)}
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
 }
@@ -1722,6 +1732,7 @@ function refreshUnitOptions() {
   show('ldPumpWrap', isNasal ? 'flex' : 'none');
   show('ldSyrTypeWrap', isNasal ? 'none' : 'flex');
   show('ldSyrCapWrap', isNasal ? 'none' : 'flex');
+  refreshSiteOptions(); // sites are route-specific too
   updateDrawMath();
 }
 
@@ -1748,6 +1759,189 @@ function refreshVialOptions() {
   updateDrawMath();
 }
 
+// ── Application Sites ──────────────────────────────────────────────────────────
+// One registry drives everything: the dropdown, the tappable diagram, the
+// dashboard markers, and rotation suggestions. x/y are viewBox coords on the
+// 200×330 body figures. Front view is mirrored (patient's right = viewer's
+// left); back view is not.
+const SITES = [
+  { key: 'abd-ru', label: 'Right Upper Abdomen', view: 'front', x: 86,  y: 126, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'abd-lu', label: 'Left Upper Abdomen',  view: 'front', x: 114, y: 126, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'abd-rl', label: 'Right Lower Abdomen', view: 'front', x: 86,  y: 150, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'abd-ll', label: 'Left Lower Abdomen',  view: 'front', x: 114, y: 150, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'flank-r', label: 'Right Flank',        view: 'front', x: 66,  y: 140, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'flank-l', label: 'Left Flank',         view: 'front', x: 134, y: 140, routes: ['Subcutaneous', 'Topical'] },
+  { key: 'thigh-r', label: 'Right Thigh',        view: 'front', x: 82,  y: 212, routes: ['Subcutaneous', 'Intramuscular', 'Topical'] },
+  { key: 'thigh-l', label: 'Left Thigh',         view: 'front', x: 118, y: 212, routes: ['Subcutaneous', 'Intramuscular', 'Topical'] },
+  { key: 'delt-r', label: 'Right Deltoid',       view: 'front', x: 55,  y: 74,  routes: ['Intramuscular', 'Subcutaneous', 'Topical'] },
+  { key: 'delt-l', label: 'Left Deltoid',        view: 'front', x: 145, y: 74,  routes: ['Intramuscular', 'Subcutaneous', 'Topical'] },
+  { key: 'nostril-r', label: 'Right Nostril',    view: 'front', x: 93,  y: 30,  routes: ['Intranasal'] },
+  { key: 'nostril-l', label: 'Left Nostril',     view: 'front', x: 107, y: 30,  routes: ['Intranasal'] },
+  { key: 'mouth', label: 'Oral / Sublingual',    view: 'front', x: 100, y: 42,  routes: ['Oral'] },
+  { key: 'cubital-r', label: 'Right Inner Elbow', view: 'front', x: 46, y: 112, routes: ['Intravenous'] },
+  { key: 'cubital-l', label: 'Left Inner Elbow',  view: 'front', x: 154, y: 112, routes: ['Intravenous'] },
+  { key: 'forearm-r', label: 'Right Forearm',    view: 'front', x: 40,  y: 138, routes: ['Intravenous', 'Topical'] },
+  { key: 'forearm-l', label: 'Left Forearm',     view: 'front', x: 160, y: 138, routes: ['Intravenous', 'Topical'] },
+  { key: 'tricep-r', label: 'Right Triceps',     view: 'back',  x: 152, y: 96,  routes: ['Subcutaneous', 'Topical'] },
+  { key: 'tricep-l', label: 'Left Triceps',      view: 'back',  x: 48,  y: 96,  routes: ['Subcutaneous', 'Topical'] },
+  { key: 'glute-r', label: 'Right Glute',        view: 'back',  x: 116, y: 182, routes: ['Intramuscular', 'Subcutaneous', 'Topical'] },
+  { key: 'glute-l', label: 'Left Glute',         view: 'back',  x: 84,  y: 182, routes: ['Intramuscular', 'Subcutaneous', 'Topical'] },
+  { key: 'ventro-r', label: 'Right Ventrogluteal', view: 'back', x: 136, y: 166, routes: ['Intramuscular'] },
+  { key: 'ventro-l', label: 'Left Ventrogluteal',  view: 'back', x: 64,  y: 166, routes: ['Intramuscular'] },
+];
+
+function siteByKey(key) { return SITES.find(s => s.key === key); }
+
+// Capsule limbs are thick round-cap strokes; torso/head are filled shapes.
+function bodyFigureSvg(view, overlay, width) {
+  return `
+    <div class="site-figure">
+      <svg viewBox="0 0 200 330" width="${width}" aria-label="${view} body figure">
+        <g fill="var(--accent-sky)" opacity="0.26">
+          <circle cx="100" cy="28" r="20"/>
+          <rect x="90" y="46" width="20" height="14" rx="6"/>
+          <path d="M64,60 Q100,50 136,60 L141,120 Q139,152 130,176 L70,176 Q61,152 59,120 Z"/>
+        </g>
+        <g stroke="var(--accent-sky)" opacity="0.26" stroke-linecap="round" fill="none">
+          <line x1="57" y1="72" x2="43" y2="116" stroke-width="17"/>
+          <line x1="43" y1="116" x2="36" y2="156" stroke-width="14"/>
+          <line x1="143" y1="72" x2="157" y2="116" stroke-width="17"/>
+          <line x1="157" y1="116" x2="164" y2="156" stroke-width="14"/>
+          <line x1="84" y1="190" x2="79" y2="250" stroke-width="24"/>
+          <line x1="79" y1="250" x2="75" y2="312" stroke-width="17"/>
+          <line x1="116" y1="190" x2="121" y2="250" stroke-width="24"/>
+          <line x1="121" y1="250" x2="125" y2="312" stroke-width="17"/>
+        </g>
+        ${overlay}
+      </svg>
+      <span class="site-figure-caption">${view === 'front' ? 'Front' : 'Back'}</span>
+    </div>`;
+}
+
+// Least-recently-used applicable site for the route; never-used sites win first,
+// in registry order — that alone walks a sensible rotation.
+function suggestSiteKey(route, logs) {
+  const candidates = SITES.filter(s => s.routes.includes(route));
+  if (!candidates.length) return null;
+  const lastUse = {};
+  logs.forEach(l => {
+    if (l.site && (!lastUse[l.site] || l.taken_at > lastUse[l.site])) lastUse[l.site] = l.taken_at;
+  });
+  let best = null, bestT = null;
+  for (const s of candidates) {
+    const t = lastUse[s.key] || '';
+    if (best === null || t < bestT) { best = s; bestT = t; }
+  }
+  return best.key;
+}
+
+function siteOptionsHtml(route, selected, suggestedKey) {
+  return `<option value="">Not recorded</option>` + SITES
+    .filter(s => s.routes.includes(route))
+    .map(s => `<option value="${s.key}" ${s.key === selected ? 'selected' : ''}>${s.label}${s.key === suggestedKey ? ' · suggested' : ''}</option>`)
+    .join('');
+}
+
+function sitePickerOverlay(view, route, selectedKey, suggestedKey) {
+  return SITES.filter(s => s.view === view && s.routes.includes(route)).map(s => {
+    const sel = s.key === selectedKey;
+    const sug = s.key === suggestedKey;
+    return `
+      <g onclick="pickSite('${s.key}')" style="cursor:pointer;">
+        <circle cx="${s.x}" cy="${s.y}" r="18" fill="transparent"/>
+        ${sug && !sel ? `<circle cx="${s.x}" cy="${s.y}" r="12" fill="none" stroke="var(--accent-indigo)" stroke-width="2.5" class="site-pulse"/>` : ''}
+        <circle cx="${s.x}" cy="${s.y}" r="7" fill="${sel ? 'var(--accent-sky)' : 'rgba(14,165,233,0.35)'}"
+          stroke="${sel ? '#fff' : 'var(--accent-sky)'}" stroke-width="${sel ? 2.5 : 1}"/>
+        <title>${s.label}</title>
+      </g>`;
+  }).join('');
+}
+
+function updateSitePicker() {
+  const host = document.getElementById('ldSitePicker');
+  if (!host) return;
+  const route = document.getElementById('ldRoute')?.value || 'Subcutaneous';
+  const selected = document.getElementById('ldSite')?.value || '';
+  const { logs } = App.getData();
+  const suggested = suggestSiteKey(route, logs);
+  const views = [...new Set(SITES.filter(s => s.routes.includes(route)).map(s => s.view))];
+  host.innerHTML = views.map(v => bodyFigureSvg(v, sitePickerOverlay(v, route, selected, suggested), 130)).join('')
+    || '<p class="muted">No sites for this route.</p>';
+}
+
+function pickSite(key) {
+  const sel = document.getElementById('ldSite');
+  if (!sel) return;
+  sel.value = sel.value === key ? '' : key; // tap again to clear
+  updateSitePicker();
+}
+
+// Refilter the site dropdown in place on route change — same no-rebuild rule as
+// refreshVialOptions (Safari picker).
+function refreshSiteOptions() {
+  const sel = document.getElementById('ldSite');
+  if (!sel) return;
+  const route = document.getElementById('ldRoute')?.value || 'Subcutaneous';
+  const prev = sel.value;
+  const { logs } = App.getData();
+  sel.innerHTML = siteOptionsHtml(route, prev, suggestSiteKey(route, logs));
+  const s = siteByKey(prev);
+  if (!s || !s.routes.includes(route)) sel.value = '';
+  updateSitePicker();
+}
+
+function daysAgoLabel(takenAt) {
+  const then = new Date(takenAt); then.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = Math.round((today - then) / 86400000);
+  return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : `${d} days ago`;
+}
+
+// Shared Application Site card — rendered on both the Today and Dashboard tabs.
+function appSiteCardHtml(logs) {
+  const sorted = [...logs].sort((a, b) => (b.taken_at || '').localeCompare(a.taken_at || ''));
+
+  // One marker per site: most recent use, fading with age
+  const seen = {};
+  sorted.forEach(l => {
+    if (l.site && !(l.site in seen)) seen[l.site] = l.taken_at;
+  });
+  const markerOverlay = view => Object.entries(seen).map(([key, takenAt]) => {
+    const s = siteByKey(key);
+    if (!s || s.view !== view) return '';
+    const age = Math.round((Date.now() - new Date(takenAt)) / 86400000);
+    const opacity = age <= 7 ? 1 : age <= 30 ? 0.55 : 0.3;
+    return `<circle cx="${s.x}" cy="${s.y}" r="8" fill="var(--accent-sky)" opacity="${opacity}"><title>${s.label} — ${daysAgoLabel(takenAt)}</title></circle>`;
+  }).join('');
+
+  const recent = sorted.slice(0, 3);
+  const listRows = recent.length ? recent.map(l => {
+    const s = siteByKey(l.site);
+    const label = s ? s.label : (l.site || null);
+    return `
+      <div style="padding:6px 0;border-bottom:1px solid var(--glass-border);">
+        <div class="muted" style="font-size:11px;">${daysAgoLabel(l.taken_at)}</div>
+        <div style="font-weight:700;font-size:14px;${label ? '' : 'color:var(--text-muted);font-weight:600;'}">${label ? escHtml(label) : 'Site not recorded'}</div>
+        <div class="muted" style="font-size:12px;">${escHtml(l.peptide)}</div>
+      </div>`;
+  }).join('') : '<p class="muted" style="padding:8px 0;">No doses logged yet.</p>';
+
+  return `
+    <div class="glass" style="padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;cursor:pointer;" onclick="Tabs.switchTo('history')">
+        <h3 style="font-size:15px;font-weight:700;">◎ Application Site</h3>
+        <span class="muted" style="font-size:18px;">→</span>
+      </div>
+      <div style="display:flex;gap:14px;align-items:flex-start;">
+        <div style="display:flex;gap:6px;">
+          ${bodyFigureSvg('front', markerOverlay('front'), 88)}
+          ${bodyFigureSvg('back', markerOverlay('back'), 88)}
+        </div>
+        <div style="flex:1;min-width:0;">${listRows}</div>
+      </div>
+    </div>`;
+}
+
 function renderLogDose() {
   const { peptides, vials } = App.getData();
   const now = new Date();
@@ -1759,7 +1953,9 @@ function renderLogDose() {
   const selDose    = prev('ldDose');
   const selUnit    = prev('ldUnit');
   const selVial    = prev('ldVial');
+  const selSite    = prev('ldSite');
   const selNotes   = prev('ldNotes');
+  const siteDetailsOpen = !!document.getElementById('ldSiteDetails')?.open;
   const defaultTime = prev('ldTakenAt') || `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 
   // Library peptides plus any custom names that only exist on vials — so custom vials stay loggable
@@ -1770,6 +1966,8 @@ function renderLogDose() {
   const unitOpts    = doseUnitsForRoute(selRoute).map(u => `<option ${u === selUnit ? 'selected' : ''}>${u}</option>`).join('');
 
   const vialOpts   = vialOptionsHtml(vials, selPeptide, selVial);
+  const siteRoute  = selRoute || 'Subcutaneous';
+  const siteOpts   = siteOptionsHtml(siteRoute, selSite, suggestSiteKey(siteRoute, App.getData().logs));
 
   document.getElementById('logdose').innerHTML = `
     <div class="stack">
@@ -1837,6 +2035,13 @@ function renderLogDose() {
               <p class="muted" style="padding:12px;text-align:center;">Select a vial and enter dose</p>
             </div>
           </div>
+          <label>Application Site (optional)
+            <select id="ldSite" onchange="updateSitePicker()">${siteOpts}</select>
+          </label>
+          <details id="ldSiteDetails" ${siteDetailsOpen ? 'open' : ''}>
+            <summary class="muted" style="cursor:pointer;font-size:12px;">Pick on body diagram</summary>
+            <div id="ldSitePicker" style="display:flex;gap:12px;justify-content:center;padding-top:10px;"></div>
+          </details>
           <label>Notes (optional)
             <textarea id="ldNotes" placeholder="Any notes…">${escHtml(selNotes)}</textarea>
           </label>
@@ -1851,6 +2056,7 @@ function renderLogDose() {
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
   updateDrawMath();
+  updateSitePicker();
 }
 
 async function saveLog() {
@@ -1860,6 +2066,7 @@ async function saveLog() {
   const route   = document.getElementById('ldRoute').value;
   const takenAt = document.getElementById('ldTakenAt').value;
   const vialId  = document.getElementById('ldVial').value;
+  const site    = document.getElementById('ldSite').value;
   const notes   = document.getElementById('ldNotes').value.trim();
 
   if (!peptide) { alert('Please select a peptide.'); return; }
@@ -1886,6 +2093,7 @@ async function saveLog() {
     dose_mcg: math ? parseFloat(math.mcg) : null,
     volume_ml: math ? parseFloat(math.vol) : null,
     iu: math && math.iu != null ? parseFloat(math.iu) : null,
+    site: site || null,
     notes: notes || null
   };
 
@@ -1899,7 +2107,7 @@ async function saveLog() {
     }
     // Blank the in-progress fields BEFORE re-render — renderLogDose preserves DOM
     // values, so without this the form comes back looking untouched after a save
-    ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt'].forEach(fid => {
+    ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt', 'ldSite'].forEach(fid => {
       const el = document.getElementById(fid);
       if (el) el.value = '';
     });
@@ -2224,6 +2432,8 @@ function renderDashboard() {
         ${cycleHTML}
       </div>
 
+      ${appSiteCardHtml(logs)}
+
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Last 91 Days</h3>
         <div style="display:grid;grid-template-columns:repeat(13,12px);gap:3px;">${calCells.join('')}</div>
@@ -2383,7 +2593,7 @@ function renderHistory() {
       <td style="white-space:nowrap;">${dtStr}</td>
       <td><span class="badge badge-info">${escHtml(l.peptide)}</span></td>
       <td>${escHtml(String(l.dose_value))} ${escHtml(l.dose_unit)}</td>
-      <td>${escHtml(l.route)}</td>
+      <td>${escHtml(l.route)}${l.site ? `<div class="muted" style="font-size:11px;">${escHtml(siteByKey(l.site)?.label || l.site)}</div>` : ''}</td>
       <td class="muted">${mlIu}</td>
       <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" class="muted">${escHtml(l.notes||'—')}</td>
       <td style="white-space:nowrap;"><button class="btn btn-ghost btn-sm" style="padding:2px 6px;" onclick="editLog('${escHtml(l.id)}','history')">✎</button> <button class="btn btn-danger btn-sm" style="padding:2px 6px;" onclick="deleteHistoryEntry('${escHtml(l.id)}')">×</button></td>
@@ -2472,6 +2682,7 @@ function editLog(id, returnTab) {
   set('ldUnit', l.dose_unit);
   set('ldTakenAt', `${ymd(t)}T${pad2(t.getHours())}:${pad2(t.getMinutes())}`);
   set('ldVial', l.vial_id || '');
+  set('ldSite', l.site || ''); // options already refiltered by refreshUnitOptions above
   set('ldNotes', l.notes || '');
   renderLogDose(); // re-render with values preserved so the editing banner shows
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2479,7 +2690,7 @@ function editLog(id, returnTab) {
 
 function cancelEditLog() {
   _editingLogId = null;
-  ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt'].forEach(fid => {
+  ['ldDose', 'ldNotes', 'ldVial', 'ldTakenAt', 'ldSite'].forEach(fid => {
     const el = document.getElementById(fid);
     if (el) el.value = '';
   });
@@ -2502,8 +2713,9 @@ function exportHistoryCSV() {
     (l.notes||'').toLowerCase().includes(txtFilter));
 
   const esc = s => { s = String(s ?? ''); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? `"${s.replaceAll('"','""')}"` : s; };
-  const keys = ['taken_at','peptide','dose_value','dose_unit','route','volume_ml','iu','notes'];
-  const csv  = [keys.join(','), ...filtered.map(r => keys.map(k => esc(r[k])).join(','))].join('\n');
+  const keys = ['taken_at','peptide','dose_value','dose_unit','route','site','volume_ml','iu','notes'];
+  const csv  = [keys.join(','), ...filtered.map(r => keys.map(k =>
+    esc(k === 'site' && r.site ? (siteByKey(r.site)?.label || r.site) : r[k])).join(','))].join('\n');
 
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
