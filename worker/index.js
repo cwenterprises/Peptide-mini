@@ -185,6 +185,11 @@ async function handleAPI(request, env, url) {
   if (path.match(/^\/orders\/[^/]+$/) && method === 'PUT')    return ordersUpdate(request, env, origin, path);
   if (path.match(/^\/orders\/[^/]+$/) && method === 'DELETE') return ordersDelete(request, env, origin, path);
 
+  if (path === '/inventory' && method === 'GET')  return inventoryList(request, env, origin);
+  if (path === '/inventory' && method === 'POST') return inventoryAdd(request, env, origin);
+  if (path.match(/^\/inventory\/[^/]+$/) && method === 'PUT')    return inventoryUpdate(request, env, origin, path);
+  if (path.match(/^\/inventory\/[^/]+$/) && method === 'DELETE') return inventoryDelete(request, env, origin, path);
+
   return err('Not found', 404, origin);
 }
 
@@ -851,6 +856,62 @@ async function ordersDelete(request, env, origin, path) {
   if (!userId) return err('unauthorized', 401, origin);
   const id = path.split('/').pop();
   await env.DB.prepare('DELETE FROM orders WHERE id = ? AND user_id = ?').bind(id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+const INVENTORY_CATEGORIES = ['Peptide','Syringes','Needles','Bacteriostatic Water','Alcohol Wipes','Nasal Spray Bottle','Other'];
+
+async function inventoryList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM inventory WHERE user_id = ? ORDER BY category, name'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function inventoryAdd(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.name?.trim()) return err('name required', 400, origin);
+  const id  = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const category = INVENTORY_CATEGORIES.includes(b.category) ? b.category : 'Other';
+  await env.DB.prepare(
+    `INSERT INTO inventory (id, user_id, name, category, size, qty, reorder_at, notes, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`
+  ).bind(id, userId, b.name.trim(), category, b.size?.trim() || null,
+    Number(b.qty) || 0, b.reorder_at != null && b.reorder_at !== '' ? Number(b.reorder_at) : null,
+    b.notes || null, now, now).run();
+  return json({ id }, 201, origin);
+}
+
+async function inventoryUpdate(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  const existing = await env.DB.prepare('SELECT id FROM inventory WHERE id = ? AND user_id = ?').bind(id, userId).first();
+  if (!existing) return err('not found', 404, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.name?.trim()) return err('name required', 400, origin);
+  const category = INVENTORY_CATEGORIES.includes(b.category) ? b.category : 'Other';
+  await env.DB.prepare(
+    `UPDATE inventory SET name=?, category=?, size=?, qty=?, reorder_at=?, notes=?, updated_at=?
+     WHERE id=? AND user_id=?`
+  ).bind(b.name.trim(), category, b.size?.trim() || null,
+    Number(b.qty) || 0, b.reorder_at != null && b.reorder_at !== '' ? Number(b.reorder_at) : null,
+    b.notes || null, new Date().toISOString(), id, userId).run();
+  return json({ ok: true }, 200, origin);
+}
+
+async function inventoryDelete(request, env, origin, path) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const id = path.split('/').pop();
+  await env.DB.prepare('DELETE FROM inventory WHERE id = ? AND user_id = ?').bind(id, userId).run();
   return json({ ok: true }, 200, origin);
 }
 

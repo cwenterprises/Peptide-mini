@@ -373,6 +373,7 @@
         <button class="nav-tab" data-tab="logdose">Log Dose</button>
         <button class="nav-tab" data-tab="history">History</button>
         <button class="nav-tab" data-tab="vials">Vials</button>
+        <button class="nav-tab" data-tab="inventory">Inventory</button>
         <button class="nav-tab" data-tab="vendors">Vendors</button>
         <button class="nav-tab" data-tab="prices">Prices</button>
         <button class="nav-tab" data-tab="calc">Calculator</button>
@@ -389,6 +390,7 @@
       <div id="logdose"   class="tab-content"></div>
       <div id="history"   class="tab-content"></div>
       <div id="vials"     class="tab-content"></div>
+      <div id="inventory" class="tab-content"></div>
       <div id="vendors"   class="tab-content"></div>
       <div id="prices"    class="tab-content"></div>
       <div id="calc"      class="tab-content"></div>
@@ -482,11 +484,11 @@ const App = (() => {
     API.clearToken();
     localStorage.removeItem('peptideos_email');
     _token = null; _email = '';
-    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [] };
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [], inventory: [] };
   }
 
   async function loadAll() {
-    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
@@ -495,13 +497,14 @@ const App = (() => {
       API.get('/vendors'),
       API.get('/prices'),
       API.get('/orders'),
-      API.get('/cycles').catch(() => [])
+      API.get('/cycles').catch(() => []),
+      API.get('/inventory').catch(() => [])
     ]);
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
       peptides = await API.get('/peptides');
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory };
     applyTheme(settings.theme || 'system');
     return _data;
   }
@@ -594,6 +597,7 @@ function renderAllTabs() {
   renderLogDose();
   renderHistory();
   renderVials();
+  renderInventory();
   renderVendors();
   renderPrices();
   renderCalc();
@@ -2296,6 +2300,7 @@ async function addVial() {
     await API.post('/vials', { peptide, mg: parseFloat(mg), ml: parseFloat(ml), solution: document.getElementById('vSolution').value || null });
     await App.loadAll();
     renderAllTabs();
+    await maybeDeductInventory(peptide); // reconstituting consumes a sealed vial
   } catch (e) {
     alert('Failed to add vial: ' + (e.message || 'Unknown error'));
   }
@@ -2326,6 +2331,221 @@ async function deleteVial(id) {
     renderAllTabs();
   } catch (e) {
     alert('Failed to remove vial: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// ── Inventory ──────────────────────────────────────────────────────────────────
+const INVENTORY_CATEGORIES = ['Peptide','Syringes','Needles','Bacteriostatic Water','Alcohol Wipes','Nasal Spray Bottle','Other'];
+const INVENTORY_CAT_ICONS = { 'Peptide': '🧪', 'Syringes': '💉', 'Needles': '📍', 'Bacteriostatic Water': '💧', 'Alcohol Wipes': '🧻', 'Nasal Spray Bottle': '👃', 'Other': '📦' };
+
+let _invFormId; // undefined = form closed, null = adding, string = editing that id
+
+function invIsLow(it) {
+  return it.reorder_at != null && Number(it.qty) <= Number(it.reorder_at);
+}
+
+function lowStockItems() {
+  return (App.getData().inventory || []).filter(invIsLow);
+}
+
+function renderInventory() {
+  const { inventory, peptides } = App.getData();
+  const lowCount = inventory.filter(invIsLow).length;
+
+  const groups = INVENTORY_CATEGORIES
+    .map(cat => ({ cat, items: inventory.filter(i => i.category === cat) }))
+    .filter(g => g.items.length);
+
+  const groupHtml = groups.map(g => `
+    <div>
+      <div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 6px;">${INVENTORY_CAT_ICONS[g.cat] || ''} ${g.cat}</div>
+      <div class="stack" style="gap:6px;">
+        ${g.items.map(it => `
+          <div class="dose-row">
+            <div class="dose-row-info">
+              <div class="dose-row-name">${escHtml(it.name)}${it.size ? ` <span class="muted" style="font-weight:400;font-size:12px;">· ${escHtml(it.size)}</span>` : ''}
+                ${invIsLow(it) ? '<span class="badge badge-pending" style="margin-left:6px;background:rgba(239,68,68,0.15);color:#ef4444;">Low</span>' : ''}
+              </div>
+              ${it.notes ? `<div class="dose-row-meta">${escHtml(it.notes)}</div>` : ''}
+              ${it.reorder_at != null ? `<div class="dose-row-meta">reorder at ${it.reorder_at}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:16px;" onclick="invAdjust('${it.id}', -1)">−</button>
+              <span style="font-weight:800;font-size:17px;min-width:34px;text-align:center;${invIsLow(it) ? 'color:#ef4444;' : ''}">${Number(it.qty)}</span>
+              <button class="btn btn-ghost btn-sm" style="padding:2px 10px;font-size:16px;" onclick="invAdjust('${it.id}', 1)">+</button>
+              <button class="btn btn-ghost btn-sm" onclick="_invFormId='${it.id}';renderInventory()">✎</button>
+              <button class="btn btn-danger btn-sm" style="padding:2px 8px;" onclick="deleteInventoryItem('${it.id}')">×</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+
+  document.getElementById('inventory').innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div class="chip">📦 Items: <strong style="margin-left:4px;">${inventory.length}</strong></div>
+          <div class="chip">🧪 Peptide vials: <strong style="margin-left:4px;">${inventory.filter(i => i.category === 'Peptide').reduce((s, i) => s + Number(i.qty), 0)}</strong></div>
+          ${lowCount ? `<div class="chip" style="background:rgba(239,68,68,0.12);color:#ef4444;">⚠️ Low: <strong style="margin-left:4px;">${lowCount}</strong></div>` : ''}
+        </div>
+      </div>
+      <div class="glass" style="padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h3 style="font-size:15px;font-weight:700;">On Hand</h3>
+          ${_invFormId === undefined ? '<button class="btn btn-primary btn-sm" onclick="_invFormId=null;renderInventory()">+ Add Item</button>' : ''}
+        </div>
+        ${_invFormId !== undefined ? inventoryFormHTML(_invFormId, peptides) : ''}
+        ${groupHtml || '<p class="muted" style="padding:8px 0;">Nothing on hand yet — add items, or use "→ Inventory" on a delivered order.</p>'}
+      </div>
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+function inventoryFormHTML(editId, peptides) {
+  const it = editId ? (App.getData().inventory || []).find(x => x.id === editId) : null;
+  const isPeptide = !it || it.category === 'Peptide';
+  const inLibrary = it && peptides.some(p => p.name === it.name);
+  const catOpts = INVENTORY_CATEGORIES.map(c =>
+    `<option ${(it?.category || 'Peptide') === c ? 'selected' : ''}>${c}</option>`).join('');
+  const pepOpts = `<option value="">Custom name…</option>` + peptides.map(p =>
+    `<option value="${escHtml(p.name)}" ${it?.name === p.name ? 'selected' : ''}>${escHtml(p.name)}</option>`).join('');
+  return `
+    <div class="stack" style="gap:10px;padding:12px;border:1px solid var(--glass-border);border-radius:12px;margin-bottom:12px;">
+      <div class="row2">
+        <label>Category
+          <select id="invCat" onchange="document.getElementById('invPepWrap').style.display=this.value==='Peptide'?'':'none';">${catOpts}</select>
+        </label>
+        <label>Size (optional)
+          <input type="text" id="invSize" placeholder="e.g. 10 mg / 1 mL U-100" value="${escHtml(it?.size || '')}" />
+        </label>
+      </div>
+      <div id="invPepWrap" style="display:${isPeptide ? '' : 'none'};">
+        <label>Peptide (from library)
+          <select id="invPep" onchange="if(this.value)document.getElementById('invName').value=this.value;">${inLibrary ? pepOpts : pepOpts.replace('value=""', 'value="" selected')}</select>
+        </label>
+      </div>
+      <label>Name
+        <input type="text" id="invName" placeholder="Item name" value="${escHtml(it?.name || '')}" />
+      </label>
+      <div class="row3">
+        <label>Qty on hand
+          <input type="number" id="invQty" min="0" step="any" value="${it != null ? Number(it.qty) : ''}" placeholder="0" />
+        </label>
+        <label>Reorder at (optional)
+          <input type="number" id="invReorder" min="0" step="any" value="${it?.reorder_at != null ? Number(it.reorder_at) : ''}" placeholder="e.g. 2" />
+        </label>
+        <label>Notes (optional)
+          <input type="text" id="invNotes" value="${escHtml(it?.notes || '')}" placeholder="lot #, expiry…" />
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveInventoryItem(${editId ? `'${editId}'` : 'null'})">${it ? 'Update' : 'Add'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="_invFormId=undefined;renderInventory()">Cancel</button>
+      </div>
+    </div>`;
+}
+
+async function saveInventoryItem(editId) {
+  const name = document.getElementById('invName').value.trim();
+  if (!name) { alert('Please enter a name.'); return; }
+  const body = {
+    name,
+    category: document.getElementById('invCat').value,
+    size: document.getElementById('invSize').value.trim() || null,
+    qty: parseFloat(document.getElementById('invQty').value) || 0,
+    reorder_at: document.getElementById('invReorder').value === '' ? null : parseFloat(document.getElementById('invReorder').value),
+    notes: document.getElementById('invNotes').value.trim() || null
+  };
+  try {
+    if (editId) await API.put('/inventory/' + editId, body);
+    else await API.post('/inventory', body);
+    _invFormId = undefined;
+    await App.loadAll();
+    renderInventory();
+    renderDashboard(); // low-stock chip
+  } catch (e) {
+    alert('Failed to save item: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function invAdjust(id, delta) {
+  const it = (App.getData().inventory || []).find(x => x.id === id);
+  if (!it) return;
+  const qty = Math.max(0, Number(it.qty) + delta);
+  try {
+    await API.put('/inventory/' + id, { ...it, qty });
+    it.qty = qty; // optimistic local update, then re-render
+    renderInventory();
+    renderDashboard();
+  } catch (e) {
+    alert('Failed to update quantity: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function deleteInventoryItem(id) {
+  if (!confirm('Remove this item from inventory?')) return;
+  try {
+    await API.delete('/inventory/' + id);
+    await App.loadAll();
+    renderInventory();
+    renderDashboard();
+  } catch (e) {
+    alert('Failed to remove item: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// One tap moves a delivered order's items into stock. Order items are
+// {peptide, qty, unit} where qty is the vial STRENGTH (e.g. 10 mg), so we ask
+// how many vials arrived per item.
+async function orderToInventory(orderId) {
+  const { orders, inventory } = App.getData();
+  const o = orders.find(x => x.id === orderId);
+  if (!o) return;
+  let items = [];
+  try { items = JSON.parse(o.items || '[]'); } catch {}
+  if (!items.length) { alert('This order has no items to add.'); return; }
+  try {
+    for (const it of items) {
+      const size = it.qty ? `${it.qty} ${it.unit || 'mg'}` : null;
+      const label = `${it.peptide}${size ? ' ' + size : ''}`;
+      const ans = prompt(`How many vials of ${label} arrived?`, '1');
+      if (ans === null) continue; // skipped this item
+      const count = parseFloat(ans);
+      if (!count || count <= 0) continue;
+      const existing = inventory.find(x => x.category === 'Peptide' &&
+        x.name.toLowerCase() === it.peptide.toLowerCase() && (x.size || '') === (size || ''));
+      if (existing) {
+        await API.put('/inventory/' + existing.id, { ...existing, qty: Number(existing.qty) + count });
+      } else {
+        await API.post('/inventory', { name: it.peptide, category: 'Peptide', size, qty: count });
+      }
+    }
+    await API.put('/orders/' + orderId, { ...o, status: 'Stored' });
+    await App.loadAll();
+    renderInventory();
+    renderOrders();
+    renderDashboard();
+    Tabs.switchTo('inventory');
+  } catch (e) {
+    alert('Failed to move order into inventory: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// After reconstituting (creating a vial), offer to consume one sealed vial of
+// that peptide from stock.
+async function maybeDeductInventory(peptideName) {
+  const match = (App.getData().inventory || []).find(x =>
+    x.category === 'Peptide' && Number(x.qty) > 0 &&
+    x.name.toLowerCase() === peptideName.toLowerCase());
+  if (!match) return;
+  if (!confirm(`Deduct 1 × ${match.name}${match.size ? ' ' + match.size : ''} from inventory? (${Number(match.qty)} on hand)`)) return;
+  try {
+    await API.put('/inventory/' + match.id, { ...match, qty: Number(match.qty) - 1 });
+    await App.loadAll();
+    renderInventory();
+    renderDashboard();
+  } catch (e) {
+    alert('Failed to deduct from inventory: ' + (e.message || 'Unknown error'));
   }
 }
 
@@ -2434,6 +2654,7 @@ function renderDashboard() {
           <div class="chip">🏆 Best: <strong style="margin-left:4px;">${bestStreak}d</strong></div>
           <div class="chip">💉 Total doses: <strong style="margin-left:4px;">${totalDoses}</strong></div>
           <div class="chip">🧪 Peptides used: <strong style="margin-left:4px;">${uniquePeps}</strong></div>
+          ${lowStockItems().length ? `<div class="chip" style="background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;" onclick="Tabs.switchTo('inventory')">⚠️ Low stock: <strong style="margin-left:4px;">${lowStockItems().length}</strong></div>` : ''}
         </div>
       </div>
 
@@ -2762,6 +2983,7 @@ function renderOrders() {
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
             <span class="badge ${badgeCls}">${escHtml(o.status)}</span>
+            ${o.status === 'Delivered' ? `<button class="btn btn-primary btn-sm" onclick="orderToInventory('${escHtml(o.id)}')" title="Add items to inventory">→ Inventory</button>` : ''}
             <button class="btn btn-ghost btn-sm" onclick="startEditOrder('${escHtml(o.id)}')">✎</button>
             <button class="btn btn-danger btn-sm" onclick="deleteOrderConfirm('${escHtml(o.id)}')">×</button>
           </div>
