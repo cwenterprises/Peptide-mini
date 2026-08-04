@@ -347,6 +347,11 @@
     .disclaimer { font-size: 11px; color: var(--text-muted); padding: 10px 14px; text-align: center; opacity: 0.8; }
 
     /* Application site body diagrams */
+    /* Peptide info button + bottom sheet */
+    .pep-info { background: none; border: none; cursor: pointer; color: var(--accent-sky); font-size: 13px; padding: 0 3px; line-height: 1; vertical-align: baseline; }
+    .pep-sheet { animation: pepSheetUp 0.25s ease; }
+    @keyframes pepSheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
     .site-figure { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; }
     .site-figure-caption { font-size: 11px; color: var(--text-muted); }
     .site-pulse { animation: sitePulse 1.6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
@@ -1415,7 +1420,7 @@ function renderToday() {
         <div class="dose-row">
           <span class="badge ${done ? 'badge-done' : 'badge-pending'}">${done ? 'Done' : 'Pending'}</span>
           <div class="dose-row-info">
-            <div class="dose-row-name">${escHtml(plan.peptide)}</div>
+            <div class="dose-row-name">${escHtml(plan.peptide)}${peptideInfoBtn(plan.peptide)}</div>
             <div class="dose-row-meta">${escHtml(plan.route)} &middot; ${plan.dose} ${escHtml(plan.unit)}${timeStr ? ' &middot; ' + escHtml(timeStr) : ''}${plan.note ? ' &middot; ' + escHtml(plan.note) : ''}</div>
           </div>
           ${!done ? `<button class="btn btn-sm btn-ghost" onclick="quickLog('${plan.id}','${todayYmd}')">Log</button>` : ''}
@@ -1436,7 +1441,7 @@ function renderToday() {
         <div class="dose-row">
           <span class="badge badge-done">Logged</span>
           <div class="dose-row-info">
-            <div class="dose-row-name">${escHtml(l.peptide)}</div>
+            <div class="dose-row-name">${escHtml(l.peptide)}${peptideInfoBtn(l.peptide)}</div>
             <div class="dose-row-meta">${l.dose_value} ${escHtml(l.dose_unit)}${l.route ? ' &middot; ' + escHtml(l.route) : ''}${timeStr ? ' &middot; ' + timeStr : ''}</div>
           </div>
           <div style="display:flex;gap:6px;">
@@ -1539,7 +1544,7 @@ function renderWeek() {
         <div style="padding:6px 8px;border-radius:8px;background:var(--chip-bg);border:1px solid var(--glass-border);margin-bottom:4px;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span class="badge ${done ? 'badge-done' : 'badge-pending'}" style="font-size:10px;">${done ? '&#x2713;' : '&#x25CB;'}</span>
-            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(plan.peptide)}</span>
+            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(plan.peptide)}</span>${peptideInfoBtn(plan.peptide)}
           </div>
           <div class="muted" style="margin-top:2px;">${plan.dose} ${escHtml(plan.unit)}</div>
           ${!done ? `<button class="btn btn-sm btn-ghost" style="font-size:11px;padding:3px 8px;margin-top:4px;width:100%;" onclick="quickLog('${plan.id}','${dayYmd}')">Log</button>` : ''}
@@ -1557,7 +1562,7 @@ function renderWeek() {
         <div style="padding:6px 8px;border-radius:8px;background:var(--chip-bg);border:1px solid var(--glass-border);margin-bottom:4px;">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span class="badge badge-done" style="font-size:10px;">&#x2713;</span>
-            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.peptide)}</span>
+            <span style="font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(l.peptide)}</span>${peptideInfoBtn(l.peptide)}
           </div>
           <div class="muted" style="margin-top:2px;">${l.dose_value} ${escHtml(l.dose_unit)} logged</div>
         </div>`;
@@ -1760,6 +1765,8 @@ function refreshVialOptions() {
   const vialSel = document.getElementById('ldVial');
   if (!vialSel) return;
   vialSel.innerHTML = vialOptionsHtml(vials, selPeptide, vialSel.value);
+  const pepInfo = document.getElementById('ldPepInfo');
+  if (pepInfo) pepInfo.innerHTML = peptideInfoBtn(selPeptide);
   updateDrawMath();
 }
 
@@ -1992,7 +1999,7 @@ function renderLogDose() {
         ${_editingLogId ? '<div class="badge badge-pending" style="margin-bottom:12px;display:inline-flex;">Editing an existing dose — Save will update it</div>' : ''}
         <div class="stack">
           <div class="row2">
-            <label>Peptide
+            <label>Peptide <span id="ldPepInfo">${peptideInfoBtn(selPeptide)}</span>
               <select id="ldPeptide" onchange="refreshVialOptions()">
                 <option value="">Select peptide…</option>
                 ${peptideOpts}
@@ -2220,7 +2227,7 @@ function renderVials() {
         <div style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
             <div style="flex:1;">
-              <div style="font-weight:700;">${escHtml(vial.peptide)}</div>
+              <div style="font-weight:700;">${escHtml(vial.peptide)}${peptideInfoBtn(vial.peptide)}</div>
               <div class="muted">${vial.mg}mg / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${concMcgMl.toFixed(0)} mcg/mL</div>
               <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
@@ -2363,7 +2370,7 @@ function renderInventory() {
         ${g.items.map(it => `
           <div class="dose-row">
             <div class="dose-row-info">
-              <div class="dose-row-name">${escHtml(it.name)}${it.size ? ` <span class="muted" style="font-weight:400;font-size:12px;">· ${escHtml(it.size)}</span>` : ''}
+              <div class="dose-row-name">${escHtml(it.name)}${it.category === 'Peptide' ? peptideInfoBtn(it.name) : ''}${it.size ? ` <span class="muted" style="font-weight:400;font-size:12px;">· ${escHtml(it.size)}</span>` : ''}
                 ${invIsLow(it) ? '<span class="badge badge-pending" style="margin-left:6px;background:rgba(239,68,68,0.15);color:#ef4444;">Low</span>' : ''}
               </div>
               ${it.notes ? `<div class="dose-row-meta">${escHtml(it.notes)}</div>` : ''}
@@ -2822,7 +2829,7 @@ function renderHistory() {
       ? `${Number(l.volume_ml).toFixed(3)} mL / ${Number(l.iu).toFixed(1)} units` : '—';
     return `<tr>
       <td style="white-space:nowrap;">${dtStr}</td>
-      <td><span class="badge badge-info">${escHtml(l.peptide)}</span></td>
+      <td><span class="badge badge-info">${escHtml(l.peptide)}</span>${peptideInfoBtn(l.peptide)}</td>
       <td>${escHtml(String(l.dose_value))} ${escHtml(l.dose_unit)}</td>
       <td>${escHtml(l.route)}${l.site ? `<div class="muted" style="font-size:11px;">${escHtml(siteByKey(l.site)?.label || l.site)}</div>` : ''}</td>
       <td class="muted">${mlIu}</td>
@@ -4080,6 +4087,64 @@ function calcHL() {
 }
 
 // ── Task 15: Library ───────────────────────────────────────────────────────────
+// ── Peptide info (ⓘ) ──────────────────────────────────────────────────────────
+// Case-insensitive lookup by name or alias; custom peptides get no icon.
+function findLibraryEntry(name) {
+  if (!name) return null;
+  const q = name.toLowerCase();
+  return PEPTIDE_LIBRARY.find(p => p.name.toLowerCase() === q ||
+    (p.aliases || []).some(a => a.toLowerCase() === q)) || null;
+}
+
+function peptideInfoBtn(name) {
+  const entry = findLibraryEntry(name);
+  if (!entry) return '';
+  return `<button class="pep-info" data-pep="${escHtml(entry.name)}" title="Research info" onclick="event.stopPropagation();showPeptideInfo(this.dataset.pep)">&#x24D8;</button>`;
+}
+
+function showPeptideInfo(name) {
+  const p = findLibraryEntry(name);
+  if (!p) return;
+  document.getElementById('pepInfoOverlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pepInfoOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1001;display:flex;align-items:flex-end;justify-content:center;';
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="glass pep-sheet" style="max-width:520px;width:100%;max-height:80vh;overflow-y:auto;padding:22px;border-radius:20px 20px 0 0;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div>
+          <h3 style="font-size:18px;font-weight:800;">${escHtml(p.name)}</h3>
+          ${(p.aliases || []).length ? `<p class="muted" style="font-size:12px;">${p.aliases.map(escHtml).join(' · ')}</p>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pepInfoOverlay').remove()">×</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+        <span class="chip">&#x23F1; ${escHtml(p.halfLife)}</span>
+        <span class="chip">&#x1F489; ${escHtml(p.doseRange)}</span>
+        <span class="chip">&#x1F4CD; ${escHtml(p.route)}</span>
+      </div>
+      <div class="stack" style="gap:10px;">
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">What it is</p>
+          <p style="font-size:13px;line-height:1.55;">${escHtml(p.description)}</p>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Mechanism</p>
+          <p style="font-size:13px;line-height:1.55;">${escHtml(p.mechanism)}</p>
+        </div>
+        <div>
+          <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Research protocol</p>
+          <p style="font-size:13px;line-height:1.55;">${escHtml(p.protocols)}</p>
+        </div>
+        <button class="btn btn-primary" style="width:100%;" data-pep="${escHtml(p.name)}"
+          onclick="document.getElementById('pepInfoOverlay').remove();showLibraryDetail(this.dataset.pep)">Full details</button>
+        <p class="disclaimer" style="padding:0;">Research information only. Not medical advice.</p>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
 let _libSearch = '';
 
 function renderLibrary() {
