@@ -348,6 +348,14 @@
 
     /* Application site body diagrams */
     /* Peptide info button + bottom sheet */
+    .theme-fab {
+      position: fixed; right: 14px; bottom: 14px; z-index: 900;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--chip-bg); border: 1px solid var(--glass-border);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
     .pep-info { background: none; border: none; cursor: pointer; color: var(--accent-sky); font-size: 13px; padding: 0 3px; line-height: 1; vertical-align: baseline; }
     .pep-sheet { animation: pepSheetUp 0.25s ease; }
     @keyframes pepSheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -403,6 +411,7 @@
       <div id="settings"  class="tab-content"></div>
       <div id="orders"    class="tab-content"></div>
     </div>
+    <button id="themeFab" class="theme-fab" title="Theme" onclick="cycleTheme()">&#x1F317;</button>
   </div>
   <script>
 // Version check — bust stale CDN cache; never interferes with /reset token links
@@ -596,6 +605,7 @@ function showAuth(mode) {
 }
 
 function renderAllTabs() {
+  updateThemeFab(App.getData().settings?.theme || 'system');
   renderDashboard();
   renderToday();
   renderWeek();
@@ -1788,6 +1798,7 @@ const SITES = [
   { key: 'delt-l', label: 'Left Deltoid',        view: 'front', x: 142, y: 78,  routes: ['Intramuscular', 'Subcutaneous', 'Topical'] },
   { key: 'nostril-r', label: 'Right Nostril',    view: 'front', x: 94,  y: 32,  routes: ['Intranasal'] },
   { key: 'nostril-l', label: 'Left Nostril',     view: 'front', x: 106, y: 32,  routes: ['Intranasal'] },
+  { key: 'nostril-both', label: 'Both Nostrils',  view: 'front', x: 100, y: 40,  routes: ['Intranasal'] },
   { key: 'mouth', label: 'Oral / Sublingual',    view: 'front', x: 100, y: 42,  routes: ['Oral'] },
   { key: 'cubital-r', label: 'Right Inner Elbow', view: 'front', x: 53, y: 128, routes: ['Intravenous'] },
   { key: 'cubital-l', label: 'Left Inner Elbow',  view: 'front', x: 147, y: 128, routes: ['Intravenous'] },
@@ -2751,8 +2762,9 @@ function renderDashboard() {
     calCells.push(`<div title="${ds}: ${count} dose${count !== 1 ? 's' : ''}" style="width:12px;height:12px;border-radius:2px;background:${color};${isToday ? 'outline:2px solid var(--accent-sky);outline-offset:1px;' : ''}"></div>`);
   }
 
-  document.getElementById('dashboard').innerHTML = `
-    <div class="stack">
+  // Keyed cards so the user can rearrange them; order lives in settings.dash_order
+  const cardMap = {
+    stats: `
       <div class="glass" style="padding:18px;">
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <div class="chip">🔥 Streak: <strong style="margin-left:4px;">${streak}d</strong></div>
@@ -2761,16 +2773,15 @@ function renderDashboard() {
           <div class="chip">🧪 Peptides used: <strong style="margin-left:4px;">${uniquePeps}</strong></div>
           ${lowStockItems().length ? `<div class="chip" style="background:rgba(239,68,68,0.12);color:#ef4444;cursor:pointer;" onclick="Tabs.switchTo('inventory')">⚠️ Low stock: <strong style="margin-left:4px;">${lowStockItems().length}</strong></div>` : ''}
         </div>
-      </div>
-
+      </div>`,
+    cycles: `
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Progress</h3>
         ${cycleHTML}
         ${cycleSuggestionsHtml(logs, cycles || [])}
-      </div>
-
-      ${appSiteCardHtml(logs)}
-
+      </div>`,
+    appsite: appSiteCardHtml(logs),
+    calendar: `
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Last 91 Days</h3>
         <div style="display:grid;grid-template-columns:repeat(13,12px);gap:3px;">${calCells.join('')}</div>
@@ -2781,24 +2792,64 @@ function renderDashboard() {
           <div style="width:10px;height:10px;border-radius:2px;background:var(--accent-sky);"></div>
           <span class="muted" style="font-size:11px;">More</span>
         </div>
-      </div>
-
+      </div>`,
+    compliance: `
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">7-Day Compliance</h3>
         ${planner.length === 0
           ? '<p class="muted">Add planner items to see compliance.</p>'
           : '<canvas id="complianceChart" height="120" style="width:100%;max-width:500px;display:block;"></canvas>'}
-      </div>
-
+      </div>`,
+    toppeps: `
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Top Peptides</h3>
         ${uniquePeps < 2
           ? '<p class="muted">Log more doses to see your top peptides.</p>'
           : '<canvas id="topPeptidesChart" height="200" style="width:100%;max-width:500px;display:block;"></canvas>'}
+      </div>`
+  };
+
+  const order = dashCardOrder(settings);
+  const cardsHtml = order.map((key, i) => `
+    <div style="position:relative;">
+      ${_dashEditMode ? `
+        <div style="position:absolute;top:8px;right:8px;z-index:5;display:flex;gap:4px;">
+          <button class="btn btn-ghost btn-sm" style="padding:2px 10px;" ${i === 0 ? 'disabled' : ''} data-key="${key}" onclick="moveDashCard(this.dataset.key, -1)">↑</button>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 10px;" ${i === order.length - 1 ? 'disabled' : ''} data-key="${key}" onclick="moveDashCard(this.dataset.key, 1)">↓</button>
+        </div>` : ''}
+      ${cardMap[key]}
+    </div>`).join('');
+
+  document.getElementById('dashboard').innerHTML = `
+    <div class="stack">
+      <div style="display:flex;justify-content:flex-end;">
+        <button class="btn btn-ghost btn-sm" onclick="_dashEditMode=!_dashEditMode;renderDashboard()">${_dashEditMode ? '✓ Done' : '⇅ Edit layout'}</button>
       </div>
+      ${cardsHtml}
     </div>`;
 
   setTimeout(drawDashboardCharts, 0);
+}
+
+const DASH_CARD_KEYS = ['stats', 'cycles', 'appsite', 'calendar', 'compliance', 'toppeps'];
+let _dashEditMode = false;
+
+// Saved order, with unknown keys dropped and new cards appended at the end
+function dashCardOrder(settings) {
+  const saved = (settings?.dash_order || '').split(',').filter(k => DASH_CARD_KEYS.includes(k));
+  return [...saved, ...DASH_CARD_KEYS.filter(k => !saved.includes(k))];
+}
+
+async function moveDashCard(key, delta) {
+  const { settings } = App.getData();
+  const order = dashCardOrder(settings);
+  const i = order.indexOf(key);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
+  settings.dash_order = order.join(',');
+  renderDashboard();
+  await API.put('/settings', Object.assign({}, settings, { dash_order: settings.dash_order })).catch(() => {});
 }
 
 function drawDashboardCharts() {
@@ -3266,7 +3317,7 @@ let _vendorFormId = undefined; // undefined = hide form, null = add new, string 
 function renderVendors() {
   const { vendors } = App.getData();
 
-  const cards = vendors.length ? vendors.map(v => {
+  const vendorCard = v => {
     const stars = '★'.repeat(v.rating) + '☆'.repeat(5 - v.rating);
     const trustClass = { verified: 'badge-done', unverified: 'badge-info', caution: 'badge-pending' }[v.trust] || 'badge-info';
     const trustLabel = { verified: 'Verified', unverified: 'Unverified', caution: 'Caution' }[v.trust] || 'Unverified';
@@ -3278,6 +3329,7 @@ function renderVendors() {
             ${v.url ? `<div style="font-size:12px;margin-top:2px;"><a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="color:var(--accent-sky);">${escHtml(v.url)}</a></div>` : ''}
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn btn-ghost btn-sm" title="${v.favorite ? 'Unfavorite' : 'Favorite'}" style="color:var(--accent-amber);font-size:15px;" onclick="toggleVendorFavorite('${escHtml(v.id)}')">${v.favorite ? '★' : '☆'}</button>
             <button class="btn btn-ghost btn-sm" onclick="startEditVendor('${escHtml(v.id)}')">✎</button>
             <button class="btn btn-danger btn-sm" onclick="deleteVendorConfirm('${escHtml(v.id)}')">×</button>
           </div>
@@ -3295,15 +3347,31 @@ function renderVendors() {
           </div>
         </div>
       </div>`;
-  }).join('') : `<div class="glass" style="padding:24px;text-align:center;"><div style="font-size:32px;">🏪</div><p style="margin-top:8px;font-weight:600;">No vendors yet</p><p class="muted" style="margin-top:4px;">Add your first vendor below.</p></div>`;
+  };
+
+  const favs   = vendors.filter(v => v.favorite);
+  const others = vendors.filter(v => !v.favorite);
+  const emptyCard = `<div class="glass" style="padding:24px;text-align:center;"><div style="font-size:32px;">🏪</div><p style="margin-top:8px;font-weight:600;">No vendors yet</p><p class="muted" style="margin-top:4px;">Add your first vendor below.</p></div>`;
+  const grid = cards => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">${cards}</div>`;
 
   document.getElementById('vendors').innerHTML = `
     <div class="stack">
       <div class="glass" style="padding:18px;" id="vendorFormWrap">
         ${_vendorFormId !== undefined ? vendorFormHTML(_vendorFormId) : '<button class="btn btn-primary btn-sm" onclick="_vendorFormId=null;renderVendors()">+ Add Vendor</button>'}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">${cards}</div>
+      ${favs.length ? `<div><div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">★ Favorites</div>${grid(favs.map(vendorCard).join(''))}</div>` : ''}
+      ${vendors.length ? (others.length ? `<div>${favs.length ? '<div class="muted" style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">All Vendors</div>' : ''}${grid(others.map(vendorCard).join(''))}</div>` : '') : emptyCard}
     </div>`;
+}
+
+async function toggleVendorFavorite(id) {
+  const v = App.getData().vendors.find(x => x.id === id);
+  if (!v) return;
+  try {
+    await API.put(`/vendors/${id}`, { ...v, favorite: v.favorite ? 0 : 1 });
+    v.favorite = v.favorite ? 0 : 1;
+    renderVendors();
+  } catch (e) { alert('Failed to update favorite: ' + e.message); }
 }
 
 function vendorFormHTML(editId) {
@@ -3360,7 +3428,8 @@ async function saveVendor(editId) {
   if (!name) { alert('Vendor name is required.'); return; }
   try {
     if (editId && editId !== 'null') {
-      await API.put(`/vendors/${editId}`, { name, url, rating, trust, notes });
+      const favorite = App.getData().vendors.find(v => v.id === editId)?.favorite ? 1 : 0;
+      await API.put(`/vendors/${editId}`, { name, url, rating, trust, notes, favorite });
     } else {
       await API.post('/vendors', { name, url, rating, trust, notes });
     }
@@ -3760,6 +3829,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='trt'?'active':''}" data-ctab="trt">TRT</button>
           <button class="nav-tab ${_calcSubTab==='hcg'?'active':''}" data-ctab="hcg">HCG</button>
           <button class="nav-tab ${_calcSubTab==='nasal'?'active':''}" data-ctab="nasal">Nasal</button>
+          <button class="nav-tab ${_calcSubTab==='protocols'?'active':''}" data-ctab="protocols">Protocols</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -3944,6 +4014,39 @@ function renderCalc() {
             <div id="nResult" class="glass" style="padding:14px;display:none;"></div>
           </div>
         </div>
+
+        <div id="calcProtocols" style="display:${_calcSubTab==='protocols'?'block':'none'};">
+          <div class="stack">
+            <div class="glass" style="padding:18px;">
+              <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;">💧 Powder Vial Reconstitution</h3>
+              <p class="muted" style="font-size:12px;margin-bottom:10px;">Supplies: lyophilized peptide vial · bacteriostatic water (BW) · sterile syringe with needle · alcohol wipes.</p>
+              <ol style="padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.5;">
+                <li>Wash hands. Wipe both vial stoppers (peptide + BW) with a fresh alcohol wipe and let them air-dry.</li>
+                <li>Decide your water volume first — use the <a href="#" onclick="_calcSubTab='recon';renderCalc();return false;" style="color:var(--accent-sky);">Recon calculator</a> so your usual dose lands on easy syringe numbers (5–20 units on a U-100).</li>
+                <li>Draw that volume of BW into the syringe.</li>
+                <li>Insert into the peptide vial and inject the water <strong>slowly down the glass wall</strong>, not directly onto the powder.</li>
+                <li><strong>Swirl gently — never shake.</strong> Let it sit until fully clear (a few minutes; fragile peptides can take longer).</li>
+                <li>Label the vial: peptide, concentration (mcg per unit), and reconstitution date.</li>
+                <li>Store in the refrigerator (2–8 °C), protected from light.</li>
+                <li>Most reconstituted peptides are used within 28–30 days — log a vial in the Vials tab and PeptideOS tracks what's left.</li>
+              </ol>
+            </div>
+            <div class="glass" style="padding:18px;">
+              <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;">👃 Nasal Spray Preparation</h3>
+              <p class="muted" style="font-size:12px;margin-bottom:10px;">Supplies: empty nasal spray bottle (metered pump, usually 0.10 mL/spray) · bacteriostatic water · peptide (powder or reconstituted) · syringe.</p>
+              <ol style="padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.5;">
+                <li>Pick your target dose per spray, then use the <a href="#" onclick="_calcSubTab='nasal';renderCalc();return false;" style="color:var(--accent-sky);">Nasal calculator</a> to get total peptide + bottle volume for your pump size.</li>
+                <li>Sanitize the bottle and pump with an alcohol wipe; rinse with a little BW if the bottle is new.</li>
+                <li>Reconstitute the peptide gently first (steps above) if starting from powder.</li>
+                <li>Transfer peptide solution into the bottle with a syringe, then add BW up to the calculated total volume.</li>
+                <li>Cap and swirl gently to mix — no shaking.</li>
+                <li><strong>Prime the pump</strong> with 2–3 sprays into the air before first use (and after storage).</li>
+                <li>Label with peptide, mcg per spray, and date. Store refrigerated between uses.</li>
+                <li>When logging doses, the Intranasal route offers Left, Right, or Both Nostrils as the application site.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
       </div>
       <p class="disclaimer">All calculator results are estimates for educational purposes only. Not medical advice. Always consult a qualified professional.</p>
     </div>`;
@@ -3953,7 +4056,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv','trt','hcg','nasal'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt','hcg','nasal','protocols'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -4201,6 +4304,28 @@ function peptideInfoBtn(name) {
   return `<button class="pep-info" data-pep="${escHtml(entry.name)}" title="Research info" onclick="event.stopPropagation();showPeptideInfo(this.dataset.pep)">&#x24D8;</button>`;
 }
 
+// "10 mg vial + X mL BW" line targeting a typical dose ≈ 10 units on a U-100.
+// Only rendered when the library doseRange parses to a clean mg/mcg number.
+function suggestedRecipeHtml(p) {
+  const m = (p.doseRange || '').match(/([\d.]+)\s*(?:[\u2013-]\s*([\d.]+))?\s*(mcg|mg)/i);
+  if (!m) return '';
+  const lo = parseFloat(m[1]), hi = m[2] ? parseFloat(m[2]) : lo;
+  const unit = m[3].toLowerCase();
+  const doseMg = ((lo + hi) / 2) * (unit === 'mcg' ? 0.001 : 1);
+  if (!doseMg || !isFinite(doseMg)) return '';
+  const conc = doseMg / 0.1; // mg/mL that puts the dose at 0.10 mL (10 units)
+  const vial = [5, 10, 15, 30].find(v => v / conc >= 0.5 && v / conc <= 3);
+  if (!vial) return '';
+  const water = Math.round((vial / conc) * 10) / 10;
+  const units = Math.round((doseMg / (vial / water)) * 100);
+  const doseDisp = unit === 'mcg' ? `${Math.round(doseMg * 1000)} mcg` : `${parseFloat(doseMg.toFixed(2))} mg`;
+  return `
+    <div>
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Suggested recipe</p>
+      <p style="font-size:13px;line-height:1.55;">${vial} mg vial + ${water} mL bacteriostatic water → a typical ${doseDisp} dose ≈ ${units} units on a U-100 syringe. Step-by-step: Calculator → Protocols.</p>
+    </div>`;
+}
+
 function showPeptideInfo(name) {
   const p = findLibraryEntry(name);
   if (!p) return;
@@ -4236,6 +4361,7 @@ function showPeptideInfo(name) {
           <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Research protocol</p>
           <p style="font-size:13px;line-height:1.55;">${escHtml(p.protocols)}</p>
         </div>
+        ${suggestedRecipeHtml(p)}
         <button class="btn btn-primary" style="width:100%;" data-pep="${escHtml(p.name)}"
           onclick="document.getElementById('pepInfoOverlay').remove();showLibraryDetail(this.dataset.pep)">Full details</button>
         <p class="disclaimer" style="padding:0;">Research information only. Not medical advice.</p>
@@ -4491,9 +4617,24 @@ function renderSettings() {
 
 async function setTheme(t) {
   App.applyTheme(t);
+  updateThemeFab(t);
   const { settings } = App.getData();
+  settings.theme = t; // keep local copy current so later settings PUTs don't revert it
   await API.put('/settings', Object.assign({}, settings, { theme: t })).catch(() => {});
   renderSettings();
+}
+
+const THEME_FAB_ICONS = { light: '\u2600\uFE0F', dark: '\uD83C\uDF19', system: '\uD83C\uDF17' };
+
+function updateThemeFab(t) {
+  const fab = document.getElementById('themeFab');
+  if (fab) fab.textContent = THEME_FAB_ICONS[t] || THEME_FAB_ICONS.system;
+}
+
+function cycleTheme() {
+  const cur = App.getData().settings?.theme || 'system';
+  const next = cur === 'light' ? 'dark' : cur === 'dark' ? 'system' : 'light';
+  setTheme(next);
 }
 
 async function addPeptide() {

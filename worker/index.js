@@ -516,17 +516,18 @@ async function settingsPut(request, env, origin) {
   if (!userId) return err('unauthorized', 401, origin);
   const b = await request.json().catch(() => ({}));
   await env.DB.prepare(
-    `INSERT INTO user_settings (user_id, week_start, cycle_start, cycle_end, theme)
-     VALUES (?,?,?,?,?)
+    `INSERT INTO user_settings (user_id, week_start, cycle_start, cycle_end, theme, dash_order)
+     VALUES (?,?,?,?,?,?)
      ON CONFLICT(user_id) DO UPDATE SET
        week_start = excluded.week_start,
        cycle_start = excluded.cycle_start,
        cycle_end = excluded.cycle_end,
-       theme = excluded.theme`
+       theme = excluded.theme,
+       dash_order = excluded.dash_order`
   ).bind(
     userId,
     b.week_start ?? null, b.cycle_start ?? null, b.cycle_end ?? null,
-    b.theme ?? 'system'
+    b.theme ?? 'system', b.dash_order ?? null
   ).run();
   return json({ ok: true }, 200, origin);
 }
@@ -624,8 +625,8 @@ async function vendorsAdd(request, env, origin) {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await env.DB.prepare(
-    'INSERT INTO vendors (id, user_id, name, url, rating, trust, notes, created_at) VALUES (?,?,?,?,?,?,?,?)'
-  ).bind(id, userId, b.name.trim(), b.url || null, rating, trust, b.notes || null, now).run();
+    'INSERT INTO vendors (id, user_id, name, url, rating, trust, notes, favorite, created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+  ).bind(id, userId, b.name.trim(), b.url || null, rating, trust, b.notes || null, b.favorite ? 1 : 0, now).run();
   return json({ id, name: b.name.trim(), url: b.url || null, rating, trust, notes: b.notes || null, created_at: now }, 201, origin);
 }
 
@@ -641,8 +642,8 @@ async function vendorsUpdate(request, env, origin, path) {
   if (rating < 1 || rating > 5) return err('rating must be 1–5', 400, origin);
   const trust = ['verified','unverified','caution'].includes(b.trust) ? b.trust : 'unverified';
   await env.DB.prepare(
-    'UPDATE vendors SET name=?, url=?, rating=?, trust=?, notes=? WHERE id=? AND user_id=?'
-  ).bind(b.name.trim(), b.url || null, rating, trust, b.notes || null, id, userId).run();
+    'UPDATE vendors SET name=?, url=?, rating=?, trust=?, notes=?, favorite=? WHERE id=? AND user_id=?'
+  ).bind(b.name.trim(), b.url || null, rating, trust, b.notes || null, b.favorite ? 1 : 0, id, userId).run();
   return json({ ok: true }, 200, origin);
 }
 
