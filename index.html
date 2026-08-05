@@ -2556,6 +2556,102 @@ async function maybeDeductInventory(peptideName) {
   }
 }
 
+// ── Cycle suggestions ──────────────────────────────────────────────────────────
+// Suggest a cycle for any peptide being logged with no covering cycle. The run
+// start comes from the user's actual entries; the length from the library.
+let _cycleSuggestOpen = null;
+const CYCLE_DISMISS_KEY = 'pepos_cycle_dismissed';
+
+function parseCycleWeeks(str) {
+  if (!str) return 8;
+  const range = str.match(/(\d+)\s*[\u2013-]\s*(\d+)\s*week/i);
+  if (range) return Math.round((Number(range[1]) + Number(range[2])) / 2);
+  const single = str.match(/(\d+)\s*week/i);
+  if (single) return Number(single[1]);
+  return 8;
+}
+
+function cycleDismissals() {
+  try { return JSON.parse(localStorage.getItem(CYCLE_DISMISS_KEY) || '{}'); } catch { return {}; }
+}
+
+function dismissCycleSuggest(pep, start) {
+  const d = cycleDismissals();
+  d[pep + '|' + start] = true;
+  localStorage.setItem(CYCLE_DISMISS_KEY, JSON.stringify(d));
+  _cycleSuggestOpen = null;
+  renderDashboard();
+}
+
+function suggestCycles(logs, cycles) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+  const dism = cycleDismissals();
+  const byPep = {};
+  logs.forEach(l => {
+    if (l.taken_at) (byPep[l.peptide] = byPep[l.peptide] || new Set()).add(l.taken_at.slice(0, 10));
+  });
+  const out = [];
+  for (const [pep, daySet] of Object.entries(byPep)) {
+    const days = [...daySet].sort().reverse();
+    if ((today - new Date(days[0] + 'T00:00:00')) / 86400000 > 14) continue; // not currently active
+    let runStart = days[0]; // walk back through entries, a >21d gap ends the run
+    for (let i = 1; i < days.length; i++) {
+      const gap = (new Date(days[i - 1] + 'T00:00:00') - new Date(days[i] + 'T00:00:00')) / 86400000;
+      if (gap > 21) break;
+      runStart = days[i];
+    }
+    if (dism[pep + '|' + runStart]) continue;
+    const overlaps = (cycles || []).some(c => c.peptide === pep &&
+      !(c.end_date < runStart || c.start_date > todayStr));
+    if (overlaps) continue;
+    const weeks = parseCycleWeeks(findLibraryEntry(pep)?.cycleLength);
+    let end = new Date(new Date(runStart + 'T00:00:00').getTime() + (weeks * 7 - 1) * 86400000);
+    const minEnd = new Date(today.getTime() + 7 * 86400000); // never suggest a cycle that's already over
+    if (end < minEnd) end = minEnd;
+    out.push({ peptide: pep, start: runStart, end: ymd(end), weeks });
+  }
+  return out.sort((a, b) => a.peptide.localeCompare(b.peptide));
+}
+
+async function confirmCycleSuggest(pep) {
+  const start = document.getElementById('csStart').value;
+  const end = document.getElementById('csEnd').value;
+  if (!start || !end || end < start) { alert('Please set valid start and end dates.'); return; }
+  try {
+    await API.post('/cycles', { peptide: pep, start_date: start, end_date: end });
+    _cycleSuggestOpen = null;
+    await App.loadAll();
+    renderDashboard();
+    renderSettings(); // cycles are managed there too
+  } catch (e) {
+    alert('Failed to add cycle: ' + (e.message || 'Unknown error'));
+  }
+}
+
+function cycleSuggestionsHtml(logs, cycles) {
+  return suggestCycles(logs, cycles).map(s => {
+    const open = _cycleSuggestOpen === s.peptide;
+    return `
+      <div style="padding:10px 12px;border-radius:10px;background:rgba(245,158,11,0.10);border:1px solid rgba(245,158,11,0.35);margin-top:8px;">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span style="font-size:13px;">&#x1F4A1; <strong>${escHtml(s.peptide)}</strong>${peptideInfoBtn(s.peptide)} &mdash; logging since ${s.start}, no active cycle</span>
+          <span style="display:flex;gap:6px;">
+            ${open ? '' : `<button class="btn btn-primary btn-sm" data-pep="${escHtml(s.peptide)}" onclick="_cycleSuggestOpen=this.dataset.pep;renderDashboard()">Add</button>`}
+            <button class="btn btn-ghost btn-sm" data-pep="${escHtml(s.peptide)}" data-start="${s.start}" onclick="dismissCycleSuggest(this.dataset.pep,this.dataset.start)">Dismiss</button>
+          </span>
+        </div>
+        ${open ? `
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:8px;">
+          <label style="font-size:11px;flex-direction:column;">Start<input type="date" id="csStart" value="${s.start}" style="width:auto;"></label>
+          <label style="font-size:11px;flex-direction:column;">End (&#x2248;${s.weeks} wk)<input type="date" id="csEnd" value="${s.end}" style="width:auto;"></label>
+          <button class="btn btn-primary btn-sm" data-pep="${escHtml(s.peptide)}" onclick="confirmCycleSuggest(this.dataset.pep)">Confirm</button>
+          <button class="btn btn-ghost btn-sm" onclick="_cycleSuggestOpen=null;renderDashboard()">Cancel</button>
+        </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
 function renderDashboard() {
   const { logs, planner, peptides, settings, cycles } = App.getData();
   const streak     = calcStreak(logs);
@@ -2587,7 +2683,9 @@ function renderDashboard() {
           const dayNum = Math.round((todayD - start) / 86400000) + 1;
           const daysLeft = Math.round((end - todayD) / 86400000);
           const pct = Math.max(0, Math.min(100, Math.round((dayNum / totalDays) * 100)));
-          statusHtml = `<span class="muted" style="font-size:12px;">Day ${dayNum}/${totalDays} · ${daysLeft}d left</span>`;
+          const doseCount = logs.filter(l => l.peptide === c.peptide && l.taken_at &&
+            l.taken_at.slice(0, 10) >= c.start_date && l.taken_at.slice(0, 10) <= c.end_date).length;
+          statusHtml = `<span class="muted" style="font-size:12px;">Day ${dayNum}/${totalDays} · ${daysLeft}d left${doseCount ? ` · ${doseCount} dose${doseCount === 1 ? '' : 's'}` : ''}</span>`;
           return `
             <div style="padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
@@ -2668,6 +2766,7 @@ function renderDashboard() {
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Progress</h3>
         ${cycleHTML}
+        ${cycleSuggestionsHtml(logs, cycles || [])}
       </div>
 
       ${appSiteCardHtml(logs)}
