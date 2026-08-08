@@ -642,6 +642,13 @@ function ymd(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 }
 
+// Local calendar day of a stored UTC timestamp. NEVER slice(0,10) an ISO
+// string for day math — that's the UTC day, which rolls over at 8pm EDT and
+// buckets evening doses onto the next local day.
+function takenYmd(takenAt) {
+  return takenAt ? ymd(new Date(takenAt)) : '';
+}
+
 function planMatched(plan, logs) {
   return logs.some(l => {
     if (l.peptide !== plan.peptide) return false;
@@ -1381,7 +1388,7 @@ function calcStreak(logs) {
   for (let i = 0; i < 365; i++) {
     const d = new Date(today.getTime() - i * 86400000);
     const ds = ymd(d);
-    const hasLog = logs.some(l => l.taken_at && l.taken_at.slice(0, 10) === ds);
+    const hasLog = logs.some(l => l.taken_at && takenYmd(l.taken_at) === ds);
     if (hasLog) streak++;
     else if (i > 0) break;
   }
@@ -1390,7 +1397,7 @@ function calcStreak(logs) {
 
 function calcBestStreak(logs) {
   if (!logs.length) return 0;
-  const days = [...new Set(logs.map(l => l.taken_at?.slice(0, 10)).filter(Boolean))].sort();
+  const days = [...new Set(logs.map(l => l.taken_at ? takenYmd(l.taken_at) : null).filter(Boolean))].sort();
   let best = 0, current = 0, prev = null;
   for (const day of days) {
     if (prev) {
@@ -1412,7 +1419,7 @@ function renderToday() {
   const todayDay = today.getDay();
 
   const todayPlans = planner.filter(p => p.day === todayDay);
-  const todayLogs  = logs.filter(l => l.taken_at && l.taken_at.slice(0, 10) === todayYmd);
+  const todayLogs  = logs.filter(l => l.taken_at && takenYmd(l.taken_at) === todayYmd);
 
   const doneCount    = todayPlans.filter(p => planMatched(p, todayLogs)).length;
   const pendingCount = todayPlans.length - doneCount;
@@ -1543,7 +1550,7 @@ function renderWeek() {
     const dayYmd = ymd(d);
     const dayOfWeek = d.getDay();
     const isToday = dayYmd === todayYmd;
-    const dayLogs = logs.filter(l => l.taken_at && l.taken_at.slice(0, 10) === dayYmd);
+    const dayLogs = logs.filter(l => l.taken_at && takenYmd(l.taken_at) === dayYmd);
     const dayPlans = planner.filter(p => p.day === dayOfWeek);
     const dayDone = dayPlans.filter(p => planMatched(p, dayLogs)).length;
 
@@ -2600,7 +2607,7 @@ function suggestCycles(logs, cycles) {
   const dism = cycleDismissals();
   const byPep = {};
   logs.forEach(l => {
-    if (l.taken_at) (byPep[l.peptide] = byPep[l.peptide] || new Set()).add(l.taken_at.slice(0, 10));
+    if (l.taken_at) (byPep[l.peptide] = byPep[l.peptide] || new Set()).add(takenYmd(l.taken_at));
   });
   const out = [];
   for (const [pep, daySet] of Object.entries(byPep)) {
@@ -2695,7 +2702,7 @@ function renderDashboard() {
           const daysLeft = Math.round((end - todayD) / 86400000);
           const pct = Math.max(0, Math.min(100, Math.round((dayNum / totalDays) * 100)));
           const doseCount = logs.filter(l => l.peptide === c.peptide && l.taken_at &&
-            l.taken_at.slice(0, 10) >= c.start_date && l.taken_at.slice(0, 10) <= c.end_date).length;
+            takenYmd(l.taken_at) >= c.start_date && takenYmd(l.taken_at) <= c.end_date).length;
           statusHtml = `<span class="muted" style="font-size:12px;">Day ${dayNum}/${totalDays} · ${daysLeft}d left${doseCount ? ` · ${doseCount} dose${doseCount === 1 ? '' : 's'}` : ''}</span>`;
           return `
             <div style="padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
@@ -2756,7 +2763,7 @@ function renderDashboard() {
   for (let i = 0; i < 91; i++) {
     const d = new Date(calToday.getTime() - (90 - i) * 86400000);
     const ds = ymd(d);
-    const count = logs.filter(l => l.taken_at?.slice(0,10) === ds).length;
+    const count = logs.filter(l => l.taken_at && takenYmd(l.taken_at) === ds).length;
     const color = count === 0 ? 'var(--input-border)' : count <= 2 ? 'rgba(14,165,233,0.4)' : 'var(--accent-sky)';
     const isToday = ds === ymd(calToday);
     calCells.push(`<div title="${ds}: ${count} dose${count !== 1 ? 's' : ''}" style="width:12px;height:12px;border-radius:2px;background:${color};${isToday ? 'outline:2px solid var(--accent-sky);outline-offset:1px;' : ''}"></div>`);
@@ -2884,7 +2891,7 @@ function drawComplianceChart(canvas) {
     const x = 20 + i * ((W - 40) / 7);
     const planned = planner.filter(p => p.day === day.dow).length;
     const done = planned ? logs.filter(l => {
-      if (l.taken_at?.slice(0,10) !== day.ymd) return false;
+      if (!l.taken_at || takenYmd(l.taken_at) !== day.ymd) return false;
       return planner.some(p => p.day === day.dow && p.peptide === l.peptide && p.unit === l.dose_unit &&
         Math.abs(Number(l.dose_value) - Number(p.dose)) / Math.max(Number(p.dose), 1e-9) <= 0.02);
     }).length : 0;
@@ -2966,8 +2973,8 @@ function renderHistory() {
   // Apply filters client-side
   let filtered = [...logs].sort((a,b) => (b.taken_at||'').localeCompare(a.taken_at||''));
   if (pepFilter)  filtered = filtered.filter(l => l.peptide === pepFilter);
-  if (fromFilter) filtered = filtered.filter(l => l.taken_at >= fromFilter);
-  if (toFilter)   filtered = filtered.filter(l => l.taken_at <= toFilter + 'T23:59:59');
+  if (fromFilter) filtered = filtered.filter(l => takenYmd(l.taken_at) >= fromFilter);
+  if (toFilter)   filtered = filtered.filter(l => takenYmd(l.taken_at) <= toFilter);
   if (txtFilter)  filtered = filtered.filter(l =>
     (l.peptide||'').toLowerCase().includes(txtFilter) ||
     (l.notes||'').toLowerCase().includes(txtFilter));
@@ -3094,8 +3101,8 @@ function exportHistoryCSV() {
 
   let filtered = [...logs].sort((a,b) => (b.taken_at||'').localeCompare(a.taken_at||''));
   if (pepFilter)  filtered = filtered.filter(l => l.peptide === pepFilter);
-  if (fromFilter) filtered = filtered.filter(l => l.taken_at >= fromFilter);
-  if (toFilter)   filtered = filtered.filter(l => l.taken_at <= toFilter + 'T23:59:59');
+  if (fromFilter) filtered = filtered.filter(l => takenYmd(l.taken_at) >= fromFilter);
+  if (toFilter)   filtered = filtered.filter(l => takenYmd(l.taken_at) <= toFilter);
   if (txtFilter)  filtered = filtered.filter(l =>
     (l.peptide||'').toLowerCase().includes(txtFilter) ||
     (l.notes||'').toLowerCase().includes(txtFilter));
