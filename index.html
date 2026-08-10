@@ -1413,7 +1413,7 @@ function calcBestStreak(logs) {
 }
 
 function renderToday() {
-  const { planner, logs, settings } = App.getData();
+  const { planner, logs, settings, vials } = App.getData();
   const today = new Date();
   const todayYmd = ymd(today);
   const todayDay = today.getDay();
@@ -1440,6 +1440,7 @@ function renderToday() {
             <div class="dose-row-name">${escHtml(plan.peptide)}${peptideInfoBtn(plan.peptide)}</div>
             <div class="dose-row-meta">${escHtml(plan.route)} &middot; ${plan.dose} ${escHtml(plan.unit)}${timeStr ? ' &middot; ' + escHtml(timeStr) : ''}${plan.note ? ' &middot; ' + escHtml(plan.note) : ''}</div>
           </div>
+          ${vialLevelHtml(nextVialForPeptide(plan.peptide, vials, logs), logs)}
           ${!done ? `<button class="btn btn-sm btn-ghost" onclick="quickLog('${plan.id}','${todayYmd}')">Log</button>` : ''}
         </div>`;
     }
@@ -1461,6 +1462,7 @@ function renderToday() {
             <div class="dose-row-name">${escHtml(l.peptide)}${peptideInfoBtn(l.peptide)}</div>
             <div class="dose-row-meta">${l.dose_value} ${escHtml(l.dose_unit)}${l.route ? ' &middot; ' + escHtml(l.route) : ''}${timeStr ? ' &middot; ' + timeStr : ''}</div>
           </div>
+          ${vialLevelHtml(vials.find(v => v.id === l.vial_id), logs)}
           <div style="display:flex;gap:6px;">
             <button class="btn btn-sm btn-ghost" onclick="editLog('${escHtml(l.id)}','today')">Edit</button>
             <button class="btn btn-sm btn-danger" style="padding:2px 8px;" onclick="deleteLogEntry('${escHtml(l.id)}','today')">×</button>
@@ -2177,6 +2179,42 @@ function vialRemMcg(vial, logs) {
       (!vial.reset_at || (l.taken_at || '') > vial.reset_at)) // doses before a reset belong to the previous fill
     .reduce((sum, l) => sum + parseFloat(l.dose_mcg), 0);
   return Math.max(0, totalMcg - usedMcg);
+}
+
+// Mini vial glyph: liquid level = remaining fraction, Vials-tab color thresholds.
+function vialLevelHtml(vial, logs) {
+  if (!vial) return '';
+  const totalMcg = parseFloat(vial.mg) * 1000;
+  if (!totalMcg) return '';
+  const remMcg = vialRemMcg(vial, logs);
+  const pct = Math.max(0, Math.min(100, Math.round((remMcg / totalMcg) * 100)));
+  const color = pct > 50 ? 'var(--accent-green)' : pct > 20 ? 'var(--accent-amber)' : '#ef4444';
+  const remText = remMcg >= 1000 ? `${(remMcg / 1000).toFixed(1).replace(/\.0$/, '')} mg` : `${Math.round(remMcg)} mcg`;
+  const liquidH = 15 * pct / 100; // body spans y=6..21 in the 14×24 viewBox
+  return `
+    <span title="${escHtml(vial.peptide)}: ${Math.round(remMcg)} mcg remaining (${pct}%)"
+      style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;flex-shrink:0;" onclick="event.stopPropagation();Tabs.switchTo('vials')">
+      <svg viewBox="0 0 14 24" width="14" height="24" aria-label="vial level ${pct}%">
+        <rect x="4.5" y="0.5" width="5" height="3" rx="1" fill="var(--text-muted)" opacity="0.55"/>
+        <rect x="2.5" y="6.5" width="9" height="14.5" rx="2.5" fill="none" stroke="var(--text-muted)" stroke-width="1.2" opacity="0.65"/>
+        <rect x="5.5" y="3.5" width="3" height="3" fill="none" stroke="var(--text-muted)" stroke-width="1.2" opacity="0.65"/>
+        <rect x="3.6" y="${20.4 - liquidH}" width="6.8" height="${liquidH}" rx="1.5" fill="${color}" opacity="0.9"/>
+      </svg>
+      <span class="muted" style="font-size:11px;color:${color};white-space:nowrap;">${remText}</span>
+    </span>`;
+}
+
+// The vial you'd draw from next for a peptide: non-empty, most recently drawn
+// from (falls back to newest created).
+function nextVialForPeptide(peptide, vials, logs) {
+  const candidates = vials.filter(v => v.peptide === peptide && vialRemMcg(v, logs) > 0);
+  if (!candidates.length) return null;
+  const lastUse = {};
+  logs.forEach(l => {
+    if (l.vial_id && (!lastUse[l.vial_id] || l.taken_at > lastUse[l.vial_id])) lastUse[l.vial_id] = l.taken_at;
+  });
+  return candidates.sort((a, b) =>
+    (lastUse[b.id] || b.created_at || '').localeCompare(lastUse[a.id] || a.created_at || ''))[0];
 }
 
 const VIAL_SOLUTIONS = ['Bacteriostatic Water', 'Sterile Water', 'Saline (0.9% NaCl)', 'Acetic Acid (0.6%)', 'Other'];
