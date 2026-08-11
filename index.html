@@ -2618,6 +2618,43 @@ async function maybeDeductInventory(peptideName) {
 let _cycleSuggestOpen = null;
 const CYCLE_DISMISS_KEY = 'pepos_cycle_dismissed';
 
+// {lo, hi} weeks from a library cycleLength, or null when it isn't a plain
+// range ("As needed", "Continuous", …). Keeps any on/off text for display.
+function cycleRecRange(peptide) {
+  const str = findLibraryEntry(peptide)?.cycleLength;
+  if (!str) return null;
+  const m = str.match(/(\d+)\s*(?:[\u2013-]\s*(\d+))?\s*(week|month)/i);
+  if (m) {
+    const mult = m[3].toLowerCase() === 'month' ? 4.345 : 1; // months → weeks
+    const lo = Number(m[1]) * mult;
+    const hi = (m[2] ? Number(m[2]) : Number(m[1])) * mult;
+    const label = m[2] ? `${m[1]}–${m[2]} ${m[3].toLowerCase()}s` : `${m[1]} ${m[3].toLowerCase()}${m[1] === '1' ? '' : 's'}`;
+    return { lo, hi, label, text: str };
+  }
+  return { lo: null, hi: null, label: null, text: str }; // unparseable — display text only
+}
+
+// "Recommended 8–12 wk · yours 10 wk ✓" line for a cycle row; '' if unknown peptide.
+function cycleRecLine(c) {
+  const rec = cycleRecRange(c.peptide);
+  if (!rec) return '';
+  const wk = n => `${parseFloat(n.toFixed(1))} wk`;
+  if (rec.lo === null) {
+    return `<div class="muted" style="font-size:11px;margin-top:4px;">Recommended: ${escHtml(rec.text)}</div>`;
+  }
+  const yours = (new Date(c.end_date + 'T00:00:00') - new Date(c.start_date + 'T00:00:00')) / 86400000 / 7 + 1 / 7;
+  const recLabel = rec.label;
+  let verdict, color;
+  if (yours > rec.hi) {
+    verdict = `— runs ${wk(yours - rec.hi)} over`; color = 'var(--accent-amber)';
+  } else if (yours < rec.lo) {
+    verdict = '— shorter than recommended'; color = 'var(--text-muted)';
+  } else {
+    verdict = '✓'; color = 'var(--accent-green)';
+  }
+  return `<div style="font-size:11px;margin-top:4px;color:${color};">Recommended ${recLabel}${rec.text.includes('/') ? ` (${escHtml(rec.text)})` : ''} · yours ${wk(yours)} ${verdict}</div>`;
+}
+
 function parseCycleWeeks(str) {
   if (!str) return 8;
   const range = str.match(/(\d+)\s*[\u2013-]\s*(\d+)\s*week/i);
@@ -2753,13 +2790,17 @@ function renderDashboard() {
                 <span class="muted" style="font-size:11px;">${c.start_date}</span>
                 <span class="muted" style="font-size:11px;">${c.end_date}</span>
               </div>
+              ${cycleRecLine(c)}
             </div>`;
         }
         return `
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
-            <span style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</span>
-            <span class="muted" style="font-size:12px;">${c.start_date} → ${c.end_date}</span>
-            ${statusHtml}
+          <div style="padding:10px 12px;border-radius:10px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <span style="font-weight:700;font-size:13px;">${escHtml(c.peptide)}</span>
+              <span class="muted" style="font-size:12px;">${c.start_date} → ${c.end_date}</span>
+              ${statusHtml}
+            </div>
+            ${cycleRecLine(c)}
           </div>`;
       });
     cycleHTML = rows.length ? `<div class="stack">${rows.join('')}</div>`
