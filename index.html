@@ -606,8 +606,10 @@ function showAuth(mode) {
   renderAuth(mode);
 }
 
+let _healthPulled = false;
 function renderAllTabs() {
   updateThemeFab(App.getData().settings?.theme || 'system');
+  if (!_healthPulled && healthEnabled()) { _healthPulled = true; setTimeout(healthSyncPull, 1500); }
   renderDashboard();
   renderToday();
   renderWeek();
@@ -2707,6 +2709,7 @@ async function saveCheckin() {
     i >= 0 ? list[i] = rec : list.unshift(rec);
     renderToday();
     renderDashboard();
+    healthSyncPushWeight(todayStr, rec.weight); // fire-and-forget on iOS
   } catch (e) {
     alert('Failed to save check-in: ' + (e.message || 'Unknown error'));
   }
@@ -4964,6 +4967,7 @@ function renderSettings() {
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Download CSV</button>
       </div>
 
+      ${healthSettingsHtml()}
       <!-- Backup & Restore -->
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">Backup &amp; Restore</h3>
@@ -4995,6 +4999,98 @@ function renderSettings() {
     </div>`;
 
   updatePushButtonState();
+}
+
+// ── Apple Health sync (iOS wrapper only) ──────────────────────────────────────
+const HEALTH_ENABLED_KEY = 'pepos_health_sync';
+const HEALTH_UNIT_KEY = 'pepos_health_unit'; // 'lb' | 'kg'
+
+function healthPlugin() {
+  return window.Capacitor?.isNativePlatform?.() ? window.Capacitor?.Plugins?.HealthSync : null;
+}
+function healthEnabled() { return !!healthPlugin() && localStorage.getItem(HEALTH_ENABLED_KEY) === '1'; }
+function healthUnit() { return localStorage.getItem(HEALTH_UNIT_KEY) === 'kg' ? 'kg' : 'lb'; }
+function kgToUnit(kg, unit) { return unit === 'kg' ? kg : kg * 2.2046226218; }
+function unitToKg(v, unit) { return unit === 'kg' ? v : v / 2.2046226218; }
+
+// Pure: which Health samples should fill the journal — only days with no
+// manually recorded weight. Never overwrites user entries.
+function healthFillPlan(samples, checkins, unit) {
+  const have = new Set(checkins.filter(c => c.weight != null).map(c => c.date));
+  const byDate = {};
+  samples.forEach(s => { byDate[s.date] = s.kg; }); // last sample of a day wins
+  return Object.entries(byDate)
+    .filter(([date]) => !have.has(date))
+    .map(([date, kg]) => ({ date, weight: Math.round(kgToUnit(kg, unit) * 10) / 10 }));
+}
+
+async function healthSyncPull() {
+  const plugin = healthPlugin();
+  if (!plugin || !healthEnabled()) return;
+  try {
+    const { samples } = await plugin.readWeights({ sinceDays: 60 });
+    const plan = healthFillPlan(samples || [], App.getData().checkins || [], healthUnit());
+    for (const p of plan) {
+      const existing = (App.getData().checkins || []).find(c => c.date === p.date) || {};
+      await API.put('/checkins', { ...existing, date: p.date, weight: p.weight });
+    }
+    if (plan.length) {
+      await App.loadAll();
+      renderToday();
+      renderDashboard();
+    }
+  } catch (e) {
+    console.warn('Health pull failed:', e.message || e);
+  }
+}
+
+async function healthSyncPushWeight(dateStr, weight) {
+  const plugin = healthPlugin();
+  if (!plugin || !healthEnabled() || !weight) return;
+  try {
+    await plugin.writeWeight({ date: dateStr, kg: unitToKg(Number(weight), healthUnit()) });
+  } catch (e) {
+    console.warn('Health write failed:', e.message || e);
+  }
+}
+
+async function toggleHealthSync(on) {
+  if (!on) {
+    localStorage.setItem(HEALTH_ENABLED_KEY, '0');
+    renderSettings();
+    return;
+  }
+  const plugin = healthPlugin();
+  if (!plugin) return;
+  try {
+    await plugin.requestAuth();
+    localStorage.setItem(HEALTH_ENABLED_KEY, '1');
+    renderSettings();
+    healthSyncPull();
+  } catch (e) {
+    alert('Apple Health authorization failed: ' + (e.message || e));
+    renderSettings();
+  }
+}
+
+function healthSettingsHtml() {
+  if (!healthPlugin()) return '';
+  const on = healthEnabled();
+  return `
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">🍎 Apple Health</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:10px;">Pulls weight from Health into your daily check-ins (never overwriting entries you typed) and saves check-in weights back to Health.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <button class="btn ${on ? 'btn-ghost' : 'btn-primary'} btn-sm" onclick="toggleHealthSync(${on ? 'false' : 'true'})">${on ? 'Disable Sync' : 'Enable Sync'}</button>
+          <label style="flex-direction:row;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);">Units
+            <select style="width:auto;" onchange="localStorage.setItem('pepos_health_unit', this.value)">
+              <option value="lb" ${healthUnit() === 'lb' ? 'selected' : ''}>lb</option>
+              <option value="kg" ${healthUnit() === 'kg' ? 'selected' : ''}>kg</option>
+            </select>
+          </label>
+          ${on ? '<span class="badge badge-done">Syncing</span>' : ''}
+        </div>
+      </div>`;
 }
 
 async function exportBackup() {

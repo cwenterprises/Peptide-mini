@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>PeptideOS</string>
+	<string>PeptideOS</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,9 +19,19 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>13</string>
+	<string>14</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>PeptideOS uses the camera to capture vendor price lists and documents you choose to import.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>PeptideOS reads your weight from Apple Health to fill your daily check-in automatically.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>PeptideOS saves weights you enter in your daily check-in to Apple Health.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>PeptideOS accesses your photo library so you can attach price lists and documents you choose to import.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -45,11 +55,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>NSCameraUsageDescription</key>
-	<string>PeptideOS uses the camera to capture vendor price lists and documents you choose to import.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>PeptideOS accesses your photo library so you can attach price lists and documents you choose to import.</string>
 </dict>
 </plist>
