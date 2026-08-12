@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PeptideOS — Full App Layout</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(ellipse at 15% 10%, rgba(56,189,248,0.22) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 80%, rgba(99,102,241,0.16) 0%, transparent 45%),
+      radial-gradient(ellipse at 55% 5%,  rgba(34,211,238,0.14) 0%, transparent 35%),
+      #e8f4fd;
+    padding: 28px 20px 60px;
+    color: #0f172a;
+    font-size: 13px;
+  }
+
+  .glass-card {
+    position: relative;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow: 0 8px 32px rgba(14,30,60,0.10), 0 2px 8px rgba(14,30,60,0.07), inset 0 1px 0 rgba(255,255,255,0.95);
+    overflow: hidden;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .glass-card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.9) 40%,rgba(255,255,255,1) 60%,transparent);
+  }
+
+  .glass-chip {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 10px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(14,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.95);
+  }
+
+  /* Nav */
+  .nav-bar {
+    display: flex; gap: 3px;
+    background: rgba(255,255,255,0.5);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 13px;
+    padding: 4px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(14,30,60,0.09), inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .nav-item {
+    flex: 1; text-align: center;
+    padding: 6px 6px;
+    border-radius: 9px;
+    font-size: 11px; font-weight: 600; color: #64748b;
+    cursor: pointer;
+  }
+  .nav-item.active {
+    background: rgba(255,255,255,0.85);
+    color: #0f172a;
+    box-shadow: 0 2px 8px rgba(14,30,60,0.1), inset 0 1px 0 rgba(255,255,255,1);
+  }
+
+  /* Layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .flex-gap { display: flex; gap: 8px; align-items: center; }
+  .mb-4{margin-bottom:4px;} .mb-8{margin-bottom:8px;} .mb-12{margin-bottom:12px;}
+
+  /* Typography */
+  .label-xs { font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#64748b; }
+  .val-lg    { font-size:22px;font-weight:700;color:#0f172a;letter-spacing:-.5px; }
+  .val-md    { font-size:14px;font-weight:600;color:#1e293b; }
+  .val-sm    { font-size:12px;color:#64748b; }
+  .blue      { color:#0ea5e9; } .green { color:#16a34a; } .amber { color:#d97706; } .indigo { color:#6366f1; }
+
+  /* Badges */
+  .badge { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600; }
+  .badge-done    { background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.25);color:#15803d; }
+  .badge-pending { background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.25);color:#b45309; }
+  .badge-new     { background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);color:#4f46e5; }
+
+  /* Progress */
+  .prog-track { height:4px;background:rgba(14,30,60,0.08);border-radius:4px;overflow:hidden; }
+  .prog-fill  { height:100%;border-radius:4px;background:linear-gradient(90deg,#0ea5e9,#6366f1);box-shadow:0 0 8px rgba(14,165,233,0.35); }
+
+  /* Section label */
+  .section-title { font-size:16px;font-weight:700;color:#0f172a;letter-spacing:-.3px;margin-bottom:12px; }
+
+  /* Dose row */
+  .dose-row { padding:10px 0;border-bottom:1px solid rgba(14,30,60,0.05);display:flex;justify-content:space-between;align-items:center; }
+  .dose-row:last-child { border-bottom:none;padding-bottom:0; }
+
+  /* Input field mockup */
+  .mock-input {
+    background:rgba(255,255,255,0.6);border:1px solid rgba(14,30,60,0.12);border-radius:10px;
+    padding:8px 12px;font-size:13px;color:#1e293b;width:100%;
+    box-shadow:inset 0 1px 3px rgba(14,30,60,0.06);
+  }
+  .mock-select {
+    background:rgba(255,255,255,0.6);border:1px solid rgba(14,30,60,0.12);border-radius:10px;
+    padding:8px 12px;font-size:13px;color:#1e293b;width:100%;
+    box-shadow:inset 0 1px 3px rgba(14,30,60,0.06);
+  }
+  .mock-btn-primary {
+    background:linear-gradient(135deg,#0ea5e9,#6366f1);
+    border:none;border-radius:10px;padding:9px 18px;color:#fff;font-size:13px;font-weight:600;
+    box-shadow:0 4px 14px rgba(14,165,233,0.35);cursor:pointer;width:100%;
+  }
+  .mock-btn-ghost {
+    background:rgba(255,255,255,0.6);border:1px solid rgba(14,30,60,0.12);border-radius:10px;
+    padding:8px 14px;color:#0ea5e9;font-size:12px;font-weight:600;cursor:pointer;
+  }
+
+  /* Tab content sections */
+  .tab-section { display:none; }
+  .tab-section.active { display:block; }
+
+  /* Dot */
+  .dot { width:7px;height:7px;border-radius:50%; }
+
+  /* App header */
+  .app-header { display:flex;justify-content:space-between;align-items:center;margin-bottom:16px; }
+  .app-logo { font-size:18px;font-weight:700;letter-spacing:-.3px; }
+  .app-logo span { color:#0ea5e9; }
+
+  /* Calc result box */
+  .calc-result {
+    background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.2);
+    border-radius:12px;padding:14px;text-align:center;
+  }
+
+  /* Reference card */
+  .ref-card {
+    background:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.8);
+    border-radius:12px;padding:12px;cursor:pointer;
+    box-shadow:0 2px 8px rgba(14,30,60,0.07);
+  }
+  .ref-card:hover { background:rgba(255,255,255,0.65); }
+
+  /* Sign-in card */
+  .auth-wrap { max-width:340px;margin:0 auto; }
+
+  /* Footer disclaimer */
+  .disclaimer {
+    font-size:10px;color:#94a3b8;text-align:center;line-height:1.5;
+    padding:12px 0 0;border-top:1px solid rgba(14,30,60,0.07);margin-top:4px;
+  }
+
+  /* Week grid */
+  .week-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:6px; }
+  .day-col { background:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.8);border-radius:12px;padding:8px;min-height:90px; }
+  .day-col.today { border-color:rgba(14,165,233,0.4);background:rgba(14,165,233,0.05); }
+  .day-name { font-size:10px;font-weight:700;color:#0f172a; }
+  .day-date { font-size:9px;color:#94a3b8;margin-bottom:6px; }
+
+  /* Log table */
+  table { width:100%;border-collapse:collapse; }
+  th,td { padding:8px 6px;border-bottom:1px solid rgba(14,30,60,0.06);text-align:left;font-size:11px; }
+  th { font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px; }
+
+  /* Vial bar */
+  .vial-row { display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(14,30,60,0.05); }
+  .vial-row:last-child { border-bottom:none; }
+
+  /* Tabs JS */
+</style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <div class="app-header">
+    <div>
+      <div class="app-logo">Peptide<span>OS</span></div>
+      <div class="val-sm" style="margin-top:1px;">Monday · June 2, 2026</div>
+    </div>
+    <div class="flex-gap">
+      <div class="glass-chip" style="padding:5px 10px;">
+        <span class="label-xs" style="letter-spacing:.3px;">Day <strong style="color:#0ea5e9;font-size:13px;">8</strong> / 30</span>
+      </div>
+      <div class="glass-chip" style="padding:5px 10px;cursor:pointer;">
+        <span style="font-size:12px;">corey@cw…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nav Tabs -->
+  <div class="nav-bar" id="mainNav">
+    <div class="nav-item active" data-tab="today">Today</div>
+    <div class="nav-item" data-tab="week">Week</div>
+    <div class="nav-item" data-tab="log">Log Dose</div>
+    <div class="nav-item" data-tab="vials">Vials</div>
+    <div class="nav-item" data-tab="calc">Calculator</div>
+    <div class="nav-item" data-tab="library">Library</div>
+    <div class="nav-item" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- ── TODAY ── -->
+  <div class="tab-section active" id="tab-today">
+    <div class="three-col mb-12">
+      <div class="glass-chip" style="text-align:center;">
+        <div class="label-xs mb-4">Planned</div>
+        <div class="val-lg blue">4</div>
+      </div>
+      <div class="glass-chip" style="text-align:center;">
+        <div class="label-xs mb-4">Done</div>
+        <div class="val-lg green">3</div>
+      </div>
+      <div class="glass-chip" style="text-align:center;">
+        <div class="label-xs mb-4">Streak</div>
+        <div class="val-lg indigo">12🔥</div>
+      </div>
+    </div>
+
+    <div class="glass-card">
+      <div class="flex-between mb-8">
+        <div class="val-md">Today's Protocol</div>
+        <span class="badge badge-done">3 of 4 done</span>
+      </div>
+      <div class="prog-track mb-12"><div class="prog-fill" style="width:75%;"></div></div>
+      <div class="dose-row">
+        <div><div class="val-md mb-4">BPC-157</div><div class="val-sm">250 mcg · SubQ · 08:00</div></div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="dose-row">
+        <div><div class="val-md mb-4">Ipamorelin</div><div class="val-sm">200 mcg · SubQ · 08:30</div></div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="dose-row">
+        <div><div class="val-md mb-4">CJC-1295</div><div class="val-sm">100 mcg · SubQ · 08:30</div></div>
+        <span class="badge badge-done">✓ Done</span>
+      </div>
+      <div class="dose-row">
+        <div><div class="val-md mb-4">TB-500</div><div class="val-sm">500 mcg · SubQ · 20:00</div></div>
+        <div class="flex-gap">
+          <span class="badge badge-pending">Pending</span>
+          <button class="mock-btn-ghost">Log</button>
+        </div>
+      </div>
+      <div class="disclaimer">Research use only. Not medical advice.</div>
+    </div>
+  </div>
+
+  <!-- ── WEEK ── -->
+  <div class="tab-section" id="tab-week">
+    <div class="week-grid">
+      <div class="day-col">
+        <div class="day-name">Sun</div><div class="day-date">Jun 1</div>
+        <div class="badge badge-done" style="font-size:9px;">2/2</div>
+      </div>
+      <div class="day-col today">
+        <div class="day-name" style="color:#0ea5e9;">Mon</div><div class="day-date">Jun 2</div>
+        <div class="badge badge-pending" style="font-size:9px;">3/4</div>
+        <div style="margin-top:4px;font-size:9px;color:#64748b;">BPC-157<br>TB-500</div>
+      </div>
+      <div class="day-col"><div class="day-name">Tue</div><div class="day-date">Jun 3</div></div>
+      <div class="day-col"><div class="day-name">Wed</div><div class="day-date">Jun 4</div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;">BPC-157<br>Ipamorelin</div>
+      </div>
+      <div class="day-col"><div class="day-name">Thu</div><div class="day-date">Jun 5</div></div>
+      <div class="day-col"><div class="day-name">Fri</div><div class="day-date">Jun 6</div>
+        <div style="font-size:9px;color:#64748b;margin-top:4px;">BPC-157<br>CJC-1295</div>
+      </div>
+      <div class="day-col"><div class="day-name">Sat</div><div class="day-date">Jun 7</div></div>
+    </div>
+  </div>
+
+  <!-- ── LOG DOSE ── -->
+  <div class="tab-section" id="tab-log">
+    <div class="glass-card">
+      <div class="val-md mb-12">Log a Dose</div>
+      <div class="two-col mb-8">
+        <div>
+          <div class="label-xs mb-4">Peptide</div>
+          <select class="mock-select"><option>BPC-157</option><option>TB-500</option><option>Ipamorelin</option></select>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Date / Time</div>
+          <input class="mock-input" type="text" value="2026-06-02 08:00"/>
+        </div>
+      </div>
+      <div class="three-col mb-8">
+        <div>
+          <div class="label-xs mb-4">Route</div>
+          <select class="mock-select"><option>SubQ</option><option>IM</option><option>Nasal</option></select>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Dose</div>
+          <input class="mock-input" type="text" placeholder="250"/>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Unit</div>
+          <select class="mock-select"><option>mcg</option><option>mg</option><option>IU</option></select>
+        </div>
+      </div>
+      <div class="mb-8">
+        <div class="label-xs mb-4">Vial (for draw math)</div>
+        <select class="mock-select" style="margin-bottom:8px;"><option>BPC-157 · 2,500 mcg/mL · 62% rem</option></select>
+        <div class="calc-result">
+          <div class="label-xs mb-4">Draw</div>
+          <div style="font-size:20px;font-weight:700;color:#0ea5e9;">0.100 mL <span style="font-size:12px;color:#64748b;">= 10.0 IU</span></div>
+        </div>
+      </div>
+      <button class="mock-btn-primary">Save Dose</button>
+    </div>
+  </div>
+
+  <!-- ── VIALS ── -->
+  <div class="tab-section" id="tab-vials">
+    <div class="glass-card">
+      <div class="val-md mb-12">Add Vial</div>
+      <div class="three-col mb-8">
+        <div>
+          <div class="label-xs mb-4">Peptide</div>
+          <select class="mock-select"><option>BPC-157</option></select>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Vial mg</div>
+          <input class="mock-input" placeholder="5"/>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Diluent mL</div>
+          <input class="mock-input" placeholder="2"/>
+        </div>
+      </div>
+      <button class="mock-btn-primary" style="margin-bottom:14px;">Add Vial</button>
+
+      <div class="label-xs mb-8">Active Vials</div>
+      <div class="vial-row">
+        <div><div class="val-md">BPC-157</div><div class="val-sm">5mg / 2mL · 2,500 mcg/mL</div></div>
+        <div class="flex-gap">
+          <div class="prog-track" style="width:70px;"><div class="prog-fill" style="width:62%;background:linear-gradient(90deg,#22c55e,#0ea5e9);"></div></div>
+          <span class="val-sm green">62%</span>
+        </div>
+      </div>
+      <div class="vial-row">
+        <div><div class="val-md">TB-500</div><div class="val-sm">10mg / 2mL · 5,000 mcg/mL</div></div>
+        <div class="flex-gap">
+          <div class="prog-track" style="width:70px;"><div class="prog-fill" style="width:28%;background:linear-gradient(90deg,#f59e0b,#f97316);"></div></div>
+          <span class="val-sm amber">28%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CALCULATOR ── -->
+  <div class="tab-section" id="tab-calc">
+    <!-- Mode selector -->
+    <div class="nav-bar" style="margin-bottom:14px;">
+      <div class="nav-item active" id="cmode-recon">Reconstitution</div>
+      <div class="nav-item" id="cmode-draw">Draw</div>
+      <div class="nav-item" id="cmode-cycle">Cycle Cost</div>
+      <div class="nav-item" id="cmode-halflife">Half-Life</div>
+    </div>
+
+    <div class="glass-card">
+      <div class="val-md mb-12">Reconstitution Calculator</div>
+      <div class="two-col mb-8">
+        <div>
+          <div class="label-xs mb-4">Vial Size (mg)</div>
+          <input class="mock-input" value="5"/>
+        </div>
+        <div>
+          <div class="label-xs mb-4">Diluent to Add (mL)</div>
+          <input class="mock-input" value="2"/>
+        </div>
+      </div>
+      <div class="calc-result mb-8">
+        <div class="label-xs mb-4">Resulting Concentration</div>
+        <div style="font-size:24px;font-weight:700;color:#0ea5e9;">2,500 mcg/mL</div>
+        <div class="val-sm" style="margin-top:4px;">5,000 mcg total · 2.000 mL total</div>
+      </div>
+
+      <div class="label-xs mb-8" style="margin-top:12px;">Dose Planning</div>
+      <div class="two-col mb-8">
+        <div>
+          <div class="label-xs mb-4">Desired Dose (mcg)</div>
+          <input class="mock-input" value="250"/>
+        </div>
+        <div class="calc-result" style="background:rgba(99,102,241,0.07);border-color:rgba(99,102,241,0.2);">
+          <div class="label-xs mb-4" style="color:#6366f1;">Draw Volume</div>
+          <div style="font-size:20px;font-weight:700;color:#6366f1;">0.100 mL</div>
+          <div class="val-sm" style="margin-top:2px;">= 10.0 IU</div>
+        </div>
+      </div>
+
+      <div class="disclaimer">For research and personal tracking only. Always verify calculations independently.</div>
+    </div>
+  </div>
+
+  <!-- ── LIBRARY ── -->
+  <div class="tab-section" id="tab-library">
+    <div class="glass-card" style="padding:12px 16px;">
+      <input class="mock-input" placeholder="🔍  Search peptides — BPC-157, TB-500, Ipamorelin…" style="margin-bottom:12px;"/>
+      <div style="display:grid;gap:8px;">
+        <div class="ref-card">
+          <div class="flex-between mb-4">
+            <div class="val-md">BPC-157</div>
+            <span class="badge badge-new">Research</span>
+          </div>
+          <div class="val-sm mb-4">Body Protection Compound · Pentadecapeptide</div>
+          <div class="three-col" style="gap:6px;">
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Half-Life</div>
+              <div style="font-size:11px;font-weight:700;color:#0ea5e9;">~4 hrs</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Common Dose</div>
+              <div style="font-size:11px;font-weight:700;color:#6366f1;">200–500 mcg</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Route</div>
+              <div style="font-size:11px;font-weight:700;color:#16a34a;">SubQ / IM</div>
+            </div>
+          </div>
+        </div>
+        <div class="ref-card">
+          <div class="flex-between mb-4">
+            <div class="val-md">TB-500</div>
+            <span class="badge badge-new">Research</span>
+          </div>
+          <div class="val-sm mb-4">Thymosin Beta-4 · Synthetic Fragment</div>
+          <div class="three-col" style="gap:6px;">
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Half-Life</div>
+              <div style="font-size:11px;font-weight:700;color:#0ea5e9;">~24 hrs</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Common Dose</div>
+              <div style="font-size:11px;font-weight:700;color:#6366f1;">2–5 mg</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Route</div>
+              <div style="font-size:11px;font-weight:700;color:#16a34a;">SubQ / IM</div>
+            </div>
+          </div>
+        </div>
+        <div class="ref-card">
+          <div class="flex-between mb-4">
+            <div class="val-md">Ipamorelin</div>
+            <span class="badge badge-new">Research</span>
+          </div>
+          <div class="val-sm mb-4">GHRP · Growth Hormone Releasing Peptide</div>
+          <div class="three-col" style="gap:6px;">
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Half-Life</div>
+              <div style="font-size:11px;font-weight:700;color:#0ea5e9;">~2 hrs</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Common Dose</div>
+              <div style="font-size:11px;font-weight:700;color:#6366f1;">100–300 mcg</div>
+            </div>
+            <div class="glass-chip" style="padding:6px 8px;text-align:center;">
+              <div class="label-xs mb-4">Route</div>
+              <div style="font-size:11px;font-weight:700;color:#16a34a;">SubQ</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="disclaimer" style="margin-top:10px;">All peptides listed for research purposes only. Information is educational and not intended as medical advice. © 2026 CW Enterprises. All rights reserved.</div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="tab-section" id="tab-settings">
+    <div class="glass-card">
+      <div class="val-md mb-12">Account</div>
+      <div class="vial-row"><span class="val-sm">Email</span><span class="val-sm blue">corey@cwenterprises.net</span></div>
+      <div class="vial-row"><span class="val-sm">Password</span><button class="mock-btn-ghost" style="font-size:11px;">Change</button></div>
+      <div class="vial-row"><span class="val-sm">Push Notifications</span>
+        <div style="width:38px;height:22px;background:linear-gradient(135deg,#0ea5e9,#6366f1);border-radius:11px;position:relative;box-shadow:0 2px 6px rgba(14,165,233,0.4);">
+          <div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;box-shadow:0 1px 4px rgba(0,0,0,0.15);"></div>
+        </div>
+      </div>
+      <div class="vial-row"><span class="val-sm">Export Data</span><button class="mock-btn-ghost" style="font-size:11px;">Export CSV</button></div>
+    </div>
+    <div class="glass-card">
+      <div class="val-md mb-12">Peptide List</div>
+      <div class="val-sm mb-8">Manage your custom peptide list (40 loaded)</div>
+      <button class="mock-btn-ghost" style="margin-bottom:8px;width:100%;">+ Add Peptide</button>
+      <button class="mock-btn-ghost" style="width:100%;color:#dc2626;border-color:rgba(220,38,38,0.3);">Reset to Defaults</button>
+    </div>
+    <div class="glass-card">
+      <div class="val-md mb-8">Cycle Dates</div>
+      <div class="two-col mb-8">
+        <div><div class="label-xs mb-4">Start</div><input class="mock-input" value="2026-05-25"/></div>
+        <div><div class="label-xs mb-4">End</div><input class="mock-input" value="2026-07-25"/></div>
+      </div>
+      <button class="mock-btn-primary">Save Cycle</button>
+    </div>
+    <div class="disclaimer" style="padding:16px 0 0;border-top:1px solid rgba(14,30,60,0.07);margin-top:4px;">
+      PeptideOS is for personal tracking purposes only. This is not medical advice. Consult a licensed healthcare professional before using any peptides or research compounds.<br><br>
+      By using this app you agree to our <u>Terms of Service</u> and <u>Privacy Policy</u>.<br>
+      © 2026 CW Enterprises. All rights reserved.
+    </div>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('#mainNav .nav-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#mainNav .nav-item').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+  </script>
+
+</body>
+</html>

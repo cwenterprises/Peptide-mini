@@ -8,3 +8,5 @@ migrations
 *.toml
 *.md
 node_modules
+test
+scripts

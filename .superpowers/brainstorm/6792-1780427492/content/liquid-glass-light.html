@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PeptideOS — Light Mode</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse at 15% 10%, rgba(56,189,248,0.22) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 80%, rgba(99,102,241,0.16) 0%, transparent 45%),
+      radial-gradient(ellipse at 55% 5%,  rgba(34,211,238,0.14) 0%, transparent 35%),
+      radial-gradient(ellipse at 30% 90%, rgba(129,140,248,0.12) 0%, transparent 40%),
+      #e8f4fd;
+    padding: 32px 24px;
+    color: #0f172a;
+  }
+
+  /* ---- LIQUID GLASS CARD (light) ---- */
+  .glass-card {
+    position: relative;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow:
+      0 8px 32px rgba(14,30,60,0.10),
+      0 2px 8px rgba(14,30,60,0.07),
+      0 1px 0 rgba(255,255,255,0.95) inset;
+    overflow: hidden;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  /* top specular shimmer */
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.9) 40%, rgba(255,255,255,1) 60%, transparent 100%);
+  }
+
+  /* Nested glass chip */
+  .glass-chip {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 8px rgba(14,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.95);
+  }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .3px;
+  }
+  .badge-done    { background: rgba(22,163,74,0.1);  border: 1px solid rgba(22,163,74,0.25);  color: #15803d; }
+  .badge-pending { background: rgba(217,119,6,0.1);  border: 1px solid rgba(217,119,6,0.25);  color: #b45309; }
+
+  /* Progress bar */
+  .progress-track { height: 5px; background: rgba(14,30,60,0.08); border-radius: 4px; overflow: hidden; }
+  .progress-fill  {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #0ea5e9, #6366f1);
+    box-shadow: 0 0 8px rgba(14,165,233,0.4);
+  }
+
+  /* Typography */
+  .label-xs   { font-size: 10px; font-weight: 600; letter-spacing: 1.1px; text-transform: uppercase; color: #64748b; }
+  .value-lg   { font-size: 24px; font-weight: 700; color: #0f172a; letter-spacing: -.5px; }
+  .value-md   { font-size: 15px; font-weight: 600; color: #1e293b; }
+  .value-sm   { font-size: 13px; color: #64748b; }
+  .accent-blue   { color: #0ea5e9; }
+  .accent-indigo { color: #6366f1; }
+  .accent-green  { color: #16a34a; }
+
+  /* Nav pill */
+  .nav-bar {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.5);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 14px;
+    padding: 4px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(14,30,60,0.09), inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .nav-item {
+    flex: 1;
+    text-align: center;
+    padding: 7px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+  }
+  .nav-item.active {
+    background: rgba(255,255,255,0.85);
+    color: #0f172a;
+    box-shadow: 0 2px 8px rgba(14,30,60,0.1), inset 0 1px 0 rgba(255,255,255,1);
+  }
+
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .flex-gap { display: flex; gap: 8px; align-items: center; }
+  .mb-4  { margin-bottom: 4px; }
+  .mb-8  { margin-bottom: 8px; }
+  .mb-12 { margin-bottom: 12px; }
+  .mb-16 { margin-bottom: 16px; }
+
+  .dose-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(14,30,60,0.06);
+  }
+  .dose-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .app-logo { font-size: 20px; font-weight: 700; letter-spacing: -.5px; color: #0f172a; }
+  .app-logo span { color: #0ea5e9; }
+  .day-label { font-size: 12px; color: #94a3b8; font-weight: 500; margin-top: 2px; }
+
+  .log-btn {
+    background: rgba(14,165,233,0.12);
+    border: 1px solid rgba(14,165,233,0.3);
+    color: #0284c7;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="app-header">
+    <div>
+      <div class="app-logo">Peptide<span>OS</span></div>
+      <div class="day-label">Monday · June 2, 2026</div>
+    </div>
+    <div class="glass-chip" style="padding:6px 14px;">
+      <span class="label-xs" style="letter-spacing:.5px;">Day <strong style="color:#0ea5e9;font-size:15px;">8</strong> of cycle</span>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-bar">
+    <div class="nav-item active">Today</div>
+    <div class="nav-item">Week</div>
+    <div class="nav-item">Log</div>
+    <div class="nav-item">Vials</div>
+    <div class="nav-item">Calculator</div>
+  </div>
+
+  <!-- Stat chips -->
+  <div class="grid-3 mb-16">
+    <div class="glass-chip" style="text-align:center;">
+      <div class="label-xs mb-4">Planned</div>
+      <div class="value-lg accent-blue">4</div>
+    </div>
+    <div class="glass-chip" style="text-align:center;">
+      <div class="label-xs mb-4">Done</div>
+      <div class="value-lg accent-green">3</div>
+    </div>
+    <div class="glass-chip" style="text-align:center;">
+      <div class="label-xs mb-4">Pending</div>
+      <div class="value-lg" style="color:#d97706;">1</div>
+    </div>
+  </div>
+
+  <!-- Today's Protocol -->
+  <div class="glass-card">
+    <div class="flex-between mb-12">
+      <div>
+        <div class="label-xs mb-4">Today's Protocol</div>
+        <div class="value-md">Morning Stack</div>
+      </div>
+      <span class="badge badge-done">● 3 of 4 done</span>
+    </div>
+    <div class="progress-track mb-16">
+      <div class="progress-fill" style="width:75%;"></div>
+    </div>
+
+    <div class="dose-row">
+      <div>
+        <div class="value-md mb-4">BPC-157</div>
+        <div class="value-sm">250 mcg · SubQ · 08:00</div>
+      </div>
+      <span class="badge badge-done">✓ Done</span>
+    </div>
+    <div class="dose-row">
+      <div>
+        <div class="value-md mb-4">TB-500</div>
+        <div class="value-sm">500 mcg · SubQ · 08:00</div>
+      </div>
+      <span class="badge badge-done">✓ Done</span>
+    </div>
+    <div class="dose-row">
+      <div>
+        <div class="value-md mb-4">Ipamorelin</div>
+        <div class="value-sm">200 mcg · SubQ · 08:30</div>
+      </div>
+      <span class="badge badge-done">✓ Done</span>
+    </div>
+    <div class="dose-row">
+      <div>
+        <div class="value-md mb-4">CJC-1295</div>
+        <div class="value-sm">100 mcg · SubQ · 20:00</div>
+      </div>
+      <div class="flex-gap">
+        <span class="badge badge-pending">● Pending</span>
+        <button class="log-btn">Log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Draw Calculator -->
+  <div class="glass-card">
+    <div class="label-xs mb-12">Quick Draw Calculator</div>
+    <div class="grid-2">
+      <div>
+        <div class="value-sm mb-4">BPC-157 · 5mg vial / 2mL</div>
+        <div class="label-xs" style="color:#94a3b8;margin-bottom:2px;">Concentration</div>
+        <div class="value-md accent-blue">2,500 mcg/mL</div>
+      </div>
+      <div style="background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.2);border-radius:12px;padding:12px;">
+        <div class="label-xs mb-4" style="color:#0284c7;">250 mcg dose</div>
+        <div style="font-size:26px;font-weight:700;color:#0284c7;letter-spacing:-.5px;">0.100<span style="font-size:13px;font-weight:500;color:#64748b;"> mL</span></div>
+        <div class="value-sm" style="margin-top:4px;">= 10.0 IU on syringe</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vial Health -->
+  <div class="glass-card">
+    <div class="label-xs mb-12">Active Vials</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="flex-between">
+        <div class="flex-gap">
+          <div class="dot" style="background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.5);"></div>
+          <span class="value-sm">BPC-157 · 5mg/2mL</span>
+        </div>
+        <div class="flex-gap">
+          <div class="progress-track" style="width:80px;">
+            <div class="progress-fill" style="width:62%;background:linear-gradient(90deg,#22c55e,#0ea5e9);box-shadow:0 0 6px rgba(34,197,94,0.3);"></div>
+          </div>
+          <span class="value-sm accent-green" style="min-width:28px;text-align:right;">62%</span>
+        </div>
+      </div>
+      <div class="flex-between">
+        <div class="flex-gap">
+          <div class="dot" style="background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.5);"></div>
+          <span class="value-sm">TB-500 · 10mg/2mL</span>
+        </div>
+        <div class="flex-gap">
+          <div class="progress-track" style="width:80px;">
+            <div class="progress-fill" style="width:28%;background:linear-gradient(90deg,#f59e0b,#f97316);box-shadow:0 0 6px rgba(245,158,11,0.3);"></div>
+          </div>
+          <span class="value-sm" style="color:#d97706;min-width:28px;text-align:right;">28%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="text-align:center;font-size:11px;color:rgba(100,116,139,0.6);margin-top:8px;">Light mode mockup — full dark/light toggle will be in the final app.</p>
+
+</body>
+</html>

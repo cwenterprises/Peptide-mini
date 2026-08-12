@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PeptideOS — Auth Screens</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(ellipse at 15% 10%, rgba(56,189,248,0.22) 0%, transparent 45%),
+      radial-gradient(ellipse at 85% 80%, rgba(99,102,241,0.16) 0%, transparent 45%),
+      radial-gradient(ellipse at 55% 5%,  rgba(34,211,238,0.14) 0%, transparent 35%),
+      #e8f4fd;
+    padding: 32px 20px 60px;
+    color: #0f172a;
+    font-size: 13px;
+  }
+
+  h2 { font-size: 15px; font-weight: 700; color: #0f172a; text-align: center; margin-bottom: 4px; }
+  .page-sub { font-size: 12px; color: #64748b; text-align: center; margin-bottom: 24px; }
+
+  .screens { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; align-items: start; }
+
+  /* Glass card */
+  .glass-card {
+    position: relative;
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.9);
+    box-shadow: 0 10px 40px rgba(14,30,60,0.12), 0 2px 8px rgba(14,30,60,0.08), inset 0 1px 0 rgba(255,255,255,1);
+    overflow: hidden;
+    padding: 24px 20px 20px;
+  }
+  .glass-card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.95) 40%,rgba(255,255,255,1) 60%,transparent);
+  }
+
+  /* Screen label chip */
+  .screen-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: #0284c7; background: rgba(14,165,233,0.1); border: 1px solid rgba(14,165,233,0.2);
+    padding: 3px 10px; border-radius: 20px; display: inline-block; margin-bottom: 16px;
+  }
+
+  /* Logo */
+  .auth-logo {
+    text-align: center; margin-bottom: 6px;
+  }
+  .auth-logo-text { font-size: 22px; font-weight: 800; letter-spacing: -1px; color: #0f172a; }
+  .auth-logo-text span { color: #0ea5e9; }
+  .auth-tagline { font-size: 11px; color: #94a3b8; text-align: center; margin-bottom: 20px; }
+
+  /* Form fields */
+  .field { margin-bottom: 12px; }
+  .field-label { font-size: 10px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+  .field-input {
+    width: 100%;
+    background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(14,30,60,0.14);
+    border-radius: 11px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #1e293b;
+    box-shadow: inset 0 1px 3px rgba(14,30,60,0.06), 0 1px 0 rgba(255,255,255,0.9);
+    outline: none;
+  }
+  .field-input:focus {
+    border-color: rgba(14,165,233,0.5);
+    box-shadow: inset 0 1px 3px rgba(14,30,60,0.06), 0 0 0 3px rgba(14,165,233,0.12);
+  }
+  .field-input.filled { border-color: rgba(14,30,60,0.14); color: #0f172a; }
+
+  /* Buttons */
+  .btn-primary {
+    width: 100%; padding: 11px;
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    border: none; border-radius: 11px;
+    color: #fff; font-size: 14px; font-weight: 600;
+    box-shadow: 0 4px 16px rgba(14,165,233,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    cursor: pointer; margin-bottom: 12px;
+  }
+  .btn-ghost {
+    width: 100%; padding: 10px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(14,30,60,0.12);
+    border-radius: 11px;
+    color: #0ea5e9; font-size: 13px; font-weight: 600;
+    cursor: pointer; margin-bottom: 8px;
+  }
+
+  /* Divider */
+  .divider { display:flex;align-items:center;gap:10px;margin:12px 0; }
+  .divider-line { flex:1;height:1px;background:rgba(14,30,60,0.08); }
+  .divider-text { font-size:11px;color:#94a3b8; }
+
+  /* Checkbox row */
+  .check-row {
+    display: flex; gap: 9px; align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .check-box {
+    width: 17px; height: 17px; min-width: 17px;
+    border-radius: 5px; border: 1.5px solid rgba(14,30,60,0.2);
+    background: rgba(255,255,255,0.8);
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px; cursor: pointer;
+    box-shadow: inset 0 1px 2px rgba(14,30,60,0.06);
+  }
+  .check-box.checked {
+    background: linear-gradient(135deg, #0ea5e9, #6366f1);
+    border-color: transparent;
+    box-shadow: 0 2px 6px rgba(14,165,233,0.35);
+  }
+  .check-box.checked::after { content: '✓'; color: #fff; font-size: 10px; font-weight: 700; }
+  .check-text { font-size: 11px; color: #475569; line-height: 1.5; }
+  .check-text a { color: #0ea5e9; text-decoration: underline; }
+
+  /* Switch link */
+  .switch-link { text-align: center; font-size: 12px; color: #64748b; margin-top: 4px; }
+  .switch-link a { color: #0ea5e9; font-weight: 600; text-decoration: none; }
+
+  /* Forgot */
+  .forgot { text-align: right; font-size: 11px; color: #0ea5e9; cursor: pointer; margin-top: -6px; margin-bottom: 14px; }
+
+  /* Disclaimer */
+  .disclaimer { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.5; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(14,30,60,0.07); }
+
+  /* Reset email sent state */
+  .success-icon { width:48px;height:48px;background:linear-gradient(135deg,#0ea5e9,#6366f1);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:22px;box-shadow:0 6px 20px rgba(14,165,233,0.4); }
+</style>
+</head>
+<body>
+
+  <h2>Auth Screens</h2>
+  <p class="page-sub">Login · Sign Up · Forgot Password — all use the same liquid glass card</p>
+
+  <div class="screens">
+
+    <!-- ── SIGN IN ── -->
+    <div class="glass-card">
+      <div class="screen-label">1 · Sign In</div>
+      <div class="auth-logo">
+        <div class="auth-logo-text">Peptide<span>OS</span></div>
+      </div>
+      <div class="auth-tagline">Your personal peptide command center</div>
+
+      <div class="field">
+        <div class="field-label">Email</div>
+        <input class="field-input filled" value="corey@cwenterprises.net" readonly/>
+      </div>
+      <div class="field">
+        <div class="field-label">Password</div>
+        <input class="field-input filled" type="password" value="••••••••••" readonly/>
+      </div>
+
+      <div class="forgot">Forgot password?</div>
+
+      <button class="btn-primary">Sign In</button>
+
+      <div class="divider">
+        <div class="divider-line"></div>
+        <div class="divider-text">or</div>
+        <div class="divider-line"></div>
+      </div>
+
+      <div class="switch-link">Don't have an account? <a href="#">Sign up</a></div>
+
+      <div class="disclaimer">© 2026 CW Enterprises. All rights reserved.</div>
+    </div>
+
+    <!-- ── SIGN UP ── -->
+    <div class="glass-card">
+      <div class="screen-label">2 · Create Account</div>
+      <div class="auth-logo">
+        <div class="auth-logo-text">Peptide<span>OS</span></div>
+      </div>
+      <div class="auth-tagline">Create your free account</div>
+
+      <div class="field">
+        <div class="field-label">Email</div>
+        <input class="field-input" placeholder="you@example.com"/>
+      </div>
+      <div class="field">
+        <div class="field-label">Password</div>
+        <input class="field-input" type="password" placeholder="Min. 8 characters"/>
+      </div>
+      <div class="field">
+        <div class="field-label">Confirm Password</div>
+        <input class="field-input" type="password" placeholder="Repeat password"/>
+      </div>
+
+      <div class="check-row">
+        <div class="check-box checked"></div>
+        <div class="check-text">I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a></div>
+      </div>
+      <div class="check-row">
+        <div class="check-box checked"></div>
+        <div class="check-text">I understand this app is for <strong>personal tracking only</strong> and is not medical advice</div>
+      </div>
+
+      <button class="btn-primary">Create Account</button>
+
+      <div class="switch-link">Already have an account? <a href="#">Sign in</a></div>
+
+      <div class="disclaimer">
+        By signing up you confirm you are 18+ and agree all peptides are used for research purposes only.<br><br>
+        © 2026 CW Enterprises. All rights reserved.
+      </div>
+    </div>
+
+    <!-- ── FORGOT PASSWORD ── -->
+    <div class="glass-card">
+      <div class="screen-label">3 · Reset Password</div>
+      <div class="auth-logo">
+        <div class="auth-logo-text">Peptide<span>OS</span></div>
+      </div>
+      <div class="auth-tagline">We'll send a reset link to your email</div>
+
+      <div class="field">
+        <div class="field-label">Email</div>
+        <input class="field-input filled" value="corey@cwenterprises.net" readonly/>
+      </div>
+
+      <button class="btn-primary" style="margin-bottom:10px;">Send Reset Link</button>
+      <button class="btn-ghost">← Back to Sign In</button>
+
+      <div class="divider"><div class="divider-line"></div><div class="divider-text">After sending</div><div class="divider-line"></div></div>
+
+      <div style="background:rgba(14,165,233,0.07);border:1px solid rgba(14,165,233,0.2);border-radius:14px;padding:16px;text-align:center;">
+        <div class="success-icon">✉️</div>
+        <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:4px;">Check your inbox</div>
+        <div style="font-size:11px;color:#64748b;line-height:1.5;">Reset link sent to<br><strong style="color:#0ea5e9;">corey@cwenterprises.net</strong><br>Link expires in 15 minutes.</div>
+      </div>
+
+      <div class="disclaimer">© 2026 CW Enterprises. All rights reserved.</div>
+    </div>
+
+  </div>
+
+</body>
+</html>

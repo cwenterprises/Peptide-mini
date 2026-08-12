@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PeptideOS — Light vs Dark Mode</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: #1a1a2e;
+    padding: 24px 20px 40px;
+  }
+
+  h2 { color: #f1f5f9; font-size: 16px; font-weight: 600; margin-bottom: 6px; text-align: center; }
+  .subtitle { color: #64748b; font-size: 12px; text-align: center; margin-bottom: 20px; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* ── LIGHT PANE ── */
+  .pane-light {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(56,189,248,0.22) 0%, transparent 45%),
+      radial-gradient(ellipse at 80% 80%, rgba(99,102,241,0.14) 0%, transparent 45%),
+      #e8f4fd;
+    border-radius: 20px;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,0.8);
+  }
+  .pane-label-light {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .mode-tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 20px;
+  }
+  .mode-tag-light { background: rgba(14,165,233,0.1); color: #0284c7; border: 1px solid rgba(14,165,233,0.25); }
+  .mode-tag-dark  { background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); }
+
+  /* Light glass card */
+  .lg-card {
+    position: relative;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow: 0 6px 24px rgba(14,30,60,0.10), 0 2px 6px rgba(14,30,60,0.07), inset 0 1px 0 rgba(255,255,255,0.95);
+    overflow: hidden;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .lg-card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.9) 40%,rgba(255,255,255,1) 60%,transparent);
+  }
+  .lg-chip {
+    background: rgba(255,255,255,0.65);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 10px; padding: 8px 10px;
+    box-shadow: 0 2px 6px rgba(14,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.95);
+  }
+
+  /* Light typography */
+  .l-label { font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#64748b; }
+  .l-val-lg { font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-.5px; }
+  .l-val-md { font-size:13px;font-weight:600;color:#1e293b; }
+  .l-val-sm { font-size:11px;color:#64748b; }
+  .l-blue   { color:#0ea5e9; } .l-green { color:#16a34a; } .l-indigo { color:#6366f1; } .l-amber { color:#d97706; }
+
+  /* ── DARK PANE ── */
+  .pane-dark {
+    background:
+      radial-gradient(ellipse at 20% 10%, rgba(14,165,233,0.14) 0%, transparent 45%),
+      radial-gradient(ellipse at 80% 85%, rgba(99,102,241,0.12) 0%, transparent 45%),
+      radial-gradient(ellipse at 60% 0%, rgba(34,211,238,0.08) 0%, transparent 35%),
+      #0a0f1e;
+    border-radius: 20px;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  /* Dark glass card */
+  .dg-card {
+    position: relative;
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(28px) saturate(150%);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.10);
+    overflow: hidden;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .dg-card::before {
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,0.25) 40%,rgba(255,255,255,0.35) 60%,transparent);
+  }
+  .dg-chip {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px; padding: 8px 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+  }
+
+  /* Dark typography */
+  .d-label { font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:#475569; }
+  .d-val-lg { font-size:20px;font-weight:700;color:#f1f5f9;letter-spacing:-.5px; }
+  .d-val-md { font-size:13px;font-weight:600;color:#e2e8f0; }
+  .d-val-sm { font-size:11px;color:#475569; }
+  .d-blue   { color:#38bdf8; } .d-green { color:#4ade80; } .d-indigo { color:#818cf8; } .d-amber { color:#fbbf24; }
+
+  /* Shared */
+  .flex-between { display:flex;justify-content:space-between;align-items:center; }
+  .flex-gap     { display:flex;gap:6px;align-items:center; }
+  .three-col    { display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px; }
+  .mb-4{margin-bottom:4px;} .mb-8{margin-bottom:8px;} .mb-10{margin-bottom:10px;}
+
+  /* Badges */
+  .l-badge-done    { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:9px;font-weight:600;background:rgba(22,163,74,0.1);border:1px solid rgba(22,163,74,0.25);color:#15803d; }
+  .l-badge-pending { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:9px;font-weight:600;background:rgba(217,119,6,0.1);border:1px solid rgba(217,119,6,0.25);color:#b45309; }
+  .d-badge-done    { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:9px;font-weight:600;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);color:#4ade80; }
+  .d-badge-pending { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:9px;font-weight:600;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.25);color:#fbbf24; }
+
+  /* Progress */
+  .prog-track { height:4px;border-radius:4px;overflow:hidden;margin-bottom:10px; }
+  .l-prog-track { background:rgba(14,30,60,0.08); }
+  .d-prog-track { background:rgba(255,255,255,0.08); }
+  .prog-fill  { height:100%;border-radius:4px;background:linear-gradient(90deg,#0ea5e9,#6366f1);box-shadow:0 0 8px rgba(14,165,233,0.35);width:75%; }
+
+  /* Dose rows */
+  .l-dose-row { padding:8px 0;border-bottom:1px solid rgba(14,30,60,0.05);display:flex;justify-content:space-between;align-items:center; }
+  .l-dose-row:last-child { border-bottom:none;padding-bottom:0; }
+  .d-dose-row { padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;justify-content:space-between;align-items:center; }
+  .d-dose-row:last-child { border-bottom:none;padding-bottom:0; }
+
+  /* Nav */
+  .l-nav { display:flex;gap:3px;background:rgba(255,255,255,0.5);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.9);border-radius:12px;padding:3px;margin-bottom:12px;box-shadow:0 3px 12px rgba(14,30,60,0.08); }
+  .d-nav { display:flex;gap:3px;background:rgba(255,255,255,0.05);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:3px;margin-bottom:12px;box-shadow:0 3px 12px rgba(0,0,0,0.3); }
+  .l-nav-item { flex:1;text-align:center;padding:5px 4px;border-radius:9px;font-size:9px;font-weight:600;color:#64748b; }
+  .d-nav-item { flex:1;text-align:center;padding:5px 4px;border-radius:9px;font-size:9px;font-weight:600;color:#475569; }
+  .l-nav-item.active { background:rgba(255,255,255,0.85);color:#0f172a;box-shadow:0 2px 6px rgba(14,30,60,0.1); }
+  .d-nav-item.active { background:rgba(255,255,255,0.12);color:#f1f5f9;box-shadow:0 2px 6px rgba(0,0,0,0.25); }
+
+  /* Toggle switch */
+  .toggle-row { display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px; }
+  .toggle-label { font-size:12px;font-weight:600;color:#94a3b8; }
+  .toggle { width:44px;height:26px;border-radius:13px;background:linear-gradient(135deg,#0ea5e9,#6366f1);position:relative;cursor:pointer;box-shadow:0 2px 8px rgba(14,165,233,0.4); }
+  .toggle-thumb { width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:3px;right:3px;box-shadow:0 1px 4px rgba(0,0,0,0.2); }
+
+  /* Logo */
+  .l-logo { font-size:15px;font-weight:700;color:#0f172a;letter-spacing:-.3px;margin-bottom:2px; }
+  .l-logo span { color:#0ea5e9; }
+  .d-logo { font-size:15px;font-weight:700;color:#f1f5f9;letter-spacing:-.3px;margin-bottom:2px; }
+  .d-logo span { color:#38bdf8; }
+
+  .l-log-btn { background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.3);color:#0284c7;font-size:10px;font-weight:600;padding:4px 10px;border-radius:7px;cursor:pointer; }
+  .d-log-btn { background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.25);color:#38bdf8;font-size:10px;font-weight:600;padding:4px 10px;border-radius:7px;cursor:pointer; }
+</style>
+</head>
+<body>
+
+  <h2>Light / Dark Mode</h2>
+  <p class="subtitle">Both modes use the same liquid glass system — toggle will be in Settings + follows system preference by default</p>
+
+  <div class="toggle-row">
+    <span class="toggle-label">☀️ Light</span>
+    <div class="toggle"><div class="toggle-thumb"></div></div>
+    <span class="toggle-label">Dark 🌙</span>
+  </div>
+
+  <div class="split">
+
+    <!-- LIGHT -->
+    <div class="pane-light">
+      <div class="pane-label-light">
+        <div class="l-logo">Peptide<span>OS</span></div>
+        <span class="mode-tag mode-tag-light">☀️ Light</span>
+      </div>
+
+      <div class="l-nav">
+        <div class="l-nav-item active">Today</div>
+        <div class="l-nav-item">Week</div>
+        <div class="l-nav-item">Log</div>
+        <div class="l-nav-item">Vials</div>
+        <div class="l-nav-item">Calc</div>
+        <div class="l-nav-item">Library</div>
+      </div>
+
+      <div class="three-col mb-10">
+        <div class="lg-chip" style="text-align:center;">
+          <div class="l-label mb-4">Planned</div>
+          <div class="l-val-lg l-blue">4</div>
+        </div>
+        <div class="lg-chip" style="text-align:center;">
+          <div class="l-label mb-4">Done</div>
+          <div class="l-val-lg l-green">3</div>
+        </div>
+        <div class="lg-chip" style="text-align:center;">
+          <div class="l-label mb-4">Streak</div>
+          <div class="l-val-lg l-indigo">12🔥</div>
+        </div>
+      </div>
+
+      <div class="lg-card">
+        <div class="flex-between mb-8">
+          <div class="l-val-md">Today's Protocol</div>
+          <span class="l-badge-done">● 3 of 4</span>
+        </div>
+        <div class="prog-track l-prog-track"><div class="prog-fill"></div></div>
+        <div class="l-dose-row">
+          <div><div class="l-val-md mb-4">BPC-157</div><div class="l-val-sm">250 mcg · SubQ</div></div>
+          <span class="l-badge-done">✓ Done</span>
+        </div>
+        <div class="l-dose-row">
+          <div><div class="l-val-md mb-4">Ipamorelin</div><div class="l-val-sm">200 mcg · SubQ</div></div>
+          <span class="l-badge-done">✓ Done</span>
+        </div>
+        <div class="l-dose-row">
+          <div><div class="l-val-md mb-4">CJC-1295</div><div class="l-val-sm">100 mcg · SubQ</div></div>
+          <span class="l-badge-done">✓ Done</span>
+        </div>
+        <div class="l-dose-row">
+          <div><div class="l-val-md mb-4">TB-500</div><div class="l-val-sm">500 mcg · 20:00</div></div>
+          <div class="flex-gap">
+            <span class="l-badge-pending">● Pending</span>
+            <button class="l-log-btn">Log</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DARK -->
+    <div class="pane-dark">
+      <div class="pane-label-light">
+        <div class="d-logo">Peptide<span>OS</span></div>
+        <span class="mode-tag mode-tag-dark">🌙 Dark</span>
+      </div>
+
+      <div class="d-nav">
+        <div class="d-nav-item active">Today</div>
+        <div class="d-nav-item">Week</div>
+        <div class="d-nav-item">Log</div>
+        <div class="d-nav-item">Vials</div>
+        <div class="d-nav-item">Calc</div>
+        <div class="d-nav-item">Library</div>
+      </div>
+
+      <div class="three-col mb-10">
+        <div class="dg-chip" style="text-align:center;">
+          <div class="d-label mb-4">Planned</div>
+          <div class="d-val-lg d-blue">4</div>
+        </div>
+        <div class="dg-chip" style="text-align:center;">
+          <div class="d-label mb-4">Done</div>
+          <div class="d-val-lg d-green">3</div>
+        </div>
+        <div class="dg-chip" style="text-align:center;">
+          <div class="d-label mb-4">Streak</div>
+          <div class="d-val-lg d-indigo">12🔥</div>
+        </div>
+      </div>
+
+      <div class="dg-card">
+        <div class="flex-between mb-8">
+          <div class="d-val-md">Today's Protocol</div>
+          <span class="d-badge-done">● 3 of 4</span>
+        </div>
+        <div class="prog-track d-prog-track"><div class="prog-fill"></div></div>
+        <div class="d-dose-row">
+          <div><div class="d-val-md mb-4">BPC-157</div><div class="d-val-sm">250 mcg · SubQ</div></div>
+          <span class="d-badge-done">✓ Done</span>
+        </div>
+        <div class="d-dose-row">
+          <div><div class="d-val-md mb-4">Ipamorelin</div><div class="d-val-sm">200 mcg · SubQ</div></div>
+          <span class="d-badge-done">✓ Done</span>
+        </div>
+        <div class="d-dose-row">
+          <div><div class="d-val-md mb-4">CJC-1295</div><div class="d-val-sm">100 mcg · SubQ</div></div>
+          <span class="d-badge-done">✓ Done</span>
+        </div>
+        <div class="d-dose-row">
+          <div><div class="d-val-md mb-4">TB-500</div><div class="d-val-sm">500 mcg · 20:00</div></div>
+          <div class="flex-gap">
+            <span class="d-badge-pending">● Pending</span>
+            <button class="d-log-btn">Log</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="text-align:center;font-size:11px;color:#475569;margin-top:16px;">Default follows system preference (prefers-color-scheme). Manual toggle saved in Settings.</p>
+
+</body>
+</html>

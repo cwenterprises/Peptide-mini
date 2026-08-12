@@ -1,0 +1,107 @@
+<h2>What's the design direction for PeptideOS?</h2>
+<p class="subtitle">The current app is functional but plain — which visual personality fits your vision?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="biohacker" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0a12;padding:16px;border-radius:8px;font-family:-apple-system,sans-serif;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#00ff88;box-shadow:0 0 8px #00ff88;"></div>
+        <span style="color:#00ff88;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">PeptideOS</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="background:#111120;border:1px solid #00ff8830;border-radius:6px;padding:10px;">
+          <div style="color:#555;font-size:9px;text-transform:uppercase;letter-spacing:1px;">BPC-157</div>
+          <div style="color:#00ff88;font-size:18px;font-weight:700;">250mcg</div>
+          <div style="color:#444;font-size:9px;">SubQ • 08:00</div>
+        </div>
+        <div style="background:#111120;border:1px solid #0088ff30;border-radius:6px;padding:10px;">
+          <div style="color:#555;font-size:9px;text-transform:uppercase;letter-spacing:1px;">TB-500</div>
+          <div style="color:#0088ff;font-size:18px;font-weight:700;">500mcg</div>
+          <div style="color:#444;font-size:9px;">SubQ • 20:00</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#111120;border:1px solid #ff440030;border-radius:6px;padding:8px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:#666;font-size:9px;text-transform:uppercase;letter-spacing:1px;">Vial Remaining</span>
+        <div style="flex:1;margin:0 8px;height:3px;background:#222;border-radius:2px;"><div style="width:62%;height:100%;background:linear-gradient(90deg,#ff4400,#ff8800);border-radius:2px;"></div></div>
+        <span style="color:#ff8800;font-size:10px;font-weight:700;">62%</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Biohacker / Performance</h3>
+      <p>Dark-first, neon accents, data-dense. Looks like mission control for your body. Inspired by Levels, Whoop, and high-end fitness tech.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="clinical" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:16px;border-radius:8px;font-family:-apple-system,sans-serif;border:1px solid #e2e8f0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="color:#1e293b;font-size:12px;font-weight:700;letter-spacing:.5px;">PeptideOS</span>
+        <span style="background:#eff6ff;color:#2563eb;font-size:9px;padding:2px 8px;border-radius:20px;font-weight:600;">Today: 3/4 done</span>
+      </div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">BPC-157</div>
+          <div style="color:#1e293b;font-size:14px;font-weight:600;">250 mcg SubQ</div>
+        </div>
+        <div style="width:20px;height:20px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;">
+          <span style="color:#16a34a;font-size:11px;">✓</span>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">TB-500</div>
+          <div style="color:#1e293b;font-size:14px;font-weight:600;">500 mcg SubQ</div>
+        </div>
+        <div style="width:20px;height:20px;border-radius:50%;background:#fef9c3;display:flex;align-items:center;justify-content:center;">
+          <span style="color:#ca8a04;font-size:11px;">●</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Clinical / Medical Dashboard</h3>
+      <p>Clean whites, blue/teal accents, structured layout. Looks like a serious health tracker — credible and professional. Inspired by Apple Health and Epic MyChart.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="premium-wellness" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#1a1035 0%,#2d1b4e 100%);padding:16px;border-radius:8px;font-family:-apple-system,sans-serif;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,#a855f7,#ec4899);display:flex;align-items:center;justify-content:center;font-size:11px;">⬡</div>
+        <span style="color:#e2d9f3;font-size:12px;font-weight:600;letter-spacing:.5px;">PeptideOS</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(168,85,247,0.3);border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div style="color:#c084fc;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Today's Protocol</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="color:#f3e8ff;font-size:13px;font-weight:600;">BPC-157 + TB-500</div>
+            <div style="color:#9d6fc7;font-size:10px;margin-top:2px;">Healing Stack • 2 of 4 logged</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="color:#f3e8ff;font-size:16px;font-weight:700;">50%</div>
+            <div style="width:50px;height:3px;background:rgba(255,255,255,0.15);border-radius:2px;margin-top:4px;"><div style="width:50%;height:100%;background:linear-gradient(90deg,#a855f7,#ec4899);border-radius:2px;"></div></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#c084fc;font-size:16px;font-weight:700;">12</div>
+          <div style="color:#7c5fa0;font-size:8px;text-transform:uppercase;letter-spacing:.5px;">Day Streak</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#ec4899;font-size:16px;font-weight:700;">Day 8</div>
+          <div style="color:#7c5fa0;font-size:8px;text-transform:uppercase;letter-spacing:.5px;">Cycle</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:8px;padding:8px;text-align:center;">
+          <div style="color:#a855f7;font-size:16px;font-weight:700;">4</div>
+          <div style="color:#7c5fa0;font-size:8px;text-transform:uppercase;letter-spacing:.5px;">Active Vials</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Premium Wellness / Luxury</h3>
+      <p>Deep purples and gradients, refined typography, gamification (streaks, cycle progress). Feels premium — like Oura Ring or Arc browser if it were a peptide tracker.</p>
+    </div>
+  </div>
+
+</div>

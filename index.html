@@ -498,11 +498,11 @@ const App = (() => {
     API.clearToken();
     localStorage.removeItem('peptideos_email');
     _token = null; _email = '';
-    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [], inventory: [] };
+    _data = { peptides: [], planner: [], vials: [], logs: [], settings: {}, vendors: [], prices: [], orders: [], cycles: [], inventory: [], peptideNotes: [], checkins: [] };
   }
 
   async function loadAll() {
-    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
@@ -512,13 +512,15 @@ const App = (() => {
       API.get('/prices'),
       API.get('/orders'),
       API.get('/cycles').catch(() => []),
-      API.get('/inventory').catch(() => [])
+      API.get('/inventory').catch(() => []),
+      API.get('/peptide-notes').catch(() => []),
+      API.get('/checkins').catch(() => [])
     ]);
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
       peptides = await API.get('/peptides');
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins };
     applyTheme(settings.theme || 'system');
     return _data;
   }
@@ -1381,7 +1383,14 @@ async function doReset(token) {
 }
 
 // ── Task 10: Today ─────────────────────────────────────────────────────────────
+// A day breaks the streak only if it was a scheduled day with no dose. Rest
+// days (planner has nothing for that weekday) pass through without counting,
+// so every-other-day protocols aren't punished. No planner at all → every day
+// is treated as scheduled (original behavior).
 function calcStreak(logs) {
+  const { planner } = App.getData();
+  const scheduledWeekdays = new Set((planner || []).map(p => p.day));
+  const hasPlanner = scheduledWeekdays.size > 0;
   let streak = 0;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1389,8 +1398,9 @@ function calcStreak(logs) {
     const d = new Date(today.getTime() - i * 86400000);
     const ds = ymd(d);
     const hasLog = logs.some(l => l.taken_at && takenYmd(l.taken_at) === ds);
-    if (hasLog) streak++;
-    else if (i > 0) break;
+    if (hasLog) { streak++; continue; }
+    if (hasPlanner && !scheduledWeekdays.has(d.getDay())) continue; // rest day
+    if (i > 0) break;
   }
   return streak;
 }
@@ -1493,6 +1503,7 @@ function renderToday() {
         <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;">Logged Today${todayLogs.length ? ` (${todayLogs.length})` : ''}</h3>
         <div class="stack">${loggedRows}</div>
       </div>
+      ${checkinCardHtml()}
       ${appSiteCardHtml(logs)}
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
@@ -1950,12 +1961,20 @@ function appSiteCardHtml(logs) {
   sorted.forEach(l => {
     if (l.site && !(l.site in seen)) seen[l.site] = l.taken_at;
   });
+  // Radius encodes 90-day frequency (overused sites read bigger), opacity recency
+  const cutoff = Date.now() - 90 * 86400000;
+  const freq = {};
+  sorted.forEach(l => {
+    if (l.site && new Date(l.taken_at) >= cutoff) freq[l.site] = (freq[l.site] || 0) + 1;
+  });
+  const maxFreq = Math.max(1, ...Object.values(freq));
   const markerOverlay = view => Object.entries(seen).map(([key, takenAt]) => {
     const s = siteByKey(key);
     if (!s || s.view !== view) return '';
     const age = Math.round((Date.now() - new Date(takenAt)) / 86400000);
     const opacity = age <= 7 ? 1 : age <= 30 ? 0.55 : 0.3;
-    return `<circle cx="${s.x}" cy="${s.y}" r="8" fill="var(--accent-sky)" opacity="${opacity}"><title>${s.label} — ${daysAgoLabel(takenAt)}</title></circle>`;
+    const r = 5 + 5 * ((freq[key] || 1) / maxFreq);
+    return `<circle cx="${s.x}" cy="${s.y}" r="${r.toFixed(1)}" fill="var(--accent-sky)" opacity="${opacity}"><title>${s.label} — ${daysAgoLabel(takenAt)} · ${freq[key] || 0}× in 90d</title></circle>`;
   }).join('');
 
   const recent = sorted.slice(0, 3);
@@ -2411,6 +2430,31 @@ function lowStockItems() {
   return (App.getData().inventory || []).filter(invIsLow);
 }
 
+// Days-of-stock projection per peptide inventory item: 28-day mcg burn from
+// logs vs sealed-vial size parsed from the item's size text ("10 mg" → 10).
+function inventoryProjections() {
+  const { inventory, logs, prices, vendors } = App.getData();
+  const cutoff = Date.now() - 28 * 86400000;
+  const out = [];
+  for (const it of inventory.filter(i => i.category === 'Peptide' && Number(i.qty) > 0)) {
+    const sizeMg = parseFloat((it.size || '').match(/([\d.]+)\s*mg/i)?.[1]);
+    if (!sizeMg) continue;
+    const burnMcg = logs.filter(l => l.peptide.toLowerCase() === it.name.toLowerCase() &&
+      l.dose_mcg && new Date(l.taken_at) >= cutoff).reduce((s, l) => s + parseFloat(l.dose_mcg), 0);
+    if (!burnMcg) continue;
+    const mcgPerDay = burnMcg / 28;
+    const daysLeft = Math.round((Number(it.qty) * sizeMg * 1000) / mcgPerDay);
+    if (daysLeft > 45) continue; // plenty of runway — no nag
+    const runsOut = new Date(Date.now() + daysLeft * 86400000);
+    const best = (prices || []).filter(p => p.peptide.toLowerCase() === it.name.toLowerCase())
+      .sort((a, b) => a.price_per_mg - b.price_per_mg)[0];
+    const vendor = best ? (vendors || []).find(v => v.id === best.vendor_id) : null;
+    out.push({ name: it.name, daysLeft, runsOut: ymd(runsOut),
+      hint: best ? `$${Number(best.price_per_mg).toFixed(2)}/mg${vendor ? ' @ ' + vendor.name : ''}` : null });
+  }
+  return out.sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
 function renderInventory() {
   const { inventory, peptides } = App.getData();
   const lowCount = inventory.filter(invIsLow).length;
@@ -2451,6 +2495,10 @@ function renderInventory() {
           <div class="chip">🧪 Peptide vials: <strong style="margin-left:4px;">${inventory.filter(i => i.category === 'Peptide').reduce((s, i) => s + Number(i.qty), 0)}</strong></div>
           ${lowCount ? `<div class="chip" style="background:rgba(239,68,68,0.12);color:#ef4444;">⚠️ Low: <strong style="margin-left:4px;">${lowCount}</strong></div>` : ''}
         </div>
+        ${inventoryProjections().map(p => `
+          <div style="margin-top:8px;padding:8px 12px;border-radius:10px;background:rgba(245,158,11,0.10);border:1px solid rgba(245,158,11,0.35);font-size:12px;">
+            📉 <strong>${escHtml(p.name)}</strong> runs out ≈ ${p.runsOut} (${p.daysLeft}d at your current pace)${p.hint ? ` · cheapest ${escHtml(p.hint)}` : ''} <a href="#" onclick="Tabs.switchTo('orders');return false;" style="color:var(--accent-sky);">order →</a>
+          </div>`).join('')}
       </div>
       <div class="glass" style="padding:20px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -2610,6 +2658,189 @@ async function maybeDeductInventory(peptideName) {
   } catch (e) {
     alert('Failed to deduct from inventory: ' + (e.message || 'Unknown error'));
   }
+}
+
+// ── Daily check-in (effects journal) ──────────────────────────────────────────
+function checkinCardHtml() {
+  const todayStr = ymd(new Date());
+  const c = (App.getData().checkins || []).find(x => x.date === todayStr) || {};
+  const scale = (id, val) => [1,2,3,4,5].map(n =>
+    `<button type="button" class="btn btn-sm ${val === n ? 'btn-primary' : 'btn-ghost'}" style="padding:4px 10px;" onclick="document.getElementById('${id}').value=${n};this.parentElement.querySelectorAll('button').forEach((b,i)=>b.className='btn btn-sm '+(i+1===${n}?'btn-primary':'btn-ghost'))">${n}</button>`).join('');
+  return `
+    <div class="glass" style="padding:20px;">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;">📔 Daily Check-in</h3>
+      <div class="row3">
+        <label>Weight (lb/kg)
+          <input type="number" id="ciWeight" step="any" min="0" placeholder="—" value="${c.weight ?? ''}" />
+        </label>
+        <label>Energy
+          <input type="hidden" id="ciEnergy" value="${c.energy ?? ''}" />
+          <div style="display:flex;gap:4px;">${scale('ciEnergy', c.energy)}</div>
+        </label>
+        <label>Sleep
+          <input type="hidden" id="ciSleep" value="${c.sleep ?? ''}" />
+          <div style="display:flex;gap:4px;">${scale('ciSleep', c.sleep)}</div>
+        </label>
+      </div>
+      <label>Notes (optional)
+        <input type="text" id="ciNotes" placeholder="How are things going?" value="${escHtml(c.notes || '')}" />
+      </label>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="saveCheckin()">${c.updated_at || c.weight != null || c.energy ? 'Update Check-in' : 'Save Check-in'}</button>
+    </div>`;
+}
+
+async function saveCheckin() {
+  const todayStr = ymd(new Date());
+  const body = {
+    date: todayStr,
+    weight: document.getElementById('ciWeight').value || null,
+    energy: document.getElementById('ciEnergy').value || null,
+    sleep: document.getElementById('ciSleep').value || null,
+    notes: document.getElementById('ciNotes').value.trim() || null
+  };
+  try {
+    await API.put('/checkins', body);
+    const list = App.getData().checkins || [];
+    const i = list.findIndex(x => x.date === todayStr);
+    const rec = { date: todayStr, weight: body.weight ? Number(body.weight) : null,
+      energy: body.energy ? Number(body.energy) : null, sleep: body.sleep ? Number(body.sleep) : null, notes: body.notes };
+    i >= 0 ? list[i] = rec : list.unshift(rec);
+    renderToday();
+    renderDashboard();
+  } catch (e) {
+    alert('Failed to save check-in: ' + (e.message || 'Unknown error'));
+  }
+}
+
+// Weight trend over the last 60 days, dose days ticked along the baseline
+function weightCardHtml(logs) {
+  const checkins = (App.getData().checkins || []).filter(c => c.weight != null)
+    .sort((a, b) => a.date.localeCompare(b.date)).slice(-60);
+  if (checkins.length < 2) {
+    return `
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;">⚖️ Weight Trend</h3>
+        <p class="muted" style="padding:4px 0;">Log weight in the Daily Check-in (Today tab) for two or more days to see your trend.</p>
+      </div>`;
+  }
+  const W = 300, H = 80, PAD = 4;
+  const ws = checkins.map(c => c.weight);
+  const lo = Math.min(...ws), hi = Math.max(...ws);
+  const span = (hi - lo) || 1;
+  const x = i => PAD + (i / (checkins.length - 1)) * (W - 2 * PAD);
+  const y = w => PAD + (1 - (w - lo) / span) * (H - 2 * PAD);
+  const pts = checkins.map((c, i) => `${x(i).toFixed(1)},${y(c.weight).toFixed(1)}`).join(' ');
+  const doseDays = new Set(logs.map(l => l.taken_at && takenYmd(l.taken_at)).filter(Boolean));
+  const ticks = checkins.map((c, i) => doseDays.has(c.date)
+    ? `<line x1="${x(i).toFixed(1)}" y1="${H - 3}" x2="${x(i).toFixed(1)}" y2="${H}" stroke="var(--accent-indigo)" stroke-width="2"/>` : '').join('');
+  const delta = ws[ws.length - 1] - ws[0];
+  return `
+    <div class="glass" style="padding:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+        <h3 style="font-size:15px;font-weight:700;">⚖️ Weight Trend</h3>
+        <span style="font-weight:700;font-size:13px;color:${delta <= 0 ? 'var(--accent-green)' : 'var(--accent-amber)'};">${delta > 0 ? '+' : ''}${delta.toFixed(1)} over ${checkins.length}d</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+        <polyline points="${pts}" fill="none" stroke="var(--accent-sky)" stroke-width="2" stroke-linejoin="round"/>
+        ${ticks}
+      </svg>
+      <div style="display:flex;justify-content:space-between;">
+        <span class="muted" style="font-size:11px;">${checkins[0].date} · ${ws[0]}</span>
+        <span class="muted" style="font-size:11px;">${checkins[checkins.length - 1].date} · ${ws[ws.length - 1]}</span>
+      </div>
+    </div>`;
+}
+
+// ── AI weekly summary ─────────────────────────────────────────────────────────
+let _aiSummary = null, _aiBusy = false;
+
+function aiSummaryCardHtml() {
+  return `
+    <div class="glass" style="padding:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h3 style="font-size:15px;font-weight:700;">✨ Weekly Summary</h3>
+        <button class="btn btn-primary btn-sm" id="aiSumBtn" ${_aiBusy ? 'disabled' : ''} onclick="generateAiSummary()">${_aiBusy ? 'Thinking…' : (_aiSummary ? 'Regenerate' : 'Generate')}</button>
+      </div>
+      ${_aiSummary
+        ? `<p style="font-size:13px;line-height:1.6;white-space:pre-wrap;">${escHtml(_aiSummary)}</p>`
+        : `<p class="muted" style="font-size:12px;">An AI look at your last two weeks — consistency, rotation, cycles, check-in trends, stock. Generated on demand; nothing is sent anywhere except your own data to produce it.</p>`}
+    </div>`;
+}
+
+async function generateAiSummary() {
+  if (_aiBusy) return;
+  _aiBusy = true;
+  renderDashboard();
+  try {
+    const r = await API.post('/ai/summary', {});
+    _aiSummary = r.summary;
+  } catch (e) {
+    alert('Summary failed: ' + (e.message || 'AI not configured'));
+  }
+  _aiBusy = false;
+  renderDashboard();
+}
+
+// ── Live levels ────────────────────────────────────────────────────────────────
+// Estimated circulating amount per peptide: sum of dose_mcg * 0.5^(hoursSince/halfLife)
+// over recent doses. First-order elimination only (no absorption modeling) — an
+// estimate for tracking, not pharmacokinetics.
+function estimateLevels(logs) {
+  const now = Date.now();
+  const out = [];
+  const byPep = {};
+  logs.forEach(l => {
+    if (!l.taken_at || !l.dose_mcg) return;
+    (byPep[l.peptide] = byPep[l.peptide] || []).push(l);
+  });
+  for (const [pep, doses] of Object.entries(byPep)) {
+    const hl = PEPTIDE_HALFLIFE[pep]?.halfLife;
+    if (!hl) continue;
+    const windowMs = hl * 6 * 3600000; // ≥6 half-lives back is <2% residual
+    let mcg = 0, latest = 0;
+    for (const d of doses) {
+      const t = new Date(d.taken_at).getTime();
+      if (now - t > windowMs || t > now) continue;
+      mcg += parseFloat(d.dose_mcg) * Math.pow(0.5, (now - t) / 3600000 / hl);
+      latest = Math.max(latest, t);
+    }
+    if (mcg < 1) continue;
+    // hours until the level decays to 10% of its current value
+    const hrsTo10 = hl * Math.log2(10);
+    out.push({ peptide: pep, mcg, halfLife: hl, hrsTo10, lastDose: latest });
+  }
+  return out.sort((a, b) => b.mcg - a.mcg);
+}
+
+function fmtLevelAmt(mcg) {
+  return mcg >= 1000 ? `${(mcg / 1000).toFixed(2).replace(/0$/, '')} mg` : `${Math.round(mcg)} mcg`;
+}
+
+function fmtHrs(h) {
+  return h >= 48 ? `${Math.round(h / 24)}d` : `${Math.round(h)}h`;
+}
+
+function levelsCardHtml(logs) {
+  const levels = estimateLevels(logs);
+  const rows = levels.length ? levels.map(l => {
+    const sincePeak = (Date.now() - l.lastDose) / 3600000;
+    const pctOfHl = Math.min(100, Math.round((sincePeak / (l.halfLife * Math.log2(10))) * 100));
+    return `
+      <div style="padding:8px 0;border-bottom:1px solid var(--glass-border);">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+          <span style="font-weight:700;font-size:13px;">${escHtml(l.peptide)}${peptideInfoBtn(l.peptide)}</span>
+          <span style="font-weight:800;font-size:16px;color:var(--accent-sky);">${fmtLevelAmt(l.mcg)}</span>
+        </div>
+        <div class="progress-track" style="margin-top:4px;"><div class="progress-fill" style="width:${100 - pctOfHl}%;"></div></div>
+        <div class="muted" style="font-size:11px;margin-top:3px;">t½ ${l.halfLife >= 24 ? (l.halfLife / 24) + 'd' : l.halfLife + 'h'} · near zero in ~${fmtHrs(l.hrsTo10 - sincePeak > 0 ? l.hrsTo10 - sincePeak : 1)}</div>
+      </div>`;
+  }).join('') : '<p class="muted" style="padding:8px 0;">No active levels — log a dose of a peptide with known half-life.</p>';
+  return `
+    <div class="glass" style="padding:18px;">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;">〰 Active Levels</h3>
+      <p class="muted" style="font-size:11px;margin-bottom:8px;">Estimated from your logged doses and published half-lives. Tracking estimate — not medical data.</p>
+      ${rows}
+    </div>`;
 }
 
 // ── Cycle suggestions ──────────────────────────────────────────────────────────
@@ -2866,6 +3097,9 @@ function renderDashboard() {
         ${cycleHTML}
         ${cycleSuggestionsHtml(logs, cycles || [])}
       </div>`,
+    levels: levelsCardHtml(logs),
+    weight: weightCardHtml(logs),
+    aisummary: aiSummaryCardHtml(),
     appsite: appSiteCardHtml(logs),
     calendar: `
       <div class="glass" style="padding:18px;">
@@ -2917,7 +3151,7 @@ function renderDashboard() {
   setTimeout(drawDashboardCharts, 0);
 }
 
-const DASH_CARD_KEYS = ['stats', 'cycles', 'appsite', 'calendar', 'compliance', 'toppeps'];
+const DASH_CARD_KEYS = ['stats', 'levels', 'cycles', 'weight', 'aisummary', 'appsite', 'calendar', 'compliance', 'toppeps'];
 let _dashEditMode = false;
 
 // Saved order, with unknown keys dropped and new cards appended at the end
@@ -4412,6 +4646,54 @@ function suggestedRecipeHtml(p) {
     </div>`;
 }
 
+function peptideNote(name) {
+  return (App.getData().peptideNotes || []).find(n => n.peptide === name)?.notes || '';
+}
+
+let _noteEditing = null; // peptide name whose note editor is open in the ⓘ sheet
+
+function myNotesSectionHtml(name, editing) {
+  const note = peptideNote(name);
+  if (editing) {
+    return `
+      <div id="pepNoteSection">
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">My Notes</p>
+        <textarea id="pepNoteText" placeholder="Your personal notes…" style="min-height:70px;">${escHtml(note)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;">
+          <button class="btn btn-primary btn-sm" data-pep="${escHtml(name)}" onclick="savePeptideNote(this.dataset.pep)">Save</button>
+          <button class="btn btn-ghost btn-sm" data-pep="${escHtml(name)}" onclick="_noteEditing=null;refreshNoteSection(this.dataset.pep)">Cancel</button>
+        </div>
+      </div>`;
+  }
+  return `
+    <div id="pepNoteSection">
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">My Notes
+        <button class="pep-info" style="font-size:12px;" data-pep="${escHtml(name)}" onclick="_noteEditing=this.dataset.pep;refreshNoteSection(this.dataset.pep)">${note ? '✎' : '+ Add note'}</button>
+      </p>
+      ${note ? `<p style="font-size:13px;line-height:1.55;white-space:pre-wrap;">${escHtml(note)}</p>` : ''}
+    </div>`;
+}
+
+function refreshNoteSection(name) {
+  const el = document.getElementById('pepNoteSection');
+  if (el) el.outerHTML = myNotesSectionHtml(name, _noteEditing === name);
+}
+
+async function savePeptideNote(name) {
+  const text = document.getElementById('pepNoteText')?.value ?? '';
+  try {
+    await API.put('/peptide-notes', { peptide: name, notes: text });
+    const list = App.getData().peptideNotes || [];
+    const i = list.findIndex(n => n.peptide === name);
+    if (text.trim()) { i >= 0 ? list[i].notes = text.trim() : list.push({ peptide: name, notes: text.trim() }); }
+    else if (i >= 0) list.splice(i, 1);
+    _noteEditing = null;
+    refreshNoteSection(name);
+  } catch (e) {
+    alert('Failed to save note: ' + (e.message || 'Unknown error'));
+  }
+}
+
 function showPeptideInfo(name) {
   const p = findLibraryEntry(name);
   if (!p) return;
@@ -4448,6 +4730,7 @@ function showPeptideInfo(name) {
           <p style="font-size:13px;line-height:1.55;">${escHtml(p.protocols)}</p>
         </div>
         ${suggestedRecipeHtml(p)}
+        ${myNotesSectionHtml(p.name, false)}
         <button class="btn btn-primary" style="width:100%;" data-pep="${escHtml(p.name)}"
           onclick="document.getElementById('pepInfoOverlay').remove();showLibraryDetail(this.dataset.pep)">Full details</button>
         <p class="disclaimer" style="padding:0;">Research information only. Not medical advice.</p>
@@ -4525,6 +4808,7 @@ function showLibraryDetail(name) {
           <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:8px;">Stack Notes</p>
           <p style="font-size:13px;">${escHtml(p.stack)}</p>
         </div>
+        <div class="glass" style="padding:14px;">${myNotesSectionHtml(p.name, false)}</div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" style="flex:1;" onclick="useInCalc('${escHtml(p.name)}')">Use in Calculator</button>
           <button class="btn btn-ghost" onclick="document.getElementById('libOverlay').remove()">Close</button>
@@ -4680,6 +4964,18 @@ function renderSettings() {
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Download CSV</button>
       </div>
 
+      <!-- Backup & Restore -->
+      <div class="glass" style="padding:18px;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">Backup &amp; Restore</h3>
+        <p class="muted" style="font-size:12px;margin-bottom:10px;">Everything in your account — doses, vials, cycles, inventory, vendors, notes, check-ins — as one JSON file.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="exportBackup()">Download Backup</button>
+          <label class="btn btn-ghost btn-sm" style="cursor:pointer;">Restore from File
+            <input type="file" accept="application/json" style="display:none;" onchange="importBackup(this)">
+          </label>
+        </div>
+      </div>
+
       <!-- Danger Zone -->
       <div class="glass" style="padding:20px;border-color:rgba(239,68,68,0.4);">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:8px;color:#ef4444;">Danger Zone</h3>
@@ -4699,6 +4995,36 @@ function renderSettings() {
     </div>`;
 
   updatePushButtonState();
+}
+
+async function exportBackup() {
+  try {
+    const data = await API.get('/export');
+    const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `peptideos-backup-${ymd(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    alert('Export failed: ' + (e.message || 'Unknown error'));
+  }
+}
+
+async function importBackup(input) {
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!confirm(`Restore from "${file.name}"? Existing records with matching ids are overwritten; nothing is deleted.`)) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const r = await API.post('/import', data);
+    await App.loadAll();
+    renderAllTabs();
+    alert(`Restored ${r.restored} records.`);
+  } catch (e) {
+    alert('Restore failed: ' + (e.message || 'invalid file'));
+  }
 }
 
 async function setTheme(t) {

@@ -185,6 +185,17 @@ async function handleAPI(request, env, url) {
   if (path.match(/^\/orders\/[^/]+$/) && method === 'PUT')    return ordersUpdate(request, env, origin, path);
   if (path.match(/^\/orders\/[^/]+$/) && method === 'DELETE') return ordersDelete(request, env, origin, path);
 
+  if (path === '/peptide-notes' && method === 'GET') return peptideNotesList(request, env, origin);
+  if (path === '/peptide-notes' && method === 'PUT') return peptideNotesPut(request, env, origin);
+
+  if (path === '/checkins' && method === 'GET') return checkinsList(request, env, origin);
+  if (path === '/checkins' && method === 'PUT') return checkinsPut(request, env, origin);
+
+  if (path === '/export' && method === 'GET')  return exportAll(request, env, origin);
+  if (path === '/import' && method === 'POST') return importAll(request, env, origin);
+
+  if (path === '/ai/summary' && method === 'POST') return aiSummary(request, env, origin);
+
   if (path === '/inventory' && method === 'GET')  return inventoryList(request, env, origin);
   if (path === '/inventory' && method === 'POST') return inventoryAdd(request, env, origin);
   if (path.match(/^\/inventory\/[^/]+$/) && method === 'PUT')    return inventoryUpdate(request, env, origin, path);
@@ -914,6 +925,134 @@ async function inventoryDelete(request, env, origin, path) {
   const id = path.split('/').pop();
   await env.DB.prepare('DELETE FROM inventory WHERE id = ? AND user_id = ?').bind(id, userId).run();
   return json({ ok: true }, 200, origin);
+}
+
+// ── Peptide notes ─────────────────────────────────────────────────────────────
+
+async function peptideNotesList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT peptide, notes, updated_at FROM peptide_notes WHERE user_id = ?'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function peptideNotesPut(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!b.peptide?.trim()) return err('peptide required', 400, origin);
+  const notes = (b.notes || '').trim();
+  if (!notes) {
+    await env.DB.prepare('DELETE FROM peptide_notes WHERE user_id = ? AND peptide = ?')
+      .bind(userId, b.peptide.trim()).run();
+    return json({ ok: true, deleted: true }, 200, origin);
+  }
+  await env.DB.prepare(
+    `INSERT INTO peptide_notes (user_id, peptide, notes, updated_at) VALUES (?,?,?,?)
+     ON CONFLICT(user_id, peptide) DO UPDATE SET notes = excluded.notes, updated_at = excluded.updated_at`
+  ).bind(userId, b.peptide.trim(), notes, new Date().toISOString()).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Daily check-ins ───────────────────────────────────────────────────────────
+
+async function checkinsList(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const { results } = await env.DB.prepare(
+    'SELECT date, weight, energy, sleep, notes FROM checkins WHERE user_id = ? ORDER BY date DESC LIMIT 400'
+  ).bind(userId).all();
+  return json(results, 200, origin);
+}
+
+async function checkinsPut(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.date || '')) return err('date (YYYY-MM-DD) required', 400, origin);
+  const clamp = (v, lo, hi) => v == null || v === '' ? null : Math.max(lo, Math.min(hi, Number(v)));
+  await env.DB.prepare(
+    `INSERT INTO checkins (user_id, date, weight, energy, sleep, notes, updated_at) VALUES (?,?,?,?,?,?,?)
+     ON CONFLICT(user_id, date) DO UPDATE SET weight = excluded.weight, energy = excluded.energy,
+       sleep = excluded.sleep, notes = excluded.notes, updated_at = excluded.updated_at`
+  ).bind(userId, b.date, b.weight != null && b.weight !== '' ? Number(b.weight) : null,
+    clamp(b.energy, 1, 5), clamp(b.sleep, 1, 5), b.notes || null, new Date().toISOString()).run();
+  return json({ ok: true }, 200, origin);
+}
+
+// ── Full-account export / import ──────────────────────────────────────────────
+
+const EXPORT_TABLES = ['peptides','planner','vials','logs','cycles','vendors','prices','orders','inventory','peptide_notes','checkins','user_settings'];
+
+async function exportAll(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const out = { exported_at: new Date().toISOString(), version: 1 };
+  for (const t of EXPORT_TABLES) {
+    const { results } = await env.DB.prepare(`SELECT * FROM ${t} WHERE user_id = ?`).bind(userId).all();
+    out[t] = results.map(r => { const { user_id, ...rest } = r; return rest; });
+  }
+  return json(out, 200, origin);
+}
+
+async function importAll(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => null);
+  if (!b || b.version !== 1) return err('invalid backup file (expected version 1)', 400, origin);
+  let restored = 0;
+  for (const t of EXPORT_TABLES) {
+    const rows = Array.isArray(b[t]) ? b[t] : [];
+    for (const row of rows) {
+      const cols = Object.keys(row).filter(k => k !== 'user_id');
+      if (!cols.length) continue;
+      // INSERT OR REPLACE keyed on original ids/PKs — importing your own backup
+      // twice is idempotent; ids never cross users because user_id is ours.
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO ${t} (user_id, ${cols.join(',')}) VALUES (?${',?'.repeat(cols.length)})`
+      ).bind(userId, ...cols.map(c => row[c] ?? null)).run();
+      restored++;
+    }
+  }
+  return json({ ok: true, restored }, 200, origin);
+}
+
+// ── AI weekly summary ─────────────────────────────────────────────────────────
+
+async function aiSummary(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  if (!env.ANTHROPIC_API_KEY) return err('AI not configured', 503, origin);
+
+  const since = new Date(Date.now() - 14 * 86400000).toISOString();
+  const [logs, checkins, cycles, inv] = await Promise.all([
+    env.DB.prepare('SELECT peptide, route, dose_value, dose_unit, taken_at, site FROM logs WHERE user_id = ? AND taken_at >= ? ORDER BY taken_at').bind(userId, since).all(),
+    env.DB.prepare('SELECT date, weight, energy, sleep, notes FROM checkins WHERE user_id = ? AND date >= ? ORDER BY date').bind(userId, since.slice(0, 10)).all(),
+    env.DB.prepare('SELECT peptide, start_date, end_date FROM cycles WHERE user_id = ?').bind(userId).all(),
+    env.DB.prepare('SELECT name, qty, reorder_at FROM inventory WHERE user_id = ? AND category = ?').bind(userId, 'Peptide').all()
+  ]);
+
+  const prompt = `You are a concise research-tracking assistant inside PeptideOS. Using ONLY the data below, write a short weekly summary for the user (4-6 sentences, plain text, no headers). Cover: dosing consistency, site rotation quality, cycle status, any check-in trends (weight/energy/sleep), and low stock. Be specific with numbers. End with one actionable suggestion. Never give medical advice — frame as research tracking observations.
+
+DOSES (last 14d): ${JSON.stringify(logs.results).slice(0, 4000)}
+CHECKINS: ${JSON.stringify(checkins.results).slice(0, 2000)}
+CYCLES: ${JSON.stringify(cycles.results).slice(0, 1000)}
+PEPTIDE STOCK: ${JSON.stringify(inv.results).slice(0, 1000)}
+TODAY: ${new Date().toISOString().slice(0, 10)}`;
+
+  const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!claudeRes.ok) return err('AI summary failed', 422, origin);
+  const data = await claudeRes.json().catch(() => null);
+  const text = data?.content?.[0]?.text?.trim();
+  if (!text) return err('AI summary failed', 422, origin);
+  return json({ summary: text, generated_at: new Date().toISOString() }, 200, origin);
 }
 
 // ── Cron ──────────────────────────────────────────────────────────────────────
