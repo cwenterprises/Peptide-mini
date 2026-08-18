@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v27';
-const APP_VERSION = 'v20260802-units';
+const CACHE_NAME = 'peptideos-v29';
+const APP_VERSION = 'v20260817-library';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
