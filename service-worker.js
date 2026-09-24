@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v29';
-const APP_VERSION = 'v20260817-library';
+const CACHE_NAME = 'peptideos-v30';
+const APP_VERSION = 'v20260924-labellink';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
@@ -63,8 +63,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
   // Redirect bare root requests to versioned URL so CDN cache can't serve stale HTML
+  // Keep the rest of the query (e.g. ?log= from a vial-label QR) — only add _v
   if (url.pathname === '/' && !url.searchParams.has('_v') && e.request.mode === 'navigate') {
-    e.respondWith(Response.redirect(FRESH_URL, 302));
+    url.searchParams.set('_v', APP_VERSION);
+    e.respondWith(Response.redirect(url.href, 302));
     return;
   }
 

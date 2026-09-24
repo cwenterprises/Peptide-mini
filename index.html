@@ -414,9 +414,15 @@
     <button id="themeFab" class="theme-fab" title="Theme" onclick="cycleTheme()">&#x1F317;</button>
   </div>
   <script>
+// Vial-label QR deep link (?log=<slug>) — stash it before the version redirect or the
+// login screen can lose it; applyPendingLogLink() consumes it once the app is showing.
+(function(){
+  const slug = new URLSearchParams(location.search).get('log');
+  if (slug) sessionStorage.setItem('pending_log', slug);
+})();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260801-vialreset';
+  const APP_VERSION = 'v20260924-labellink';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -598,6 +604,51 @@ function showApp() {
   document.getElementById('mainApp').style.display = 'block';
   renderAllTabs();
   Tabs.updateNavFades();
+  applyPendingLogLink();
+}
+
+// Scanning a vial label lands here: open Log Dose with that peptide picked and the
+// route/dose/vial from its most recent log. Never auto-saves — the user still taps Save.
+function applyPendingLogLink() {
+  const slug = sessionStorage.getItem('pending_log');
+  if (!slug) return;
+  sessionStorage.removeItem('pending_log');
+  const u = new URL(location.href);
+  u.searchParams.delete('log');
+  history.replaceState(null, '', u);
+
+  const { peptides, vials, logs } = App.getData();
+  // Label slugs drop case and punctuation ("pt141" ↔ "PT-141", "5amino1mq" ↔ "5-amino-1mq")
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const key = norm(slug);
+  const names = [...new Set([...peptides.map(p => p.name), ...vials.map(v => v.peptide)])];
+  const name = names.find(n => norm(n) === key)
+            || names.find(n => norm(n).startsWith(key))
+            || names.find(n => norm(n).includes(key));
+
+  _editingLogId = null;
+  Tabs.switchTo('logdose');
+  renderLogDose();
+  if (!name) return;
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
+  const now = new Date();
+  set('ldTakenAt', `${ymd(now)}T${pad2(now.getHours())}:${pad2(now.getMinutes())}`);
+  set('ldPeptide', name);
+  const last = logs.filter(l => l.peptide === name)
+                   .sort((a, b) => new Date(b.taken_at) - new Date(a.taken_at))[0];
+  if (last) {
+    set('ldRoute', last.route);
+    refreshUnitOptions();
+    set('ldDose', last.dose_value);
+    set('ldUnit', last.dose_unit);
+  }
+  refreshVialOptions();
+  // Same vial as last time if it still exists, else the newest vial of this peptide
+  const pepVials = vials.filter(v => v.peptide === name);
+  const vial = pepVials.find(v => last && String(v.id) === String(last.vial_id)) || pepVials[pepVials.length - 1];
+  if (vial) set('ldVial', String(vial.id));
+  updateDrawMath();
 }
 
 function showAuth(mode) {
