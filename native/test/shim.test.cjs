@@ -1,7 +1,7 @@
 // Unit tests for the pure URL-rewrite helpers in src/peptide-native.js.
 // Run: node test/shim.test.cjs
 const assert = require('assert');
-const { rewriteApiUrl, rewriteWsUrl, LIVE_ORIGIN } = require('../src/peptide-native.js');
+const { rewriteApiUrl, rewriteWsUrl, logSlugFromUrl, LIVE_ORIGIN } = require('../src/peptide-native.js');
 
 let pass = 0, fail = 0;
 function t(name, fn) {
@@ -10,6 +10,15 @@ function t(name, fn) {
 }
 
 const ORIGIN = 'https://peptideos.cwenterprises.net';
+
+t('logSlugFromUrl reads the vial-label slug', () => {
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/?log=pt141'), 'pt141');
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/?_v=x&log=5amino1mq#top'), '5amino1mq');
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/?catalog=1'), null);
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/'), null);
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/?log='), null);
+  assert.strictEqual(logSlugFromUrl(undefined), null);
+});
 
 t('relative /api path is repointed at live origin', () => {
   assert.strictEqual(rewriteApiUrl('/api/vendors'), ORIGIN + '/api/vendors');

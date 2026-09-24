@@ -1,6 +1,19 @@
+const AASA = {
+  applinks: {
+    details: [{
+      appIDs: ['P6M79CDJDY.net.cwenterprises.peptideos'],
+      components: [{ '/': '/', '?': { log: '?*' }, comment: 'vial-label QR deep link' }],
+    }],
+  },
+};
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // iOS Universal Links: vial-label QR scans (/?log=<peptide>) open the native app when installed
+    if (url.pathname === '/.well-known/apple-app-site-association') {
+      return new Response(JSON.stringify(AASA), { headers: { 'content-type': 'application/json' } });
+    }
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);
     }

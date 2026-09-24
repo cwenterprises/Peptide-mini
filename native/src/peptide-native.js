@@ -74,8 +74,16 @@
     return input;
   }
 
+  // Pure: the peptide slug from a vial-label deep link (https://…/?log=pt141), or null.
+  function logSlugFromUrl(input) {
+    if (typeof input !== 'string') return null;
+    var m = /[?&]log=([^&#]*)/.exec(input);
+    if (!m) return null;
+    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')) || null; } catch (e) { return null; }
+  }
+
   // Expose helpers for tests / debugging.
-  var api = { rewriteApiUrl: rewriteApiUrl, rewriteWsUrl: rewriteWsUrl, LIVE_ORIGIN: LIVE_ORIGIN };
+  var api = { rewriteApiUrl: rewriteApiUrl, rewriteWsUrl: rewriteWsUrl, logSlugFromUrl: logSlugFromUrl, LIVE_ORIGIN: LIVE_ORIGIN };
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;
   }
@@ -110,6 +118,26 @@
       PatchedWS.CLOSING = OrigWS.CLOSING; PatchedWS.CLOSED = OrigWS.CLOSED;
       window.WebSocket = PatchedWS;
     }
+
+    // Universal Link from a vial-label QR (app already running, or cold launch).
+    // Stash the slug where the web app's own ?log= handling looks for it; if the app
+    // is already showing, apply now, otherwise showApp() applies it after login/boot.
+    function handleDeepLink(url) {
+      var slug = logSlugFromUrl(url);
+      if (!slug) return;
+      try { sessionStorage.setItem('pending_log', slug); } catch (e) { return; }
+      var main = document.getElementById('mainApp');
+      if (main && main.style.display === 'block' && typeof window.applyPendingLogLink === 'function') {
+        window.applyPendingLogLink();
+      }
+    }
+    try {
+      var CapApp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+      if (CapApp) {
+        CapApp.addListener('appUrlOpen', function (ev) { handleDeepLink(ev && ev.url); });
+        CapApp.getLaunchUrl().then(function (r) { if (r && r.url) handleDeepLink(r.url); }).catch(function () {});
+      }
+    } catch (e) { /* never break the app over deep links */ }
 
     // Open /privacy and /terms at the live origin (they are server-rendered
     // pages, not part of the local bundle). Capture clicks on those links.
