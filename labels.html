@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PeptideOS Vial Labels</title>
+<!-- Vial-label printer for Avery 6523 (2/3" x 1-3/4", 4 x 15 = 60/sheet). Reads the signed-in
+     user's peptides + vials from the same /api the app uses (token in localStorage), prefills
+     each strength from the newest vial, and lets the user adjust strength/unit/qty before
+     printing. Each QR opens https://peptideos.cwenterprises.net/?log=<slug> -> Log Dose. -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  @page { size: letter; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --ink:#0b0b16; --muted:#4b4b63; --indigo:#6366f1; --line:#d7d7e3; --bg:#eceef5; --panel:#fff; }
+  body { background: var(--bg); font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; color: var(--ink);
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .panel { background: var(--panel); border-bottom: 1px solid var(--line); padding: 16px; position: sticky; top: 0; z-index: 5;
+           box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+  .panel-inner { max-width: 1100px; margin: 0 auto; display: grid; gap: 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .bar h1 { font-size: 17px; font-weight: 800; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .bar h1 .logo { width: 26px; height: 26px; }
+  .bar h1 b { color: var(--indigo); }
+  a.back { font-size: 13px; color: var(--indigo); text-decoration: none; font-weight: 600; }
+  .summary { font-size: 13px; color: var(--muted); }
+  .ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  input, select, button { font: inherit; font-size: 13px; color: var(--ink); }
+  input[type=number] { width: 70px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; }
+  select { padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; cursor: pointer; }
+  button.primary { background: var(--indigo); border-color: var(--indigo); color: #fff; font-weight: 700; padding: 8px 18px; }
+  details summary { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--indigo); }
+  .list { margin-top: 10px; max-height: 38vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid #eee; text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: #f6f6fb; font-size: 12px; color: var(--muted); }
+  tr.off td:not(:first-child) { opacity: .4; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .notice { max-width: 520px; margin: 18vh auto; background: #fff; border-radius: 14px; padding: 28px; text-align: center;
+            box-shadow: 0 2px 16px rgba(0,0,0,.08); font-size: 15px; line-height: 1.5; }
+  .notice a { color: var(--indigo); font-weight: 700; }
+
+  .sheets { padding: 20px 16px 40px; overflow-x: auto; }
+  .sheet { width: 8.5in; height: 11in; padding: 0.5in 0 0 0.3in; background: #fff; margin: 0 auto 20px;
+           display: grid; grid-template-columns: repeat(4, 1.75in); grid-auto-rows: 0.6667in; column-gap: 0.3in;
+           box-shadow: 0 1px 8px rgba(0,0,0,.12); }
+  .label { width: 1.75in; height: 0.6667in; padding: 0.045in 0.06in 0.045in 0.035in;
+           display: flex; align-items: center; gap: 0.045in; overflow: hidden; outline: 1px dashed #c9c9d9; border-radius: 0.06in; }
+  .label.empty { background: repeating-linear-gradient(135deg, transparent 0 6px, #f3f3f8 6px 8px); }
+  .qr { width: 0.575in; height: 0.575in; flex: none; }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .brand { display: flex; align-items: center; gap: 0.025in; font-size: 5pt; letter-spacing: .02em; color: var(--muted); }
+  .brand b { color: var(--indigo); }
+  .label .logo { width: 0.13in; height: 0.13in; flex: none; }
+  .name { font-weight: 800; font-size: 10pt; line-height: 1.05; white-space: nowrap; margin-top: 0.02in; letter-spacing: -.01em; }
+  .strength { font-weight: 700; font-size: 7.5pt; line-height: 1.1; color: var(--indigo);
+              border-top: 0.012in solid; border-image: linear-gradient(90deg,#22d3ee,#6366f1,#a78bfa) 1;
+              padding-top: 0.012in; margin-top: 0.015in; align-self: flex-start; }
+  .meta { font-size: 4.6pt; color: var(--muted); margin-top: 0.012in; white-space: nowrap; }
+
+  @media print {
+    body { background: #fff; }
+    .panel, .notice { display: none; }
+    .sheets { padding: 0; overflow: visible; }
+    .sheet { margin: 0; box-shadow: none; page-break-after: always; transform: translate(var(--nx, 0in), var(--ny, 0in)); }
+    .sheet:last-child { page-break-after: auto; }
+    .label { outline: none; }
+    .label.empty { background: none; }
+  }
+</style></head>
+<body>
+<div class="panel" id="panel" hidden>
+  <div class="panel-inner">
+    <div class="bar">
+      <h1><svg xmlns="http://www.w3.org/2000/svg" class="logo" viewBox="0 0 1024 1024"> <defs> <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"> <stop offset="0" stop-color="#171727"/> <stop offset="0.5" stop-color="#0e0e1a"/> <stop offset="1" stop-color="#080810"/> </linearGradient> <linearGradient id="chain" x1="0" y1="0" x2="1" y2="1"> <stop offset="0" stop-color="#22d3ee"/> <stop offset="0.55" stop-color="#6366f1"/> <stop offset="1" stop-color="#a78bfa"/> </linearGradient> <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="1"> <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/> <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.05"/> <stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/> </linearGradient> <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62"> <stop offset="0" stop-color="#6366f1" stop-opacity="0.55"/> <stop offset="1" stop-color="#6366f1" stop-opacity="0"/> </radialGradient> <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"> <feGaussianBlur stdDeviation="9"/> </filter> </defs> <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#tile)"/> <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#glow)"/> <path d="M0 0 L1024 0 L1024 380 Q560 520 0 300 Z" fill="url(#sweep)"/> <rect x="14" y="14" width="996" height="996" rx="212" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/> <g stroke-linecap="round" stroke-linejoin="round"> <g filter="url(#soft)" opacity="0.7"> <path d="M320 660 L512 512 L704 364" fill="none" stroke="url(#chain)" stroke-width="34"/> </g> <path d="M320 660 L512 512 L704 364" fill="none" stroke="url(#chain)" stroke-width="26"/> <polygon points="320,568 400,614 400,706 320,752 240,706 240,614" fill="#0e0e1a" stroke="#22d3ee" stroke-width="20"/> <circle cx="320" cy="660" r="20" fill="#22d3ee"/> <polygon points="512,420 592,466 592,558 512,604 432,558 432,466" fill="#0e0e1a" stroke="#6366f1" stroke-width="20"/> <circle cx="512" cy="512" r="20" fill="#6366f1"/> <polygon points="704,272 784,318 784,410 704,456 624,410 624,318" fill="#0e0e1a" stroke="#a78bfa" stroke-width="20"/> <circle cx="704" cy="364" r="20" fill="#a78bfa"/> </g> </svg> <span>Peptide<b>OS</b> vial labels</span> <span class="summary">· Avery 6523</span></h1>
+      <a class="back" href="/">← Back to app</a>
+      <span class="summary" id="summary"></span>
+      <button class="primary" onclick="window.print()">Print…</button>
+    </div>
+    <div class="bar">
+      <span class="ctl">Set all included to
+        <input type="number" id="allVal" min="0" step="any" value="10">
+        <select id="allUnit"></select>
+        <button onclick="setAll()">Apply</button></span>
+      <span class="ctl">Labels each <input type="number" id="allQty" min="0" step="1" value="10">
+        <button onclick="setAllQty()">Apply</button></span>
+      <span class="ctl">Start at label # <input type="number" id="start" min="1" max="60" value="1" title="Skip labels already used on a partial first sheet"></span>
+      <span class="ctl">Nudge → <input type="number" id="nx" step="0.01" value="0" title="inches; + moves right">in
+        ↓ <input type="number" id="ny" step="0.01" value="0" title="inches; + moves down">in</span>
+      <button onclick="resetAll()">Reset</button>
+    </div>
+    <details open>
+      <summary>Your peptides — strength starts from your newest vial; adjust before printing</summary>
+      <div class="list"><table>
+        <thead><tr><th><input type="checkbox" id="allOn" title="All / none"></th><th>Peptide</th><th>Strength</th><th>Labels</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </details>
+    <div class="hint">Print from a computer for exact alignment. In the print dialog: Paper <b>Letter</b>, Margins <b>None</b>, Scale <b>100%</b> (not “Fit”). Test on plain paper first — if it’s off, use Nudge.</div>
+  </div>
+</div>
+<div class="notice" id="notice">Loading your peptides…</div>
+<div class="sheets" id="sheets"></div>
+
+<script>
+const LOGO = "<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"logo\" viewBox=\"0 0 1024 1024\"> <defs> <linearGradient id=\"tile\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"> <stop offset=\"0\" stop-color=\"#171727\"/> <stop offset=\"0.5\" stop-color=\"#0e0e1a\"/> <stop offset=\"1\" stop-color=\"#080810\"/> </linearGradient> <linearGradient id=\"chain\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"> <stop offset=\"0\" stop-color=\"#22d3ee\"/> <stop offset=\"0.55\" stop-color=\"#6366f1\"/> <stop offset=\"1\" stop-color=\"#a78bfa\"/> </linearGradient> <linearGradient id=\"sweep\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"> <stop offset=\"0\" stop-color=\"#ffffff\" stop-opacity=\"0.22\"/> <stop offset=\"0.35\" stop-color=\"#ffffff\" stop-opacity=\"0.05\"/> <stop offset=\"0.6\" stop-color=\"#ffffff\" stop-opacity=\"0\"/> </linearGradient> <radialGradient id=\"glow\" cx=\"0.5\" cy=\"0.42\" r=\"0.62\"> <stop offset=\"0\" stop-color=\"#6366f1\" stop-opacity=\"0.55\"/> <stop offset=\"1\" stop-color=\"#6366f1\" stop-opacity=\"0\"/> </radialGradient> <filter id=\"soft\" x=\"-30%\" y=\"-30%\" width=\"160%\" height=\"160%\"> <feGaussianBlur stdDeviation=\"9\"/> </filter> </defs> <rect x=\"0\" y=\"0\" width=\"1024\" height=\"1024\" rx=\"224\" fill=\"url(#tile)\"/> <rect x=\"0\" y=\"0\" width=\"1024\" height=\"1024\" rx=\"224\" fill=\"url(#glow)\"/> <path d=\"M0 0 L1024 0 L1024 380 Q560 520 0 300 Z\" fill=\"url(#sweep)\"/> <rect x=\"14\" y=\"14\" width=\"996\" height=\"996\" rx=\"212\" fill=\"none\" stroke=\"#ffffff\" stroke-opacity=\"0.08\" stroke-width=\"3\"/> <g stroke-linecap=\"round\" stroke-linejoin=\"round\"> <g filter=\"url(#soft)\" opacity=\"0.7\"> <path d=\"M320 660 L512 512 L704 364\" fill=\"none\" stroke=\"url(#chain)\" stroke-width=\"34\"/> </g> <path d=\"M320 660 L512 512 L704 364\" fill=\"none\" stroke=\"url(#chain)\" stroke-width=\"26\"/> <polygon points=\"320,568 400,614 400,706 320,752 240,706 240,614\" fill=\"#0e0e1a\" stroke=\"#22d3ee\" stroke-width=\"20\"/> <circle cx=\"320\" cy=\"660\" r=\"20\" fill=\"#22d3ee\"/> <polygon points=\"512,420 592,466 592,558 512,604 432,558 432,466\" fill=\"#0e0e1a\" stroke=\"#6366f1\" stroke-width=\"20\"/> <circle cx=\"512\" cy=\"512\" r=\"20\" fill=\"#6366f1\"/> <polygon points=\"704,272 784,318 784,410 704,456 624,410 624,318\" fill=\"#0e0e1a\" stroke=\"#a78bfa\" stroke-width=\"20\"/> <circle cx=\"704\" cy=\"364\" r=\"20\" fill=\"#a78bfa\"/> </g> </svg>";
+const APP_URL = 'https://peptideos.cwenterprises.net/';
+const UNITS = ['mg', 'mcg', 'IU', 'mL'];
+const PER_SHEET = 60, DEFAULT_QTY = 10, DEFAULT_MG = 10;
+const KEY = 'peptideos-labels-app-v1';
+
+// Same normalization as the app's ?log= matcher (lowercase, alphanumerics only)
+const slugOf = name => String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtVal = v => { const n = parseFloat(v); return isNaN(n) ? '' : String(+n.toFixed(3)); };
+const unitOpts = sel => UNITS.map(u => `<option ${u === sel ? 'selected' : ''}>${u}</option>`).join('');
+
+let DEFAULTS = [], state = null;
+const qrCache = {};
+
+function qrSvg(slug) {
+  if (qrCache[slug]) return qrCache[slug];
+  // ECC "M" survives minor scuffs on a curved vial; 2-module border (the label edge adds white)
+  const qr = qrcode(0, 'M'); qr.addData(APP_URL + '?log=' + slug); qr.make();
+  const n = qr.getModuleCount(), b = 2, size = n + 2 * b;
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + b} ${r + b}h1v1h-1z`;
+  return qrCache[slug] = `<svg class="qr" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#0b0b16"/></svg>`;
+}
+
+async function api(path) {
+  const token = localStorage.getItem('peptideos_token');
+  const res = await fetch('/api' + path, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+  if (res.status === 401) throw Object.assign(new Error('signed out'), { status: 401 });
+  if (!res.ok) throw new Error('Request failed (' + res.status + ')');
+  return res.json();
+}
+
+function buildDefaults(peptides, vials) {
+  // newest vial per peptide sets the default strength; peptides you hold a vial of start ticked
+  const newest = {};
+  [...vials].sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+    .forEach(v => { newest[v.peptide] = v; });
+  const names = [...new Set([...peptides.map(p => p.name), ...vials.map(v => v.peptide)])]
+    .sort((a, b) => (newest[b] ? 1 : 0) - (newest[a] ? 1 : 0) || a.localeCompare(b));
+  return names.map(name => ({
+    slug: slugOf(name), name,
+    value: newest[name] ? parseFloat(newest[name].mg) : DEFAULT_MG, unit: 'mg',
+    qty: DEFAULT_QTY, on: !!newest[name],
+  }));
+}
+
+function loadState() {
+  const s = { items: DEFAULTS.map(d => ({ ...d })), start: 1, nx: 0, ny: 0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && saved.items) {
+      // saved edits are keyed by slug so they survive new peptides/vials being added
+      s.items = s.items.map(i => ({ ...i, ...(saved.items[i.slug] || {}) }));
+      ['start', 'nx', 'ny'].forEach(k => { if (saved[k] != null) s[k] = saved[k]; });
+    }
+  } catch (e) {}
+  return s;
+}
+function save() {
+  try {
+    const items = {};
+    state.items.forEach(i => { items[i.slug] = { value: i.value, unit: i.unit, qty: i.qty, on: i.on }; });
+    localStorage.setItem(KEY, JSON.stringify({ items, start: state.start, nx: state.nx, ny: state.ny }));
+  } catch (e) {}
+}
+
+function renderRows() {
+  document.getElementById('rows').innerHTML = state.items.map((it, i) => `
+    <tr class="${it.on ? '' : 'off'}">
+      <td><input type="checkbox" data-i="${i}" data-k="on" ${it.on ? 'checked' : ''}></td>
+      <td>${esc(it.name)}</td>
+      <td><input type="number" min="0" step="any" data-i="${i}" data-k="value" value="${fmtVal(it.value)}">
+          <select data-i="${i}" data-k="unit">${unitOpts(it.unit)}</select></td>
+      <td><input type="number" min="0" step="1" data-i="${i}" data-k="qty" value="${it.qty}"></td>
+    </tr>`).join('');
+  document.getElementById('allOn').checked = state.items.length > 0 && state.items.every(i => i.on);
+}
+
+function labelHtml(it, n) {
+  const qty = parseInt(it.qty) || 0;
+  return `<div class="label">${qrSvg(it.slug)}<div class="info">
+      <div class="brand">${LOGO}<span>Peptide<b>OS</b></span></div>
+      <div class="name">${esc(it.name)}</div>
+      ${fmtVal(it.value) ? `<div class="strength">${esc(fmtVal(it.value) + ' ' + it.unit)}</div>` : ''}
+      <div class="meta">Vial ${String(n).padStart(2, '0')}/${String(qty).padStart(2, '0')} · Scan to log</div>
+    </div></div>`;
+}
+
+function renderSheets() {
+  const skip = Math.min(Math.max(parseInt(state.start) || 1, 1), PER_SHEET) - 1;
+  const cells = Array(skip).fill('<div class="label empty"></div>');
+  let count = 0;
+  state.items.filter(i => i.on).forEach(it => {
+    for (let n = 1; n <= (parseInt(it.qty) || 0); n++) { cells.push(labelHtml(it, n)); count++; }
+  });
+  const sheets = [];
+  for (let s = 0; s < Math.max(cells.length, 1); s += PER_SHEET) {
+    const chunk = cells.slice(s, s + PER_SHEET);
+    while (chunk.length < PER_SHEET) chunk.push('<div class="label empty"></div>');
+    sheets.push(`<section class="sheet">${chunk.join('')}</section>`);
+  }
+  const root = document.getElementById('sheets');
+  root.innerHTML = sheets.join('');
+  root.style.setProperty('--nx', (parseFloat(state.nx) || 0) + 'in');
+  root.style.setProperty('--ny', (parseFloat(state.ny) || 0) + 'in');
+  const peps = state.items.filter(i => i.on && parseInt(i.qty) > 0).length;
+  document.getElementById('summary').textContent =
+    `${peps} peptide${peps === 1 ? '' : 's'} · ${count} label${count === 1 ? '' : 's'} · ${sheets.length} sheet${sheets.length === 1 ? '' : 's'}`;
+  fitNames();
+}
+
+// shrink long names (e.g. "Testosterone Cypionate") until they fit the text column
+function fitNames() {
+  document.querySelectorAll('.sheet .name').forEach(el => {
+    let size = 10; el.style.fontSize = '';
+    while (el.scrollWidth > el.clientWidth && size > 5.5) { size -= 0.25; el.style.fontSize = size + 'pt'; }
+  });
+}
+
+function update() { save(); renderSheets(); }
+function setAll() {
+  const v = document.getElementById('allVal').value, u = document.getElementById('allUnit').value;
+  state.items.forEach(i => { if (i.on) { i.value = v; i.unit = u; } });
+  renderRows(); update();
+}
+function setAllQty() {
+  const q = document.getElementById('allQty').value;
+  state.items.forEach(i => { if (i.on) i.qty = q; });
+  renderRows(); update();
+}
+function resetAll() {
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  state = loadState(); ['start', 'nx', 'ny'].forEach(id => document.getElementById(id).value = state[id]);
+  renderRows(); renderSheets();
+}
+
+function wire() {
+  document.getElementById('rows').addEventListener('input', e => {
+    const { i, k } = e.target.dataset; if (i == null) return;
+    const it = state.items[+i];
+    it[k] = k === 'on' ? e.target.checked : e.target.value;
+    if (k === 'on') e.target.closest('tr').classList.toggle('off', !it.on);
+    document.getElementById('allOn').checked = state.items.every(x => x.on);
+    update();
+  });
+  document.getElementById('allOn').addEventListener('change', e => {
+    state.items.forEach(i => i.on = e.target.checked); renderRows(); update();
+  });
+  ['start', 'nx', 'ny'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = state[id];
+    el.addEventListener('input', () => { state[id] = el.value; update(); });
+  });
+  document.getElementById('allUnit').innerHTML = unitOpts('mg');
+}
+
+(async function init() {
+  const notice = document.getElementById('notice');
+  try {
+    const [peptides, vials] = await Promise.all([api('/peptides'), api('/vials')]);
+    DEFAULTS = buildDefaults(peptides, vials);
+    state = loadState();
+    notice.remove();
+    document.getElementById('panel').hidden = false;
+    wire(); renderRows(); renderSheets();
+    if (document.fonts) document.fonts.ready.then(fitNames);
+    window.__fitted = true;
+  } catch (e) {
+    notice.innerHTML = e.status === 401 || !localStorage.getItem('peptideos_token')
+      ? `Sign in to PeptideOS to print labels for your peptides.<br><br><a href="/">Open PeptideOS →</a>`
+      : `Couldn’t load your peptides (${esc(e.message)}).<br><br><a href="/labels">Try again</a> · <a href="/">Back to app</a>`;
+  }
+})();
+</script>
+</body></html>

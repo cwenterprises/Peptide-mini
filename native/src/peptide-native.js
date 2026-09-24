@@ -14,7 +14,7 @@
  * There is NO WebSocket in the live app; rewriteWsUrl is kept for parity
  * with The Wire's shim and future-proofing, and is unit-tested.
  *
- * /privacy and /terms are cross-origin navigations (not /api) — the shim
+ * /privacy, /terms and /labels are cross-origin navigations (not /api) — the shim
  * intercepts clicks on those relative links and opens them at the live
  * origin so they render the real pages instead of 404-ing in the bundle.
  *
@@ -145,7 +145,8 @@
       var a = ev.target && ev.target.closest && ev.target.closest('a[href]');
       if (!a) return;
       var href = a.getAttribute('href') || '';
-      if (href === '/privacy' || href === '/terms') {
+      // /labels prints best from the live site (the WKWebView can't print), so open it there too
+      if (href === '/privacy' || href === '/terms' || href === '/labels') {
         ev.preventDefault();
         var url = LIVE_ORIGIN + href;
         // Prefer Capacitor Browser if present; else window.open.

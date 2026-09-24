@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260924-labellink';
+  const APP_VERSION = 'v20260924-labelprint';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -2421,7 +2421,10 @@ function renderVials() {
         </div>
       </div>
       <div class="glass" style="padding:20px;">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Active Vials</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px;">
+          <h3 style="font-size:15px;font-weight:700;">Active Vials</h3>
+          <a href="/labels" target="_blank" rel="noopener" class="btn btn-sm btn-ghost" style="text-decoration:none;">🏷️ Print labels</a>
+        </div>
         <div class="stack">${vialsHtml}</div>
       </div>
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>

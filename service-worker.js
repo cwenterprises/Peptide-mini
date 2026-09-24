@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v30';
-const APP_VERSION = 'v20260924-labellink';
+const CACHE_NAME = 'peptideos-v31';
+const APP_VERSION = 'v20260924-labelprint';
 const FRESH_URL = '/?_v=' + APP_VERSION;
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
