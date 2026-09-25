@@ -220,7 +220,7 @@ async function handleAPI(request, env, url) {
 const WORKER_DEFAULT_PEPTIDES = [
   "5-amino-1mq","AICAR","AOD-9604","ARA-290","Adalank","Adamax","BPC-157",
   "Cerebrolysin","CJC-1295","CJC-195/IPA","DSIP","Dihexa","Epithalon",
-  "GHK-CU","GhRIP","Glow","Glutathione","IGF-1 LR3","Ipamorelin","KPV",
+  "GHK-CU","GhRIP","Glow","Glutathione","HGH","IGF-1 LR3","Ipamorelin","KPV",
   "Kisspeptin","Klow","LL-37","Lipo-C","MOTS-C","NAD+","Oxytocin","PE-22-28",
   "PT-141","Pinealon","Retatrutide","SS-31","SLU-PP-332","Semax","Selank",
   "Sermorelin","TB-500","Tesamorelin","Thymosin Alpha-1","VIP","Wolverine"

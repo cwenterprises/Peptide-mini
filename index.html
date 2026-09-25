@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260924-labelprint';
+  const APP_VERSION = 'v20260924-hgh';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -722,6 +722,7 @@ const PEPTIDE_HALFLIFE = {
   'Ipamorelin':       { halfLife: 2,    notes: 'GHRP; pulse dose 2–3× daily, ideally fasted' },
   'CJC-1295':         { halfLife: 168,  notes: 'Long-acting GHRH analogue with DAC; once weekly dosing' },
   'Tesamorelin':      { halfLife: 0.5,  notes: 'Very short half-life; daily subcutaneous injection required' },
+  'HGH':              { halfLife: 3,    notes: 'Somatropin; ~2–4h after SC injection, IGF-1 stays elevated ~24h — daily dosing' },
   'Sermorelin':       { halfLife: 0.3,  notes: 'Extremely short; bedtime injection to sync with natural GH pulse' },
   'PT-141':           { halfLife: 2.5,  notes: 'Melanocortin; onset ~1h, peak ~2–4h; intranasal or SC' },
   'Epithalon':        { halfLife: 0.5,  notes: 'Telomerase activator; short half-life, course dosing protocol' },
@@ -955,6 +956,19 @@ const PEPTIDE_LIBRARY = [
     protocols: 'IV push: 600–1200 mg in normal saline over 2–10 minutes, 2–5× per week. IM: 600 mg 2–3× per week. Nebulized: 100–200 mg for respiratory indications.',
     cycleLength: 'Ongoing or 4–8 week courses',
     stack: 'Synergistic with vitamin C IV (given separately to avoid precipitation). Pairs with NAD+ for comprehensive cellular health. Used in detox protocols with alpha-lipoic acid.'
+  },
+  {
+    name: 'HGH',
+    aliases: ['Somatropin', 'Human Growth Hormone', 'rhGH', 'GH', '191AA', 'Genotropin', 'Norditropin', 'Humatrope', 'Omnitrope'],
+    description: 'Recombinant human growth hormone (somatropin): the 191-amino-acid, ~22 kDa hormone made by the pituitary, produced by recombinant DNA. FDA-approved for pediatric and adult growth hormone deficiency, Turner and Prader-Willi syndromes, short bowel syndrome and HIV-associated wasting. Used off-label for body composition, recovery and healthy aging. Dosed in International Units: 3 IU ≈ 1 mg.',
+    halfLife: '~2–4 hours SC (~20–30 min IV); IGF-1 stays elevated ~24 h',
+    doseRange: '1–4 IU/day SC (adult GHD: start ~0.6–1.2 IU/day)',
+    route: 'Subcutaneous (or Intramuscular)',
+    mechanism: 'Binds GH receptors on the liver and peripheral tissues, activating JAK2/STAT5 signalling. Drives hepatic IGF-1 production (most anabolic effects run through IGF-1), increases lipolysis and protein synthesis, promotes nitrogen retention and collagen turnover, and raises blood glucose by opposing insulin. Unlike GH secretagogues (Ipamorelin, CJC-1295, Tesamorelin) it bypasses the pituitary, so it suppresses natural GH output while used.',
+    protocols: 'Wellness / anti-aging: 1–2 IU/day. Body composition / recovery research: 2–4 IU/day. Adult GH deficiency (clinical): start ~0.2–0.4 mg/day (0.6–1.2 IU) and titrate to IGF-1. Inject SC once daily — morning fasted or ~30 min before bed, away from carbs; 5 days on / 2 off is common. Monitor IGF-1 and fasting glucose; reduce the dose for water retention, joint pain or tingling/numb hands (carpal tunnel). Reconstitute with bacteriostatic water run slowly down the vial wall — swirl gently, never shake (GH is fragile). Refrigerate at 2–8 °C before and after mixing and use within ~28 days (sooner with sterile water). In the Log Dose tab, log HGH in IU — PeptideOS converts hormone IU at 3 IU = 1 mg.',
+    cycleLength: '3–6 months, often ongoing at low dose; clinical GHD therapy is long-term',
+    stack: 'Often paired with a GH secretagogue off-cycle (CJC-1295 + Ipamorelin) to restart natural GH, or with BPC-157 / TB-500 for injury recovery. Pairing with IGF-1 LR3 or insulin compounds hypoglycemia risk — avoid unless supervised.',
+    recipe: '1 mL bacteriostatic water per 10 IU gives 10 IU/mL, so 1 IU = 10 units on a U-100 insulin syringe: 10 IU vial + 1 mL · 15 IU vial + 1.5 mL · 36 IU vial + 3.6 mL. Calculator → HGH works out any other mix.'
   },
   {
     name: 'IGF-1 LR3',
@@ -1297,7 +1311,7 @@ const PEPTIDE_LIBRARY = [
 const DEFAULT_PEPTIDES = [
   '5-amino-1mq','AICAR','AOD-9604','ARA-290','Adalank','Adamax','BPC-157',
   'Cerebrolysin','CJC-1295','CJC-195/IPA','DSIP','Dihexa','Epithalon',
-  'GHK-CU','GhRIP','Glow','Glutathione','IGF-1 LR3','Ipamorelin','KPV',
+  'GHK-CU','GhRIP','Glow','Glutathione','HGH','IGF-1 LR3','Ipamorelin','KPV',
   'Kisspeptin','Klow','LL-37','Lipo-C','MOTS-C','NAD+','Oxytocin',
   'PE-22-28','PT-141','Pinealon','Retatrutide','SS-31','SLU-PP-332',
   'Semax','Selank','Sermorelin','TB-500','Tesamorelin','Thymosin Alpha-1',
@@ -1715,6 +1729,13 @@ function renderWeek() {
 }
 
 // ── Task 12: Log Dose ──────────────────────────────────────────────────────────
+// HGH is dosed in hormone International Units; WHO standard: 1 mg somatropin = 3 IU.
+// Every other peptide's "IU" in Log Dose means syringe units (ticks on the syringe).
+const HGH_IU_PER_MG = 3;
+function isHghName(name) {
+  return (findLibraryEntry(name) || {}).name === 'HGH';
+}
+
 function calcDrawMath(vialId, doseValue, doseUnit, vials) {
   const vial = vials.find(v => v.id === vialId);
   if (!vial || !vial.mg || !vial.ml) return null;
@@ -1723,6 +1744,9 @@ function calcDrawMath(vialId, doseValue, doseUnit, vials) {
   let doseMcg;
   if (doseUnit === 'mcg') doseMcg = Number(doseValue);
   else if (doseUnit === 'mg') doseMcg = Number(doseValue) * 1000;
+  else if (doseUnit === 'IU' && isHghName(vial.peptide)) {
+    doseMcg = (Number(doseValue) / HGH_IU_PER_MG) * 1000;
+  }
   else if (doseUnit === 'IU') {
     const volFromIU = Number(doseValue) / _syringeType;
     doseMcg = volFromIU * conc;
@@ -4172,6 +4196,7 @@ function recalcActiveSyringe() {
   else if (_calcSubTab === 'draw') calcDraw();
   else if (_calcSubTab === 'trt') calcTRT();
   else if (_calcSubTab === 'hcg') calcHCG();
+  else if (_calcSubTab === 'hgh') calcHGH();
   updateDrawMath();
 }
 
@@ -4229,6 +4254,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='conv'?'active':''}" data-ctab="conv">Convert</button>
           <button class="nav-tab ${_calcSubTab==='trt'?'active':''}" data-ctab="trt">TRT</button>
           <button class="nav-tab ${_calcSubTab==='hcg'?'active':''}" data-ctab="hcg">HCG</button>
+          <button class="nav-tab ${_calcSubTab==='hgh'?'active':''}" data-ctab="hgh">HGH</button>
           <button class="nav-tab ${_calcSubTab==='nasal'?'active':''}" data-ctab="nasal">Nasal</button>
           <button class="nav-tab ${_calcSubTab==='protocols'?'active':''}" data-ctab="protocols">Protocols</button>
         </div>
@@ -4396,6 +4422,31 @@ function renderCalc() {
           </div>
         </div>
 
+        <div id="calcHgh" style="display:${_calcSubTab==='hgh'?'block':'none'};">
+          <div class="stack">
+            <p class="muted" style="font-size:12px;">HGH (somatropin) doses are in IU of hormone — not syringe units. 3 IU = 1 mg. Add bacteriostatic water slowly down the vial wall, swirl gently (never shake), refrigerate and use within ~28 days.</p>
+            <div class="row3">
+              <label>Vial Size (IU)
+                <select id="gVialSel" onchange="
+                  if (this.value) document.getElementById('gVialIU').value = this.value;
+                  calcHGH();
+                ">
+                  <option value="10" selected>10 IU (3.33 mg)</option>
+                  <option value="12">12 IU (4 mg)</option>
+                  <option value="15">15 IU (5 mg)</option>
+                  <option value="24">24 IU (8 mg)</option>
+                  <option value="36">36 IU (12 mg)</option>
+                  <option value="">Custom</option>
+                </select>
+              </label>
+              <label>Vial Amount (IU)<input type="number" id="gVialIU" min="0" step="any" value="10" oninput="calcHGH()" /></label>
+              <label>Bac Water Added (mL)<input type="number" id="gBacMl" min="0" step="any" placeholder="e.g. 1" oninput="calcHGH()" /></label>
+            </div>
+            <label>Desired Dose (IU of HGH)<input type="number" id="gDoseIU" min="0" step="any" placeholder="e.g. 2" oninput="calcHGH()" /></label>
+            <div id="gResult" class="glass" style="padding:14px;display:none;"></div>
+          </div>
+        </div>
+
         <div id="calcNasal" style="display:${_calcSubTab==='nasal'?'block':'none'};">
           <div class="stack">
             <p class="muted" style="font-size:12px;">Making a spray: total peptide and liquid in the bottle, plus how much your pump delivers per spray.</p>
@@ -4457,7 +4508,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv','trt','hcg','nasal','protocols'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt','hcg','hgh','nasal','protocols'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
@@ -4541,6 +4592,37 @@ function calcHCG() {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${concIUml.toFixed(0)} IU/mL</div></div>
       <div><div class="muted" style="font-size:11px;">Total in Vial</div><div style="font-weight:700;">${parseFloat(vialIU.toPrecision(6))} IU</div></div>
+    </div>
+    ${doseHtml}`;
+}
+
+function calcHGH() {
+  const vialIU = parseFloat(document.getElementById('gVialIU').value);
+  const bacMl  = parseFloat(document.getElementById('gBacMl').value);
+  const doseIU = parseFloat(document.getElementById('gDoseIU').value);
+  const res    = document.getElementById('gResult');
+  if (!res) return;
+  if (!vialIU || !bacMl || isNaN(vialIU) || isNaN(bacMl)) { res.style.display = 'none'; return; }
+  const concIUml = vialIU / bacMl;
+  res.style.display = 'block';
+  let doseHtml = '<p class="muted" style="margin-top:8px;">Enter a desired dose to get the draw amount.</p>';
+  if (doseIU && !isNaN(doseIU)) {
+    const volMl = doseIU / concIUml;
+    const syrUnits = volMl * _syringeType;
+    doseHtml = `
+      <hr class="divider" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Syringe Reading</div><div style="font-weight:700;color:var(--accent-indigo);">${syrUnits.toFixed(1)} units on U-${_syringeType}</div></div>
+        <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${parseFloat(doseIU.toPrecision(6))} IU (${(doseIU / HGH_IU_PER_MG).toFixed(2)} mg)</div></div>
+        <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${(vialIU / doseIU).toFixed(1)}</div></div>
+      </div>
+      ${syringeOverflowWarning(volMl)}`;
+  }
+  res.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${parseFloat(concIUml.toPrecision(4))} IU/mL</div></div>
+      <div><div class="muted" style="font-size:11px;">Total in Vial</div><div style="font-weight:700;">${parseFloat(vialIU.toPrecision(6))} IU (${(vialIU / HGH_IU_PER_MG).toFixed(2)} mg)</div></div>
     </div>
     ${doseHtml}`;
 }
@@ -4708,6 +4790,11 @@ function peptideInfoBtn(name) {
 // "10 mg vial + X mL BW" line targeting a typical dose ≈ 10 units on a U-100.
 // Only rendered when the library doseRange parses to a clean mg/mcg number.
 function suggestedRecipeHtml(p) {
+  if (p.recipe) return `
+    <div>
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:4px;">Suggested recipe</p>
+      <p style="font-size:13px;line-height:1.55;">${escHtml(p.recipe)}</p>
+    </div>`;
   const m = (p.doseRange || '').match(/([\d.]+)\s*(?:[\u2013-]\s*([\d.]+))?\s*(mcg|mg)/i);
   if (!m) return '';
   const lo = parseFloat(m[1]), hi = m[2] ? parseFloat(m[2]) : lo;
