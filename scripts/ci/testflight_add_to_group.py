@@ -53,8 +53,9 @@ def main():
     ap.add_argument("--timeout", type=int, default=40 * 60)
     a = ap.parse_args()
 
-    q = urllib.parse.urlencode({"filter[name]": a.group, "limit": 5})
-    st, r = call("GET", f"/v1/apps/{a.app}/betaGroups?{q}")
+    # /v1/apps/{id}/betaGroups rejects filter[name]; the top-level collection accepts both filters
+    q = urllib.parse.urlencode({"filter[app]": a.app, "filter[name]": a.group, "limit": 5})
+    st, r = call("GET", f"/v1/betaGroups?{q}")
     groups = [g for g in r.get("data", []) if g["attributes"]["name"] == a.group]
     if st != 200 or not groups:
         sys.exit(f"beta group {a.group!r} not found ({st}): {r}")
