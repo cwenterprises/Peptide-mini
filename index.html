@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260925-shortqr';
+  const APP_VERSION = 'v20260926-resync';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -598,6 +598,18 @@ const Tabs = (() => {
     showAuth('login');
   }
 })();
+
+// Re-sync when the app returns to the foreground. The iPhone app can sit in memory for days,
+// so a vial edited on the website (or another device) must not leave stale numbers behind —
+// Log Dose math reads the vial from this cached copy.
+let _lastSyncAt = Date.now();
+const RESYNC_AFTER_MS = 30 * 1000;
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !App.isLoggedIn()) return;
+  if (Date.now() - _lastSyncAt < RESYNC_AFTER_MS) return;
+  _lastSyncAt = Date.now();
+  try { await App.loadAll(); renderAllTabs(); } catch (e) { /* offline: keep what we have */ }
+});
 
 function showApp() {
   document.getElementById('authScreen').style.display = 'none';
@@ -1885,7 +1897,9 @@ function vialOptionsHtml(vials, selPeptide, selVial) {
     ? 'No vials yet — add one in the Vials tab'
     : (filtered.length === 0 ? 'No vials for this peptide' : 'None');
   return `<option value="">${placeholder}</option>` + filtered
-    .map(v => `<option value="${v.id}" ${String(v.id) === (selVial || '') ? 'selected' : ''}>${escHtml(v.peptide)} — ${v.mg}mg/${v.ml}mL</option>`)
+    .map(v => `<option value="${v.id}" ${String(v.id) === (selVial || '') ? 'selected' : ''}>${escHtml(v.peptide)} — ${v.solution === PREMIXED_SOLUTION
+      ? `${parseFloat((v.mg / v.ml).toPrecision(6))} mg/mL · ${v.ml} mL`
+      : `${v.mg}mg/${v.ml}mL`}</option>`)
     .join('');
 }
 

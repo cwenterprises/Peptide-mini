@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v34';
-const APP_VERSION = 'v20260925-shortqr';
+const CACHE_NAME = 'peptideos-v35';
+const APP_VERSION = 'v20260926-resync';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
