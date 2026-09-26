@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260924-hgh';
+  const APP_VERSION = 'v20260925-premixed';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1249,6 +1249,7 @@ const PEPTIDE_LIBRARY = [
   {
     name: 'Testosterone Cypionate',
     aliases: ['Test Cyp', 'Test C', 'Depo-Testosterone'],
+    premixed: true,
     description: 'A long-acting injectable ester of testosterone, the primary male androgen. The cypionate ester slows release from the injection depot, giving stable blood levels with weekly or twice-weekly dosing. The standard agent for testosterone replacement therapy (TRT); FDA-approved for male hypogonadism.',
     halfLife: '~8 days',
     doseRange: '100–200 mg/week (TRT); often split into 2+ injections',
@@ -2337,7 +2338,52 @@ function nextVialForPeptide(peptide, vials, logs) {
     (lastUse[b.id] || b.created_at || '').localeCompare(lastUse[a.id] || a.created_at || ''))[0];
 }
 
-const VIAL_SOLUTIONS = ['Bacteriostatic Water', 'Sterile Water', 'Saline (0.9% NaCl)', 'Acetic Acid (0.6%)', 'Other'];
+// Pre-mixed vials (testosterone and other oils) are sold by concentration, not by total powder.
+// The solution field marks them, so no schema change: mg is still the vial's TOTAL (conc × mL),
+// and the forms take concentration + vial size and do the multiplication.
+const PREMIXED_SOLUTION = 'Pre-mixed (ready to use)';
+const VIAL_SOLUTIONS = ['Bacteriostatic Water', 'Sterile Water', 'Saline (0.9% NaCl)', 'Acetic Acid (0.6%)', PREMIXED_SOLUTION, 'Other'];
+const PREMIXED_NAME_RE = /testosterone|nandrolone|trenbolone|boldenone|masteron|drostanolone|primobolan|sustanon|cypionate|enanthate|propionate|decanoate|undecanoate/i;
+
+function isPremixedName(name) {
+  const entry = findLibraryEntry(name);
+  return !!(entry && entry.premixed) || PREMIXED_NAME_RE.test(name || '');
+}
+
+// prefix 'v' = Add Vial form, 'ev' = Edit Vial form
+function syncPremixUI(prefix) {
+  const sol = document.getElementById(prefix + 'Solution');
+  if (!sol) return;
+  const pre = sol.value === PREMIXED_SOLUTION;
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  set(prefix + 'MgLbl', pre ? 'Concentration (mg/mL)' : 'Amount (mg)');
+  set(prefix + 'MlLbl', pre ? 'Vial size (mL)' : 'Diluent (mL)');
+  set(prefix + 'SolLbl', pre ? 'Type' : 'Reconstitution Solution');
+  const mg = document.getElementById(prefix + 'Mg'), ml = document.getElementById(prefix + 'Ml');
+  if (mg) mg.placeholder = pre ? 'e.g. 250' : 'e.g. 5';
+  if (ml) ml.placeholder = pre ? 'e.g. 10' : 'e.g. 2';
+}
+
+// Picking a testosterone-type product pre-selects "Pre-mixed"; picking a peptide clears it
+function onVialPeptideChange(sel, prefix) {
+  toggleCustomPeptide(sel, prefix + 'PeptideCustom');
+  const sol = document.getElementById(prefix + 'Solution');
+  if (!sol) return;
+  if (isPremixedName(sel.value)) sol.value = PREMIXED_SOLUTION;
+  else if (sol.value === PREMIXED_SOLUTION) sol.value = '';
+  syncPremixUI(prefix);
+}
+
+// Read an Add/Edit Vial form → { mg (vial total), ml, solution } or null after alerting
+function readVialForm(prefix) {
+  const solution = document.getElementById(prefix + 'Solution').value || null;
+  const pre = solution === PREMIXED_SOLUTION;
+  const a = parseFloat(document.getElementById(prefix + 'Mg').value);
+  const ml = parseFloat(document.getElementById(prefix + 'Ml').value);
+  if (!a || a <= 0) { alert(pre ? 'Please enter the concentration in mg/mL.' : 'Please enter a valid amount in mg.'); return null; }
+  if (!ml || ml <= 0) { alert(pre ? 'Please enter the vial size in mL.' : 'Please enter a valid volume in mL.'); return null; }
+  return { mg: pre ? a * ml : a, ml, solution };
+}
 
 function solutionOpts(selected) {
   return `<option value="">Solution…</option>` + VIAL_SOLUTIONS.map(s =>
@@ -2366,24 +2412,25 @@ function renderVials() {
     for (const vial of vials) {
       if (vial.id === _editingVialId) {
         const isCustom = !peptides.some(p => p.name === vial.peptide);
+        const isPre = vial.solution === PREMIXED_SOLUTION;
         vialsHtml += `
         <div style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
           <div class="stack">
             <div class="row3">
               <label>Peptide
-                <select id="evPeptide" onchange="toggleCustomPeptide(this, 'evPeptideCustom')">
+                <select id="evPeptide" onchange="onVialPeptideChange(this, 'ev')">
                   ${peptideSelectOpts(peptides, vial.peptide)}
                 </select>
               </label>
-              <label>Amount (mg)
-                <input type="number" id="evMg" min="0" step="any" value="${vial.mg}" />
+              <label><span id="evMgLbl">${isPre ? 'Concentration (mg/mL)' : 'Amount (mg)'}</span>
+                <input type="number" id="evMg" min="0" step="any" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : vial.mg}" />
               </label>
-              <label>Diluent (mL)
+              <label><span id="evMlLbl">${isPre ? 'Vial size (mL)' : 'Diluent (mL)'}</span>
                 <input type="number" id="evMl" min="0" step="any" value="${vial.ml}" />
               </label>
             </div>
-            <label>Reconstitution Solution
-              <select id="evSolution">${solutionOpts(vial.solution || '')}</select>
+            <label><span id="evSolLbl">${isPre ? 'Type' : 'Reconstitution Solution'}</span>
+              <select id="evSolution" onchange="syncPremixUI('ev')">${solutionOpts(vial.solution || '')}</select>
             </label>
             <input type="text" id="evPeptideCustom" placeholder="Custom peptide name" value="${isCustom ? escHtml(vial.peptide) : ''}" style="display:${isCustom ? 'block' : 'none'};" />
             <div style="display:flex;gap:8px;">
@@ -2404,7 +2451,9 @@ function renderVials() {
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
             <div style="flex:1;">
               <div style="font-weight:700;">${escHtml(vial.peptide)}${peptideInfoBtn(vial.peptide)}</div>
-              <div class="muted">${vial.mg}mg / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${concMcgMl.toFixed(0)} mcg/mL</div>
+              <div class="muted">${vial.solution === PREMIXED_SOLUTION
+                ? `${parseFloat((vial.mg / vial.ml).toPrecision(6))} mg/mL &middot; ${vial.ml}mL vial (${vial.mg}mg total) &middot; pre-mixed`
+                : `${vial.mg}mg / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${concMcgMl.toFixed(0)} mcg/mL`}</div>
               <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
             </div>
@@ -2425,20 +2474,20 @@ function renderVials() {
         <div class="stack">
           <div class="row3">
             <label>Peptide
-              <select id="vPeptide" onchange="toggleCustomPeptide(this, 'vPeptideCustom')">
+              <select id="vPeptide" onchange="onVialPeptideChange(this, 'v')">
                 <option value="">Select…</option>
                 ${peptideOpts}
               </select>
             </label>
-            <label>Amount (mg)
+            <label><span id="vMgLbl">Amount (mg)</span>
               <input type="number" id="vMg" min="0" step="any" placeholder="e.g. 5" />
             </label>
-            <label>Diluent (mL)
+            <label><span id="vMlLbl">Diluent (mL)</span>
               <input type="number" id="vMl" min="0" step="any" placeholder="e.g. 2" />
             </label>
           </div>
-          <label>Reconstitution Solution
-            <select id="vSolution">${solutionOpts('')}</select>
+          <label><span id="vSolLbl">Reconstitution Solution</span>
+            <select id="vSolution" onchange="syncPremixUI('v')">${solutionOpts('')}</select>
           </label>
           <input type="text" id="vPeptideCustom" placeholder="Custom peptide name" style="display:none;" />
           <button class="btn btn-primary" style="align-self:flex-start;" onclick="addVial()">Add Vial</button>
@@ -2477,13 +2526,11 @@ function resolvePeptideName(selId, customId) {
 
 async function addVial() {
   const peptide = resolvePeptideName('vPeptide', 'vPeptideCustom');
-  const mg      = document.getElementById('vMg').value;
-  const ml      = document.getElementById('vMl').value;
   if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
-  if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
-  if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
+  const v = readVialForm('v');
+  if (!v) return;
   try {
-    await API.post('/vials', { peptide, mg: parseFloat(mg), ml: parseFloat(ml), solution: document.getElementById('vSolution').value || null });
+    await API.post('/vials', { peptide, ...v });
     await App.loadAll();
     renderAllTabs();
     await maybeDeductInventory(peptide); // reconstituting consumes a sealed vial
@@ -2494,13 +2541,11 @@ async function addVial() {
 
 async function saveVialEdit(id) {
   const peptide = resolvePeptideName('evPeptide', 'evPeptideCustom');
-  const mg      = document.getElementById('evMg').value;
-  const ml      = document.getElementById('evMl').value;
   if (!peptide) { alert('Please select a peptide or enter a custom name.'); return; }
-  if (!mg || parseFloat(mg) <= 0) { alert('Please enter a valid amount in mg.'); return; }
-  if (!ml || parseFloat(ml) <= 0) { alert('Please enter a valid volume in mL.'); return; }
+  const v = readVialForm('ev');
+  if (!v) return;
   try {
-    await API.put('/vials/' + id, { peptide, mg: parseFloat(mg), ml: parseFloat(ml), solution: document.getElementById('evSolution').value || null });
+    await API.put('/vials/' + id, { peptide, ...v });
     _editingVialId = null;
     await App.loadAll();
     renderAllTabs();
