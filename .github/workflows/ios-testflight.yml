@@ -1,0 +1,140 @@
+# Build, sign and upload PeptideOS iOS to TestFlight on GitHub's macOS runners — no local Mac needed.
+# Runs on pushes to peptideos-ios-live that touch the app, or manually (Actions → iOS TestFlight → Run).
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8      App Store Connect API key (App Manager role) — upload + TestFlight group
+#   DIST_CERT_P12_BASE64, DIST_CERT_P12_PASSWORD  "PeptideOS CI" Apple Distribution certificate + private key
+#   CI_PROFILE_BASE64                           PeptideOSAppStoreCI App Store provisioning profile (base64)
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [peptideos-ios-live]
+    paths:
+      - index.html
+      - labels.html
+      - service-worker.js
+      - manifest.json
+      - native/**
+      - .github/workflows/ios-testflight.yml
+      - scripts/ci/**
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+env:
+  # Builds 1–20 were numbered by hand; CI numbers continue from there (run 1 → build 21).
+  BUILD_NUMBER_OFFSET: 20
+  CI_PROFILE_NAME: PeptideOSAppStoreCI
+  TESTFLIGHT_GROUP: Internal
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+
+      - name: Install + test the native shim
+        working-directory: native
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+
+      - name: Sync web app into the iOS project
+        working-directory: native
+        run: npm run cap:sync
+
+      - name: Set build number
+        run: |
+          BUILD=$(( BUILD_NUMBER_OFFSET + GITHUB_RUN_NUMBER ))
+          echo "BUILD=$BUILD" >> "$GITHUB_ENV"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" native/ios/App/App/Info.plist
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = $BUILD;/" native/ios/App/App.xcodeproj/project.pbxproj
+          echo "Build number: $BUILD"
+
+      - name: Install signing certificate + profile
+        env:
+          P12_B64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.DIST_CERT_P12_PASSWORD }}
+          PROFILE_B64: ${{ secrets.CI_PROFILE_BASE64 }}
+        run: |
+          P12_PASSWORD=$(printf '%s' "$P12_PASSWORD" | tr -d '\r\n')   # secret was set from a file ending in a newline
+          KEYCHAIN="$RUNNER_TEMP/ci.keychain-db"
+          KC_PASS=$(openssl rand -hex 24)
+          echo "$P12_B64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security create-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KC_PASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -A -t cert -f pkcs12
+          # Apple WWDR G3 intermediate so the identity is trusted even if the image lacks it
+          curl -fsSL -o "$RUNNER_TEMP/wwdr.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer \
+            && security import "$RUNNER_TEMP/wwdr.cer" -k "$KEYCHAIN" -A >/dev/null 2>&1 || true
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PASS" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/dist.p12"
+
+          PROFILE="$RUNNER_TEMP/ci.mobileprovision"
+          echo "$PROFILE_B64" | base64 --decode > "$PROFILE"
+          UUID=$(security cms -D -i "$PROFILE" | plutil -extract UUID raw -)
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"; cp "$PROFILE" "$d/$UUID.mobileprovision"
+          done
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      - name: Point the App target at the CI profile
+        run: |
+          sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER = PeptideOSAppStore;/PROVISIONING_PROFILE_SPECIFIER = $CI_PROFILE_NAME;/" native/ios/App/App.xcodeproj/project.pbxproj
+          sed "s#<string>PeptideOSAppStore</string>#<string>$CI_PROFILE_NAME</string>#" native/ios/App/ExportOptions.plist > "$RUNNER_TEMP/ExportOptions.plist"
+          grep -c "$CI_PROFILE_NAME" native/ios/App/App.xcodeproj/project.pbxproj "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Archive
+        working-directory: native/ios/App
+        run: |
+          xcodebuild -version
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release \
+            -destination "generic/platform=iOS" -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
+            | tee "$RUNNER_TEMP/archive.log" | grep -E "error:|warning: .*[Pp]rovision|ARCHIVE" || true
+          test -d "$RUNNER_TEMP/App.xcarchive" || { tail -80 "$RUNNER_TEMP/archive.log"; exit 1; }
+
+      - name: Verify signed app (build number + vial-label links)
+        run: |
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")" = "$BUILD"
+          codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "applinks:peptideos.cwenterprises.net"
+          echo "OK: build $BUILD, associated-domains present"
+
+      - name: Export + upload to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          KEY="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$KEY"
+          plutil -replace destination -string upload "$RUNNER_TEMP/ExportOptions.plist"
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          rm -f "$KEY"
+
+      - name: Add build to the TestFlight group
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || python3 -m pip install --quiet pyjwt cryptography
+          python3 scripts/ci/testflight_add_to_group.py --app 6791469036 --build "$BUILD" --group "$TESTFLIGHT_GROUP"
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/ci.keychain-db" 2>/dev/null || true

@@ -10,3 +10,4 @@ migrations
 node_modules
 test
 scripts
+.github
