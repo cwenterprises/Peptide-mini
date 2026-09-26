@@ -20,6 +20,14 @@ t('logSlugFromUrl reads the vial-label slug', () => {
   assert.strictEqual(logSlugFromUrl(undefined), null);
 });
 
+t('logSlugFromUrl reads the short /L/<SLUG> label format', () => {
+  assert.strictEqual(logSlugFromUrl('HTTPS://PEPTIDEOS.CWENTERPRISES.NET/L/OXYTOCIN'), 'oxytocin');
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/l/pt141'), 'pt141');
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/L/5AMINO1MQ/'), '5amino1mq');
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/labels'), null);
+  assert.strictEqual(logSlugFromUrl(ORIGIN + '/l/'), null);
+});
+
 t('relative /api path is repointed at live origin', () => {
   assert.strictEqual(rewriteApiUrl('/api/vendors'), ORIGIN + '/api/vendors');
   assert.strictEqual(rewriteApiUrl('/api/auth/login'), ORIGIN + '/api/auth/login');

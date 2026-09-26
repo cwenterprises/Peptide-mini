@@ -2,7 +2,10 @@ const AASA = {
   applinks: {
     details: [{
       appIDs: ['P6M79CDJDY.net.cwenterprises.peptideos'],
-      components: [{ '/': '/', '?': { log: '?*' }, comment: 'vial-label QR deep link' }],
+      components: [
+        { '/': '/', '?': { log: '?*' }, comment: 'vial-label QR deep link (original labels)' },
+        { '/': '/l/*', caseSensitive: false, comment: 'short vial-label QR: /L/<SLUG>' },
+      ],
     }],
   },
 };
@@ -13,6 +16,12 @@ export default {
     // iOS Universal Links: vial-label QR scans (/?log=<peptide>) open the native app when installed
     if (url.pathname === '/.well-known/apple-app-site-association') {
       return new Response(JSON.stringify(AASA), { headers: { 'content-type': 'application/json' } });
+    }
+    // Short vial-label QR (/L/OXYTOCIN): uppercase-only so the QR can use compact alphanumeric
+    // mode (bigger modules that survive small, curved vials). Hand off to the ?log= deep link.
+    const short = /^\/l\/([a-z0-9]+)\/?$/i.exec(url.pathname);
+    if (short) {
+      return Response.redirect(url.origin + '/?log=' + short[1].toLowerCase(), 302);
     }
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);

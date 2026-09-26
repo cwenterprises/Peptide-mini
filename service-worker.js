@@ -1,6 +1,5 @@
-const CACHE_NAME = 'peptideos-v33';
-const APP_VERSION = 'v20260925-premixed';
-const FRESH_URL = '/?_v=' + APP_VERSION;
+const CACHE_NAME = 'peptideos-v34';
+const APP_VERSION = 'v20260925-shortqr';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
@@ -52,9 +51,15 @@ self.addEventListener('activate', (e) => {
       .then(() => self.clients.claim())
       .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
       .then(clients => clients.forEach(client => {
-        // Navigate every tab not already on the CURRENT version to the fresh URL —
-        // a tab parked on an old _v= URL must be refreshed too, or it keeps the stale shell
-        if (!client.url.includes('_v=' + APP_VERSION)) client.navigate(FRESH_URL);
+        // Refresh every app-shell tab not already on the CURRENT version — a tab parked on an
+        // old _v= URL must be refreshed too, or it keeps the stale shell. Only the shell ("/"):
+        // other pages (/labels, /privacy) must not be yanked back to the app, and the rest of
+        // the query (e.g. ?log= from a vial-label scan) is kept.
+        const u = new URL(client.url);
+        if (u.pathname === '/' && u.searchParams.get('_v') !== APP_VERSION) {
+          u.searchParams.set('_v', APP_VERSION);
+          client.navigate(u.href);
+        }
       }))
   );
 });
@@ -69,6 +74,9 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(Response.redirect(url.href, 302));
     return;
   }
+
+  // Short vial-label links redirect server-side; don't serve or cache them from the SW
+  if (/^\/l\//i.test(url.pathname)) return;
 
   if (url.pathname.startsWith('/api/')) {
     const method = e.request.method;

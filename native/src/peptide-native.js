@@ -74,9 +74,12 @@
     return input;
   }
 
-  // Pure: the peptide slug from a vial-label deep link (https://…/?log=pt141), or null.
+  // Pure: the peptide slug from a vial-label deep link, or null. Two label formats:
+  // https://…/?log=pt141 (original) and HTTPS://…/L/PT141 (short, uppercase QR).
   function logSlugFromUrl(input) {
     if (typeof input !== 'string') return null;
+    var s = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+\/l\/([a-z0-9]+)\/?(?:[?#]|$)/i.exec(input);
+    if (s) return s[1].toLowerCase();
     var m = /[?&]log=([^&#]*)/.exec(input);
     if (!m) return null;
     try { return decodeURIComponent(m[1].replace(/\+/g, ' ')) || null; } catch (e) { return null; }
