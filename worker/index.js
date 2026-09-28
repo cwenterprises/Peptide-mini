@@ -411,6 +411,13 @@ async function cyclesAdd(request, env, origin) {
   if (!userId) return err('unauthorized', 401, origin);
   const b = await request.json().catch(() => ({}));
   if (!b.peptide || !b.start_date || !b.end_date) return err('peptide, start_date, end_date required', 400, origin);
+  // Auto-tracked cycles can be created by two devices/tabs at once — reuse any overlapping cycle
+  if (b.auto) {
+    const dup = await env.DB.prepare(
+      'SELECT * FROM cycles WHERE user_id = ? AND peptide = ? AND NOT (end_date < ? OR start_date > ?)'
+    ).bind(userId, b.peptide, b.start_date, b.end_date).first();
+    if (dup) return json(dup, 200, origin);
+  }
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await env.DB.prepare(
@@ -556,18 +563,19 @@ async function settingsPut(request, env, origin) {
   if (!userId) return err('unauthorized', 401, origin);
   const b = await request.json().catch(() => ({}));
   await env.DB.prepare(
-    `INSERT INTO user_settings (user_id, week_start, cycle_start, cycle_end, theme, dash_order)
-     VALUES (?,?,?,?,?,?)
+    `INSERT INTO user_settings (user_id, week_start, cycle_start, cycle_end, theme, dash_order, auto_cycles)
+     VALUES (?,?,?,?,?,?,?)
      ON CONFLICT(user_id) DO UPDATE SET
        week_start = excluded.week_start,
        cycle_start = excluded.cycle_start,
        cycle_end = excluded.cycle_end,
        theme = excluded.theme,
-       dash_order = excluded.dash_order`
+       dash_order = excluded.dash_order,
+       auto_cycles = excluded.auto_cycles`
   ).bind(
     userId,
     b.week_start ?? null, b.cycle_start ?? null, b.cycle_end ?? null,
-    b.theme ?? 'system', b.dash_order ?? null
+    b.theme ?? 'system', b.dash_order ?? null, b.auto_cycles ? 1 : 0
   ).run();
   return json({ ok: true }, 200, origin);
 }

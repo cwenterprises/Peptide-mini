@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260928-renew';
+  const APP_VERSION = 'v20260928-autocycles';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -525,6 +525,9 @@ const App = (() => {
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
       peptides = await API.get('/peptides');
+    }
+    if (settings && settings.auto_cycles) {
+      cycles = cycles.concat(await autoTrackCycles(logs, cycles).catch(() => []));
     }
     _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins };
     applyTheme(settings.theme || 'system');
@@ -3207,6 +3210,52 @@ async function confirmCycleSuggest(pep) {
   }
 }
 
+// ── Auto-track cycles (opt-in, synced setting) ──────────────────────────────────
+// When on, every suggestion with a recommended length in the library becomes a real
+// cycle on its own. "Continuous"/"As needed" compounds (TRT, etc.) have no length to
+// recommend, so they stay as manual suggestions. Dismissed/deleted runs aren't recreated.
+let _autoCycleNotice = [];
+
+async function autoTrackCycles(logs, cycles) {
+  const made = [];
+  for (const s of suggestCycles(logs, cycles)) {
+    const rec = cycleRecRange(s.peptide);
+    if (!rec || rec.lo === null) continue;
+    const c = await API.post('/cycles', { peptide: s.peptide, start_date: s.start, end_date: s.end, auto: true });
+    if (!cycles.some(x => x.id === c.id)) { made.push(c); _autoCycleNotice.push(s.peptide); }
+  }
+  return made;
+}
+
+async function setAutoCycles(on) {
+  const settings = App.getData().settings || {};
+  try {
+    await API.put('/settings', Object.assign({}, settings, { auto_cycles: on ? 1 : 0 }));
+    await App.loadAll(); // turning it on starts cycles for anything already being logged
+    renderDashboard();
+    renderSettings();
+  } catch (e) {
+    alert('Failed to save setting: ' + (e.message || 'Unknown error'));
+  }
+}
+
+function autoCyclesToggleHtml() {
+  const on = !!(App.getData().settings || {}).auto_cycles;
+  return `
+    <label style="display:flex;flex-direction:row;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin:0 0 10px;">
+      <input type="checkbox" style="width:auto;" ${on ? 'checked' : ''} onchange="setAutoCycles(this.checked)" />
+      <span><strong>Auto-track cycles</strong> <span class="muted" style="font-size:11px;">— start a cycle at the recommended length when you begin logging a compound</span></span>
+    </label>`;
+}
+
+function autoCycleNoticeHtml() {
+  if (!_autoCycleNotice.length) return '';
+  const names = [...new Set(_autoCycleNotice)];
+  _autoCycleNotice = []; // show once
+  return `<div style="padding:8px 12px;border-radius:10px;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.35);font-size:12px;margin-bottom:8px;">
+    &#x2705; Auto-started cycle${names.length > 1 ? 's' : ''} for <strong>${names.map(escHtml).join(', ')}</strong> — edit or delete in Settings &rarr; Peptide Cycles.</div>`;
+}
+
 function cycleSuggestionsHtml(logs, cycles) {
   return suggestCycles(logs, cycles).map(s => {
     const open = _cycleSuggestOpen === s.peptide;
@@ -3348,6 +3397,8 @@ function renderDashboard() {
     cycles: `
       <div class="glass" style="padding:18px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Cycle Progress</h3>
+        ${autoCyclesToggleHtml()}
+        ${autoCycleNoticeHtml()}
         ${cycleHTML}
         ${cycleSuggestionsHtml(logs, cycles || [])}
       </div>`,
@@ -5255,6 +5306,7 @@ function renderSettings() {
       <!-- Peptide Cycles -->
       <div class="glass" style="padding:20px;">
         <h3 style="font-size:15px;font-weight:700;margin-bottom:14px;">Peptide Cycles</h3>
+        ${autoCyclesToggleHtml()}
         <div class="row3" style="margin-bottom:8px;">
           <label>Peptide
             <select id="cyPeptide" onchange="toggleCustomPeptide(this, 'cyPeptideCustom')">
@@ -5565,6 +5617,16 @@ async function deleteCycle(id) {
   if (!confirm('Delete this cycle?')) return;
   try {
     await API.delete('/cycles/' + id);
+    // Dismiss the run it covered so auto-track (or the suggestion) doesn't recreate it
+    const { logs, cycles } = App.getData();
+    const gone = cycles.find(c => c.id === id);
+    if (gone) {
+      const s = suggestCycles(logs, cycles.filter(c => c.id !== id)).find(x => x.peptide === gone.peptide);
+      const d = cycleDismissals();
+      d[gone.peptide + '|' + gone.start_date] = true;
+      if (s) d[s.peptide + '|' + s.start] = true;
+      localStorage.setItem(CYCLE_DISMISS_KEY, JSON.stringify(d));
+    }
     await App.loadAll();
     renderAllTabs();
     Tabs.switchTo('settings');
