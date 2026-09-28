@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260926-resync';
+  const APP_VERSION = 'v20260928-renew';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -727,7 +727,7 @@ function planMatched(plan, logs) {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-// Library v2 — 43 peptides — 2026-06-04
+// Library v2 — 43 peptides — 2026-06-04 (+Super Shred, Super Human Blend, Test E/P — 2026-09-28)
 const PEPTIDE_HALFLIFE = {
   'BPC-157':          { halfLife: 4,    notes: 'Short acting; split into AM/PM dosing for best results' },
   'TB-500':           { halfLife: 24,   notes: 'Long-acting systemic; weekly or twice-weekly dosing common' },
@@ -735,6 +735,9 @@ const PEPTIDE_HALFLIFE = {
   'CJC-1295':         { halfLife: 168,  notes: 'Long-acting GHRH analogue with DAC; once weekly dosing' },
   'Tesamorelin':      { halfLife: 0.5,  notes: 'Very short half-life; daily subcutaneous injection required' },
   'HGH':              { halfLife: 3,    notes: 'Somatropin; ~2–4h after SC injection, IGF-1 stays elevated ~24h — daily dosing' },
+  'Testosterone Cypionate': { halfLife: 192, notes: 'Long ester (~8 days); weekly or split twice-weekly injections' },
+  'Testosterone Enanthate': { halfLife: 108, notes: '~4.5 days; weekly or split twice-weekly injections' },
+  'Testosterone Propionate': { halfLife: 20,  notes: 'Short ester (~20h); daily or every-other-day injections' },
   'Sermorelin':       { halfLife: 0.3,  notes: 'Extremely short; bedtime injection to sync with natural GH pulse' },
   'PT-141':           { halfLife: 2.5,  notes: 'Melanocortin; onset ~1h, peak ~2–4h; intranasal or SC' },
   'Epithalon':        { halfLife: 0.5,  notes: 'Telomerase activator; short half-life, course dosing protocol' },
@@ -1235,6 +1238,32 @@ const PEPTIDE_LIBRARY = [
     stack: 'Often combined with Ipamorelin or GHRP-6 for enhanced GH release. The Sermorelin + Ipamorelin combination is a clean, effective GH stack. Add BPC-157/TB-500 for healing.'
   },
   {
+    name: 'Super Human Blend',
+    aliases: ['Superhuman', 'Superhuman Blend', 'Super Human', 'SHB', 'SHB 865', 'Super Human 865'],
+    premixed: true,
+    description: 'A pre-mixed injectable amino-acid blend (not actually a peptide — nothing in it is peptide-bonded), commonly sold as ~865 mg/mL in 10 mL vials. Typical per-mL formula: L-Carnitine 220 mg, L-Citrulline 120 mg, L-Arginine 110 mg, L-Ornithine 110 mg, NAC 75 mg, L-Lysine 70 mg, L-Proline 60 mg, Taurine 60 mg, L-Glutamine 40 mg. Marketed for nitric-oxide/pump, recovery, and fat-oxidation support. Formulas vary by vendor — check your vial\'s label.',
+    halfLife: 'Minutes–hours (individual amino acids)',
+    doseRange: '0.5–1 mL per injection, 1–3× per week (anecdotal)',
+    route: 'Intramuscular (some use SC)',
+    mechanism: 'Arginine/citrulline/ornithine feed nitric-oxide synthesis and the urea cycle (blood flow, ammonia clearance); L-carnitine shuttles fatty acids into mitochondria for oxidation; NAC and taurine replenish glutathione and buffer oxidative stress; lysine, proline and glutamine support collagen and tissue repair.',
+    protocols: 'Research-context use is anecdotal — no clinical trials of this combination exist. Commonly 0.5–1 mL IM 1–3× weekly, often pre-workout. Start at 0.25–0.5 mL to gauge tolerance: high-osmolarity amino solutions can cause injection-site pain, redness and post-injection soreness (many brands add lidocaine). Arginine can lower blood pressure — use caution with nitrates/PDE5 inhibitors. Use sterile technique; store per vendor (usually room temperature, away from light).',
+    cycleLength: '4–8 weeks on, then reassess',
+    stack: 'Often run alongside Super Shred on training days, or with GH secretagogues (CJC-1295/Ipamorelin) for recovery. Overlapping L-carnitine: count both if stacking with Super Shred or Lipo-C.'
+  },
+  {
+    name: 'Super Shred',
+    aliases: ['Super Shredder', 'Lipo Super Shred', 'LC553', 'LC 553', 'Super Shred 553'],
+    premixed: true,
+    description: 'A pre-mixed lipotropic "fat-burner" injectable, commonly sold as ~553 mg/mL in 10 mL vials. Typical per-mL formula: L-Carnitine 400 mg, MIC blend 100 mg (Methionine, Inositol, Choline), ATP 50 mg, Albuterol 2 mg, Vitamin B12 1 mg. Not a peptide. Contains albuterol, a prescription β2-agonist drug. Formulas vary by vendor — check your vial\'s label.',
+    halfLife: 'Albuterol ~4–6 h; L-carnitine/MIC hours; B12 days',
+    doseRange: '0.5–1 mL per injection, 1–2× per week',
+    route: 'Intramuscular',
+    mechanism: 'L-carnitine transports long-chain fatty acids into mitochondria for β-oxidation; MIC (lipotropics) supports hepatic fat export; ATP is an energy/vasodilation substrate; albuterol stimulates β2-adrenergic receptors, raising metabolic rate and lipolysis (thermogenic); B12 supports energy metabolism.',
+    protocols: 'Commonly 0.5–1 mL IM 1–2× weekly, earlier in the day (albuterol is stimulating). Start low (0.25–0.5 mL) to assess tolerance. Albuterol side effects: tremor, racing heart/palpitations, jitteriness, insomnia, low potassium, cramping — avoid with heart conditions, arrhythmia, uncontrolled blood pressure, hyperthyroidism, or other stimulants/β-agonists. Stay hydrated. Clinics use it with medical supervision.',
+    cycleLength: '4–8 weeks, then break (β2 receptors downregulate)',
+    stack: 'Paired with Super Human Blend, GLP-1s (Semaglutide/Tirzepatide/Retatrutide) or AOD-9604 in fat-loss protocols. Avoid stacking with clenbuterol or other stimulants. Overlaps Lipo-C (both lipotropic).'
+  },
+  {
     name: 'TB-500',
     aliases: ['Thymosin Beta-4', 'Tβ4'],
     description: 'A synthetic version of Thymosin Beta-4, a naturally occurring 43-amino acid protein present in virtually every cell of the body. Provides systemic healing effects — particularly relevant for cardiovascular tissue, muscles, tendons, skin, and neurological injury. Has a broad systemic reach vs BPC-157\'s more localized action.',
@@ -1260,7 +1289,7 @@ const PEPTIDE_LIBRARY = [
   },
   {
     name: 'Testosterone Cypionate',
-    aliases: ['Test Cyp', 'Test C', 'Depo-Testosterone'],
+    aliases: ['Testosterone', 'Test', 'TRT', 'Test Cyp', 'Test C', 'Testosterone Cyp', 'Depo-Testosterone'],
     premixed: true,
     description: 'A long-acting injectable ester of testosterone, the primary male androgen. The cypionate ester slows release from the injection depot, giving stable blood levels with weekly or twice-weekly dosing. The standard agent for testosterone replacement therapy (TRT); FDA-approved for male hypogonadism.',
     halfLife: '~8 days',
@@ -1270,6 +1299,32 @@ const PEPTIDE_LIBRARY = [
     protocols: 'TRT: 100–200 mg/week IM or SC, commonly split (e.g., 50–100 mg twice weekly) to flatten peaks and reduce aromatization. Levels stabilize over ~4–6 weeks; labs (total/free T, estradiol, hematocrit, lipids) typically checked at 6–12 weeks. Suppresses natural production — medical supervision required.',
     cycleLength: 'Continuous under medical supervision (TRT)',
     stack: 'Commonly run alongside HCG or Kisspeptin to maintain testicular signaling, and GH secretagogues (CJC-1295/Ipamorelin) for body-composition goals. Monitor hematocrit and estradiol.'
+  },
+  {
+    name: 'Testosterone Enanthate',
+    aliases: ['Test E', 'Test Enanthate', 'Testosterone Enan', 'Xyosted', 'Delatestryl'],
+    premixed: true,
+    description: 'A long-acting injectable testosterone ester, pharmacologically near-identical to cypionate (slightly shorter ester). FDA-approved for male hypogonadism (including the Xyosted SC autoinjector). Common TRT choice outside the US.',
+    halfLife: '~4.5–5 days',
+    doseRange: '100–200 mg/week (TRT); often split into 2+ injections',
+    route: 'Intramuscular or Subcutaneous',
+    mechanism: 'Ester is cleaved to free testosterone, which activates androgen receptors (directly and via DHT) — driving muscle protein synthesis, red-cell production, libido, bone density and mood. Aromatizes to estradiol.',
+    protocols: 'TRT: 100–200 mg/week, commonly split twice weekly (or every 3–4 days) to smooth peaks and troughs. Steady state in ~4–6 weeks; check total/free T (trough), estradiol, hematocrit, PSA and lipids at 6–12 weeks. Suppresses natural production and fertility — medical supervision required.',
+    cycleLength: 'Continuous under medical supervision (TRT)',
+    stack: 'Same as cypionate: HCG or Kisspeptin to maintain testicular function; monitor hematocrit and estradiol.'
+  },
+  {
+    name: 'Testosterone Propionate',
+    aliases: ['Test P', 'Test Prop', 'Testosterone Prop'],
+    premixed: true,
+    description: 'A short-ester injectable testosterone. Faster onset and clearance than cypionate/enanthate, so it needs frequent injections; the short ester is also known for more post-injection site pain.',
+    halfLife: '~0.8–1 day',
+    doseRange: '25–50 mg every other day, or daily (TRT-range equivalent)',
+    route: 'Intramuscular or Subcutaneous',
+    mechanism: 'Propionate ester is rapidly cleaved to free testosterone, which activates androgen receptors (directly and via DHT) and aromatizes to estradiol.',
+    protocols: 'Injected every day or every other day because of the short half-life; levels rise and fall quickly, so labs depend heavily on timing. Suppresses natural production — medical supervision required.',
+    cycleLength: 'Continuous under medical supervision',
+    stack: 'HCG or Kisspeptin for testicular signaling; monitor hematocrit and estradiol.'
   },
   {
     name: 'Thymosin Alpha-1',
@@ -1328,7 +1383,7 @@ const DEFAULT_PEPTIDES = [
   'Kisspeptin','Klow','LL-37','Lipo-C','MOTS-C','NAD+','Oxytocin',
   'PE-22-28','PT-141','Pinealon','Retatrutide','SS-31','SLU-PP-332',
   'Semax','Selank','Sermorelin','TB-500','Tesamorelin','Thymosin Alpha-1',
-  'VIP','Wolverine'
+  'VIP','Wolverine','Testosterone Cypionate','Super Shred','Super Human Blend'
 ];
 
 const ORDER_STATUSES = ['Ordered','Processing','Shipped','In Transit','Delivered','Stored','Used','Cancelled'];
@@ -2357,7 +2412,7 @@ function nextVialForPeptide(peptide, vials, logs) {
 // and the forms take concentration + vial size and do the multiplication.
 const PREMIXED_SOLUTION = 'Pre-mixed (ready to use)';
 const VIAL_SOLUTIONS = ['Bacteriostatic Water', 'Sterile Water', 'Saline (0.9% NaCl)', 'Acetic Acid (0.6%)', PREMIXED_SOLUTION, 'Other'];
-const PREMIXED_NAME_RE = /testosterone|nandrolone|trenbolone|boldenone|masteron|drostanolone|primobolan|sustanon|cypionate|enanthate|propionate|decanoate|undecanoate/i;
+const PREMIXED_NAME_RE = /super ?shred|super ?human|testosterone|nandrolone|trenbolone|boldenone|masteron|drostanolone|primobolan|sustanon|cypionate|enanthate|propionate|decanoate|undecanoate/i;
 
 function isPremixedName(name) {
   const entry = findLibraryEntry(name);
@@ -2404,14 +2459,23 @@ function solutionOpts(selected) {
     `<option ${s === selected ? 'selected' : ''}>${s}</option>`).join('');
 }
 
-async function resetVial(id) {
-  if (!confirm('Reset this vial to 100%? Use this when you reconstitute a fresh vial with the same recipe. Logged doses stay in History.')) return;
+// Renew = a fresh vial was reconstituted into the same slot. Keeps the vial id (so printed
+// QR labels keep working) and starts a new fill at reset_at; the recipe can change.
+let _renewingVialId = null;
+
+async function renewVial(id) {
+  const vial = App.getData().vials.find(v => v.id === id);
+  if (!vial) return;
+  const v = readVialForm('rv');
+  if (!v) return;
   try {
-    await API.post('/vials/' + id + '/reset', {});
+    await API.post('/vials/' + id + '/reset', v);
+    _renewingVialId = null;
     await App.loadAll();
     renderLogViews();
+    await maybeDeductInventory(vial.peptide); // the new vial came out of inventory
   } catch (e) {
-    alert('Failed to reset vial: ' + (e.message || 'Unknown error'));
+    alert('Failed to renew vial: ' + (e.message || 'Unknown error'));
   }
 }
 
@@ -2455,6 +2519,32 @@ function renderVials() {
         </div>`;
         continue;
       }
+      if (vial.id === _renewingVialId) {
+        const isPre = vial.solution === PREMIXED_SOLUTION;
+        vialsHtml += `
+        <div style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--accent-green);">
+          <div class="stack">
+            <div style="font-weight:700;">&#x1F504; Renew ${escHtml(vial.peptide)}</div>
+            <p class="muted" style="font-size:12px;margin:0;">New vial reconstituted? Confirm the recipe — the vial goes back to 100%, its labels keep working, and logged doses stay in History.</p>
+            <div class="row3">
+              <label><span id="rvMgLbl">${isPre ? 'Concentration (mg/mL)' : 'Amount (mg)'}</span>
+                <input type="number" id="rvMg" min="0" step="any" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : vial.mg}" />
+              </label>
+              <label><span id="rvMlLbl">${isPre ? 'Vial size (mL)' : 'Diluent (mL)'}</span>
+                <input type="number" id="rvMl" min="0" step="any" value="${vial.ml}" />
+              </label>
+              <label><span id="rvSolLbl">${isPre ? 'Type' : 'Reconstitution Solution'}</span>
+                <select id="rvSolution" onchange="syncPremixUI('rv')">${solutionOpts(vial.solution || '')}</select>
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-primary" onclick="renewVial('${vial.id}')">Renew Vial</button>
+              <button class="btn btn-sm btn-ghost" onclick="_renewingVialId=null;renderVials();">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+        continue;
+      }
       const totalMcg = parseFloat(vial.mg) * 1000;
       const remMcg   = vialRemMcg(vial, logs);
       const pct      = totalMcg > 0 ? Math.round((remMcg / totalMcg) * 100) : 0;
@@ -2471,9 +2561,9 @@ function renderVials() {
               <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
             </div>
-            <div style="display:flex;gap:6px;">
-              ${pct === 0 ? `<button class="btn btn-sm btn-primary" onclick="resetVial('${vial.id}')">Reset</button>` : ''}
-              <button class="btn btn-sm btn-ghost" onclick="_editingVialId='${vial.id}';renderVials();">Edit</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+              <button class="btn btn-sm ${pct <= 20 ? 'btn-primary' : 'btn-ghost'}" title="New vial reconstituted" onclick="_renewingVialId='${vial.id}';_editingVialId=null;renderVials();">Renew</button>
+              <button class="btn btn-sm btn-ghost" onclick="_editingVialId='${vial.id}';_renewingVialId=null;renderVials();">Edit</button>
               <button class="btn btn-sm btn-danger" onclick="deleteVial('${vial.id}')">Remove</button>
             </div>
           </div>
@@ -4835,9 +4925,18 @@ function calcHL() {
 // Case-insensitive lookup by name or alias; custom peptides get no icon.
 function findLibraryEntry(name) {
   if (!name) return null;
-  const q = name.toLowerCase();
-  return PEPTIDE_LIBRARY.find(p => p.name.toLowerCase() === q ||
-    (p.aliases || []).some(a => a.toLowerCase() === q)) || null;
+  const q = name.toLowerCase().trim();
+  const keys = p => [p.name, ...(p.aliases || [])].map(k => k.toLowerCase());
+  const exact = PEPTIDE_LIBRARY.find(p => keys(p).includes(q));
+  if (exact) return exact;
+  // Vials are often named with a strength/brand suffix ("HGH 191AA 10IU", "Testosterone
+  // Cypionate 250mg/mL", "Super Shred 553") — fall back to the longest name/alias the
+  // entered name starts with, followed by a word break.
+  let best = null, bestLen = 0;
+  for (const p of PEPTIDE_LIBRARY) for (const k of keys(p)) {
+    if (k.length > bestLen && q.startsWith(k) && /^[\s\-–(,/0-9]/.test(q.slice(k.length))) { best = p; bestLen = k.length; }
+  }
+  return best;
 }
 
 function peptideInfoBtn(name) {

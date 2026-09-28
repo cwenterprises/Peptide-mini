@@ -232,7 +232,8 @@ const WORKER_DEFAULT_PEPTIDES = [
   "GHK-CU","GhRIP","Glow","Glutathione","HGH","IGF-1 LR3","Ipamorelin","KPV",
   "Kisspeptin","Klow","LL-37","Lipo-C","MOTS-C","NAD+","Oxytocin","PE-22-28",
   "PT-141","Pinealon","Retatrutide","SS-31","SLU-PP-332","Semax","Selank",
-  "Sermorelin","TB-500","Tesamorelin","Thymosin Alpha-1","VIP","Wolverine"
+  "Sermorelin","TB-500","Tesamorelin","Thymosin Alpha-1","VIP","Wolverine",
+  "Testosterone Cypionate","Super Shred","Super Human Blend"
 ];
 
 async function authRegister(request, env, origin) {
@@ -466,8 +467,14 @@ async function vialsReset(request, env, origin, path) {
   if (!userId) return err('unauthorized', 401, origin);
   const id = path.split('/')[2];
   const now = new Date().toISOString();
-  const r = await env.DB.prepare('UPDATE vials SET reset_at = ? WHERE id = ? AND user_id = ?')
-    .bind(now, id, userId).run();
+  // Renew: a freshly reconstituted vial may use a different recipe — optional mg/ml/solution
+  // are applied in the same statement so the fill and its recipe can't disagree.
+  const b = await request.json().catch(() => ({}));
+  const r = (Number(b.mg) > 0 && Number(b.ml) > 0)
+    ? await env.DB.prepare('UPDATE vials SET reset_at = ?, mg = ?, ml = ?, solution = ? WHERE id = ? AND user_id = ?')
+        .bind(now, Number(b.mg), Number(b.ml), b.solution || null, id, userId).run()
+    : await env.DB.prepare('UPDATE vials SET reset_at = ? WHERE id = ? AND user_id = ?')
+        .bind(now, id, userId).run();
   if (!r.meta.changes) return err('not found', 404, origin);
   return json({ ok: true, reset_at: now }, 200, origin);
 }
