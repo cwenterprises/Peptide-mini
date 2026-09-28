@@ -422,7 +422,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260928-autocycles';
+  const APP_VERSION = 'v20260928-hgh-iu';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1806,6 +1806,19 @@ const HGH_IU_PER_MG = 3;
 function isHghName(name) {
   return (findLibraryEntry(name) || {}).name === 'HGH';
 }
+// HGH vials are sold as "10 IU / 15 IU / 36 IU", so the vial forms take IU. Storage stays in
+// mg (IU ÷ 3) so remaining/level/history math is unchanged. Entering "15" into an mg field for
+// a 15 IU vial made the concentration 3× too strong and every IU draw 3× too small.
+function hghIU(mg) { return parseFloat((Number(mg) * HGH_IU_PER_MG).toPrecision(6)); }
+function vialAmountText(v) {
+  if (isHghName(v.peptide)) return `${hghIU(v.mg)} IU / ${v.ml} mL · ${parseFloat((hghIU(v.mg) / v.ml).toPrecision(4))} IU/mL`;
+  if (v.solution === PREMIXED_SOLUTION) return `${parseFloat((v.mg / v.ml).toPrecision(6))} mg/mL · ${v.ml} mL`;
+  return `${v.mg}mg/${v.ml}mL`;
+}
+function remainingText(peptide, remMcg) {
+  if (isHghName(peptide)) return `${parseFloat((remMcg / 1000 * HGH_IU_PER_MG).toFixed(1))} IU`;
+  return remMcg >= 1000 ? `${(remMcg / 1000).toFixed(1).replace(/\.0$/, '')} mg` : `${Math.round(remMcg)} mcg`;
+}
 
 function calcDrawMath(vialId, doseValue, doseUnit, vials) {
   const vial = vials.find(v => v.id === vialId);
@@ -1870,6 +1883,27 @@ function updateDrawMath() {
     return;
   }
   const doseMcg = parseFloat(result.mcg);
+  const hghVial = vials.find(v => v.id === ldVial.value);
+  if (hghVial && isHghName(hghVial.peptide)) {
+    const iuConc = hghIU(hghVial.mg) / hghVial.ml;
+    const doseIU = doseMcg / 1000 * HGH_IU_PER_MG;
+    const mgHint = ldUnit && ldUnit.value === 'mg'
+      ? `<div class="badge badge-pending" style="margin-top:8px;display:inline-flex;white-space:normal;">HGH is dosed in IU — ${parseFloat(ldDose.value)} mg = ${parseFloat((parseFloat(ldDose.value) * HGH_IU_PER_MG).toPrecision(4))} IU. Meant ${parseFloat(ldDose.value)} IU? Switch the unit to IU.</div>` : '';
+    ldMath.innerHTML = `
+    <div style="padding:12px;">
+      <p class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Draw Math · HGH</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div><div class="muted" style="font-size:11px;">Concentration</div><div style="font-weight:700;">${parseFloat(iuConc.toPrecision(4))} IU/mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Dose (hormone)</div><div style="font-weight:700;">${parseFloat(doseIU.toPrecision(4))} IU (${(doseMcg / 1000).toFixed(2)} mg)</div></div>
+        <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${result.vol} mL</div></div>
+        <div><div class="muted" style="font-size:11px;">Syringe ticks (U-${_syringeType})</div><div style="font-weight:700;color:var(--accent-indigo);">${result.iu} units</div></div>
+      </div>
+      <p class="muted" style="font-size:11px;margin-top:6px;">IU = amount of hormone. Syringe units = volume (1 unit = 0.01 mL on U-100). They only match at 100 IU/mL.</p>
+      ${mgHint}
+      ${syringeOverflowWarning(result.volMl)}
+    </div>`;
+    return;
+  }
   const doseDisplay = _drawDisplayUnit === 'mg' ? `${parseFloat((doseMcg / 1000).toPrecision(6))} mg`
     : _drawDisplayUnit === 'IU' ? `${result.iu} units`
     : `${result.mcg} mcg`;
@@ -1955,9 +1989,7 @@ function vialOptionsHtml(vials, selPeptide, selVial) {
     ? 'No vials yet — add one in the Vials tab'
     : (filtered.length === 0 ? 'No vials for this peptide' : 'None');
   return `<option value="">${placeholder}</option>` + filtered
-    .map(v => `<option value="${v.id}" ${String(v.id) === (selVial || '') ? 'selected' : ''}>${escHtml(v.peptide)} — ${v.solution === PREMIXED_SOLUTION
-      ? `${parseFloat((v.mg / v.ml).toPrecision(6))} mg/mL · ${v.ml} mL`
-      : `${v.mg}mg/${v.ml}mL`}</option>`)
+    .map(v => `<option value="${v.id}" ${String(v.id) === (selVial || '') ? 'selected' : ''}>${escHtml(v.peptide)} — ${vialAmountText(v)}</option>`)
     .join('');
 }
 
@@ -1971,6 +2003,8 @@ function refreshVialOptions() {
   vialSel.innerHTML = vialOptionsHtml(vials, selPeptide, vialSel.value);
   const pepInfo = document.getElementById('ldPepInfo');
   if (pepInfo) pepInfo.innerHTML = peptideInfoBtn(selPeptide);
+  const unitSel = document.getElementById('ldUnit');
+  if (unitSel && isHghName(selPeptide)) unitSel.value = 'IU';
   updateDrawMath();
 }
 
@@ -2382,7 +2416,7 @@ function vialLevelHtml(vial, logs) {
   const remMcg = vialRemMcg(vial, logs);
   const pct = Math.max(0, Math.min(100, Math.round((remMcg / totalMcg) * 100)));
   const color = pct > 50 ? 'var(--accent-green)' : pct > 20 ? 'var(--accent-amber)' : '#ef4444';
-  const remText = remMcg >= 1000 ? `${(remMcg / 1000).toFixed(1).replace(/\.0$/, '')} mg` : `${Math.round(remMcg)} mcg`;
+  const remText = remainingText(vial.peptide, remMcg);
   const liquidH = 15 * pct / 100; // body spans y=6..21 in the 14×24 viewBox
   return `
     <span title="${escHtml(vial.peptide)}: ${Math.round(remMcg)} mcg remaining (${pct}%)"
@@ -2422,17 +2456,25 @@ function isPremixedName(name) {
   return !!(entry && entry.premixed) || PREMIXED_NAME_RE.test(name || '');
 }
 
-// prefix 'v' = Add Vial form, 'ev' = Edit Vial form
+// Peptide a vial form is for: the select (Add/Edit) or data-pep on the amount input (Renew)
+function vialFormPeptide(prefix) {
+  const sel = document.getElementById(prefix + 'Peptide');
+  if (sel) return sel.value === '__custom__' ? (document.getElementById(prefix + 'PeptideCustom') || {}).value || '' : sel.value;
+  return (document.getElementById(prefix + 'Mg') || { dataset: {} }).dataset.pep || '';
+}
+
+// prefix 'v' = Add Vial form, 'ev' = Edit Vial form, 'rv' = Renew
 function syncPremixUI(prefix) {
   const sol = document.getElementById(prefix + 'Solution');
   if (!sol) return;
   const pre = sol.value === PREMIXED_SOLUTION;
+  const hgh = !pre && isHghName(vialFormPeptide(prefix));
   const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-  set(prefix + 'MgLbl', pre ? 'Concentration (mg/mL)' : 'Amount (mg)');
+  set(prefix + 'MgLbl', pre ? 'Concentration (mg/mL)' : hgh ? 'Amount (IU)' : 'Amount (mg)');
   set(prefix + 'MlLbl', pre ? 'Vial size (mL)' : 'Diluent (mL)');
   set(prefix + 'SolLbl', pre ? 'Type' : 'Reconstitution Solution');
   const mg = document.getElementById(prefix + 'Mg'), ml = document.getElementById(prefix + 'Ml');
-  if (mg) mg.placeholder = pre ? 'e.g. 250' : 'e.g. 5';
+  if (mg) mg.placeholder = pre ? 'e.g. 250' : hgh ? 'e.g. 15' : 'e.g. 5';
   if (ml) ml.placeholder = pre ? 'e.g. 10' : 'e.g. 2';
 }
 
@@ -2441,8 +2483,14 @@ function onVialPeptideChange(sel, prefix) {
   toggleCustomPeptide(sel, prefix + 'PeptideCustom');
   const sol = document.getElementById(prefix + 'Solution');
   if (!sol) return;
+  const mgEl = document.getElementById(prefix + 'Mg');
+  const wasHgh = mgEl && mgEl.dataset.hgh === '1';
   if (isPremixedName(sel.value)) sol.value = PREMIXED_SOLUTION;
   else if (sol.value === PREMIXED_SOLUTION) sol.value = '';
+  // Keep an already-typed amount meaning the same thing when switching into/out of IU
+  const nowHgh = isHghName(sel.value) && sol.value !== PREMIXED_SOLUTION;
+  if (mgEl && mgEl.value && wasHgh !== nowHgh) mgEl.value = parseFloat((nowHgh ? mgEl.value * HGH_IU_PER_MG : mgEl.value / HGH_IU_PER_MG).toPrecision(6));
+  if (mgEl) mgEl.dataset.hgh = nowHgh ? '1' : '';
   syncPremixUI(prefix);
 }
 
@@ -2450,11 +2498,12 @@ function onVialPeptideChange(sel, prefix) {
 function readVialForm(prefix) {
   const solution = document.getElementById(prefix + 'Solution').value || null;
   const pre = solution === PREMIXED_SOLUTION;
+  const hgh = !pre && isHghName(vialFormPeptide(prefix));
   const a = parseFloat(document.getElementById(prefix + 'Mg').value);
   const ml = parseFloat(document.getElementById(prefix + 'Ml').value);
-  if (!a || a <= 0) { alert(pre ? 'Please enter the concentration in mg/mL.' : 'Please enter a valid amount in mg.'); return null; }
+  if (!a || a <= 0) { alert(pre ? 'Please enter the concentration in mg/mL.' : hgh ? 'Please enter the vial amount in IU (e.g. 10, 15, 36).' : 'Please enter a valid amount in mg.'); return null; }
   if (!ml || ml <= 0) { alert(pre ? 'Please enter the vial size in mL.' : 'Please enter a valid volume in mL.'); return null; }
-  return { mg: pre ? a * ml : a, ml, solution };
+  return { mg: pre ? a * ml : hgh ? a / HGH_IU_PER_MG : a, ml, solution };
 }
 
 function solutionOpts(selected) {
@@ -2503,8 +2552,8 @@ function renderVials() {
                   ${peptideSelectOpts(peptides, vial.peptide)}
                 </select>
               </label>
-              <label><span id="evMgLbl">${isPre ? 'Concentration (mg/mL)' : 'Amount (mg)'}</span>
-                <input type="number" id="evMg" min="0" step="any" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : vial.mg}" />
+              <label><span id="evMgLbl">${isPre ? 'Concentration (mg/mL)' : isHghName(vial.peptide) ? 'Amount (IU)' : 'Amount (mg)'}</span>
+                <input type="number" id="evMg" min="0" step="any" data-hgh="${!isPre && isHghName(vial.peptide) ? '1' : ''}" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : isHghName(vial.peptide) ? hghIU(vial.mg) : vial.mg}" />
               </label>
               <label><span id="evMlLbl">${isPre ? 'Vial size (mL)' : 'Diluent (mL)'}</span>
                 <input type="number" id="evMl" min="0" step="any" value="${vial.ml}" />
@@ -2530,8 +2579,8 @@ function renderVials() {
             <div style="font-weight:700;">&#x1F504; Renew ${escHtml(vial.peptide)}</div>
             <p class="muted" style="font-size:12px;margin:0;">New vial reconstituted? Confirm the recipe — the vial goes back to 100%, its labels keep working, and logged doses stay in History.</p>
             <div class="row3">
-              <label><span id="rvMgLbl">${isPre ? 'Concentration (mg/mL)' : 'Amount (mg)'}</span>
-                <input type="number" id="rvMg" min="0" step="any" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : vial.mg}" />
+              <label><span id="rvMgLbl">${isPre ? 'Concentration (mg/mL)' : isHghName(vial.peptide) ? 'Amount (IU)' : 'Amount (mg)'}</span>
+                <input type="number" id="rvMg" min="0" step="any" data-pep="${escHtml(vial.peptide)}" value="${isPre ? parseFloat((vial.mg / vial.ml).toPrecision(6)) : isHghName(vial.peptide) ? hghIU(vial.mg) : vial.mg}" />
               </label>
               <label><span id="rvMlLbl">${isPre ? 'Vial size (mL)' : 'Diluent (mL)'}</span>
                 <input type="number" id="rvMl" min="0" step="any" value="${vial.ml}" />
@@ -2560,8 +2609,10 @@ function renderVials() {
               <div style="font-weight:700;">${escHtml(vial.peptide)}${peptideInfoBtn(vial.peptide)}</div>
               <div class="muted">${vial.solution === PREMIXED_SOLUTION
                 ? `${parseFloat((vial.mg / vial.ml).toPrecision(6))} mg/mL &middot; ${vial.ml}mL vial (${vial.mg}mg total) &middot; pre-mixed`
+                : isHghName(vial.peptide)
+                ? `${hghIU(vial.mg)} IU / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${parseFloat((hghIU(vial.mg) / vial.ml).toPrecision(4))} IU/mL`
                 : `${vial.mg}mg / ${vial.ml}mL${vial.solution ? ' ' + escHtml(vial.solution) : ''} &middot; ${concMcgMl.toFixed(0)} mcg/mL`}</div>
-              <div style="font-size:13px;margin-top:4px;color:${fillColor};">${remMcg.toFixed(0)} mcg remaining (${pct}%)</div>
+              <div style="font-size:13px;margin-top:4px;color:${fillColor};">${isHghName(vial.peptide) ? remainingText(vial.peptide, remMcg) : remMcg.toFixed(0) + ' mcg'} remaining (${pct}%)</div>
               <div class="vial-bar"><div class="vial-fill" style="width:${pct}%;background:${fillColor};"></div></div>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">

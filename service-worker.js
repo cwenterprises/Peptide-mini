@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v37';
-const APP_VERSION = 'v20260928-autocycles';
+const CACHE_NAME = 'peptideos-v38';
+const APP_VERSION = 'v20260928-hgh-iu';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
