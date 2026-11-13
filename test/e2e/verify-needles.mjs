@@ -38,6 +38,13 @@ const info = await page.evaluate(() => {
 check('13 gauges, 18G → 32G in order', info.gauges.length === 13 && info.gauges[0] === 18 && info.gauges.at(-1) === 32 && info.gauges.every((g, i, a) => !i || g > a[i - 1]), info.gauges.join(','));
 check('Drawn to scale: 18G ≈ 4.9× wider than 31G', Math.abs(info.w18 / info.w31 - 1.270 / 0.261) < 0.05, (info.w18 / info.w31).toFixed(2));
 check('23G hub is ISO blue', info.hub23 === '#1d4ed8', info.hub23);
+// ISO 6009:2016 Table 1: every gauge 18–32 is coloured, including the fine insulin/pen sizes
+const iso = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#calcNeedles .needle-row')].map(r =>
+  [r.dataset.g, { fill: r.querySelector('svg rect').getAttribute('fill'), text: r.textContent }])));
+check('Every gauge has a colour fill', Object.values(iso).every(x => /^#[0-9a-f]{6}$/i.test(x.fill)), JSON.stringify(Object.fromEntries(Object.entries(iso).map(([g, x]) => [g, x.fill]))));
+const want = { 28: 'blue-green', 29: 'red', 30: 'yellow', 31: 'white', 32: 'deep green' };
+check('28–32G named per ISO 6009:2016', Object.entries(want).every(([g, name]) => iso[g].text.includes(`${name} (ISO colour)`)), Object.entries(want).map(([g]) => iso[g].text.match(/· ([a-z -]+) \(ISO/)?.[1]).join(', '));
+check('ISO reuses colours: 30G = 20G yellow, 32G = 21G deep green', iso[30].fill === iso[20].fill && iso[32].fill === iso[21].fill);
 check('30G row: 0.31 mm, insulin syringe, SC peptides', info.row30.includes('0.31 mm') && info.row30.includes('Insulin syringe') && info.row30.includes('subcutaneous peptides'), info.row30);
 check('"Higher gauge = thinner" explained', info.facts.includes('Higher gauge = thinner'));
 

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v43';
-const APP_VERSION = 'v20261112-needles';
+const CACHE_NAME = 'peptideos-v44';
+const APP_VERSION = 'v20261112-needle-colours';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
