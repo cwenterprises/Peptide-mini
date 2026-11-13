@@ -456,7 +456,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20261112-schedule';
+  const APP_VERSION = 'v20261112-calfeed';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -542,7 +542,7 @@ const App = (() => {
   }
 
   async function loadAll() {
-    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins] = await Promise.all([
+    let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins, calendarFeed] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
       API.get('/vials'),
@@ -554,7 +554,8 @@ const App = (() => {
       API.get('/cycles').catch(() => []),
       API.get('/inventory').catch(() => []),
       API.get('/peptide-notes').catch(() => []),
-      API.get('/checkins').catch(() => [])
+      API.get('/checkins').catch(() => []),
+      API.get('/calendar-feed').catch(() => ({ enabled: false }))
     ]);
     if (!peptides.length) {
       await Promise.all(DEFAULT_PEPTIDES.map(name => API.post('/peptides', { name }).catch(() => {})));
@@ -563,8 +564,9 @@ const App = (() => {
     if (settings && settings.auto_cycles) {
       cycles = cycles.concat(await autoTrackCycles(logs, cycles).catch(() => []));
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins, calendarFeed };
     applyTheme(settings.theme || 'system');
+    queueCalendarFeedSync();
     return _data;
   }
 
@@ -1912,11 +1914,19 @@ function icsFold(line) {
 function icsDate(d) { return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`; }
 function icsStamp(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
 
-function buildScheduleIcs(data, now = new Date()) {
+// opts.feed: subscription snapshot (adds refresh hints). opts.syringeType: build with a fixed
+// syringe instead of the session's calculator choice (the feed always uses U-100).
+function buildScheduleIcs(data, now = new Date(), opts = {}) {
+  if (opts.syringeType && opts.syringeType !== _syringeType) {
+    const saved = _syringeType;
+    _syringeType = opts.syringeType;
+    try { return buildScheduleIcs(data, now, { ...opts, syringeType: null }); } finally { _syringeType = saved; }
+  }
   const { planner = [], vials = [], logs = [], cycles = [] } = data;
   const stamp = icsStamp(now);
   const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PeptideOS//Dosing Schedule//EN', 'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH', 'X-WR-CALNAME:PeptideOS doses'];
+  if (opts.feed) L.push('REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H');
   for (const plan of planner) {
     const cycle = planCycle(plan, cycles, now);
     let first = nextWeekday(now, plan.day);
@@ -1997,6 +2007,9 @@ function scheduleCardHtml() {
         <button class="btn btn-primary btn-sm" id="schedIcsBtn" onclick="exportScheduleIcs()">${native ? 'Share to Calendar' : 'Add to Calendar (.ics)'}</button>
         <button class="btn btn-ghost btn-sm" id="schedPrintBtn" onclick="openPrintPlan()">Printable plan</button>
       </div>
+      <p class="muted" style="font-size:12px;margin-bottom:6px;">${data.calendarFeed?.enabled
+        ? '🔄 Calendar subscription is on — subscribed calendars update automatically.'
+        : 'Tip: <a href="#" onclick="Tabs.switchTo(\'settings\');setTimeout(()=>document.getElementById(\'calFeedCard\')?.scrollIntoView({behavior:\'smooth\'}),50);return false;" style="color:var(--accent-sky);">subscribe instead</a> — a calendar link that keeps itself up to date.'}</p>
       ${runouts.length ? `<div style="margin-top:6px;">${runouts.map(runoutLineHtml).join('')}</div>`
         : '<p class="muted" style="font-size:12px;">Add a vial for a planned peptide to see when it runs out.</p>'}
     </div>`;
@@ -2044,6 +2057,99 @@ function openPrintPlan() {
   el.innerHTML = `<div class="pp-sheet">${printPlanHtml(App.getData())}</div>`;
   el.onclick = e => { if (e.target === el) el.remove(); };
   document.body.appendChild(el);
+}
+
+// ── Calendar subscription (webcal) ──
+// The app is the only place planner/vials/logs change, so after every data load it
+// rebuilds the .ics (same code as Add to Calendar) and uploads it when it changed.
+// The server just serves the latest snapshot at /cal/<token>.ics.
+const FEED_ORIGIN = window.Capacitor?.isNativePlatform?.() ? 'https://peptideos.cwenterprises.net' : location.origin;
+let _calSyncTimer = null, _calLastSent = null;
+
+function calendarFeedUrls(token) {
+  const https = `${FEED_ORIGIN}/cal/${token}.ics`;
+  return { https, webcal: https.replace(/^https?:/, 'webcal:') };
+}
+// DTSTAMP changes on every build — ignore it when deciding whether to upload.
+function icsComparable(ics) { return ics.replace(/^DTSTAMP:.*$/gm, ''); }
+
+function queueCalendarFeedSync() {
+  clearTimeout(_calSyncTimer);
+  _calSyncTimer = setTimeout(() => syncCalendarFeed().catch(() => {}), 1200);
+}
+
+async function syncCalendarFeed(force = false) {
+  const data = App.getData();
+  if (!data?.calendarFeed?.enabled) return false;
+  const ics = buildScheduleIcs(data, new Date(), { feed: true, syringeType: 100 });
+  const key = icsComparable(ics);
+  if (!force && key === _calLastSent) return false;
+  const r = await API.put('/calendar-feed/ics', { ics });
+  _calLastSent = key;
+  data.calendarFeed.updated_at = r.updated_at;
+  return true;
+}
+
+async function enableCalendarFeed(rotate = false) {
+  if (rotate && !confirm('Reset the calendar link? The old link stops working right away — you will need to subscribe again with the new one.')) return;
+  try {
+    const feed = await API.post('/calendar-feed', {});
+    App.getData().calendarFeed = feed;
+    _calLastSent = null;
+    await syncCalendarFeed(true);
+    renderSettings();
+  } catch (e) { alert('Could not create the calendar link: ' + (e.message || 'error')); }
+}
+
+async function disableCalendarFeed() {
+  if (!confirm('Turn off the calendar link? Subscribed calendars stop updating and the link stops working.')) return;
+  try {
+    await API.delete('/calendar-feed');
+    App.getData().calendarFeed = { enabled: false };
+    _calLastSent = null;
+    renderSettings();
+  } catch (e) { alert('Could not turn off the link: ' + (e.message || 'error')); }
+}
+
+function subscribeCalendarFeed() {
+  const feed = App.getData().calendarFeed;
+  if (!feed?.enabled) return;
+  window.location.href = calendarFeedUrls(feed.token).webcal; // iOS/macOS: opens Calendar's Subscribe sheet
+}
+
+async function copyCalendarFeed(btn) {
+  const feed = App.getData().calendarFeed;
+  if (!feed?.enabled) return;
+  const url = calendarFeedUrls(feed.token).https;
+  try { await navigator.clipboard.writeText(url); }
+  catch { const i = document.getElementById('calFeedUrl'); i?.select(); document.execCommand?.('copy'); }
+  if (btn) { const t = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(() => { btn.textContent = t; }, 1500); }
+}
+
+function calendarFeedSettingsHtml() {
+  const feed = App.getData().calendarFeed;
+  const head = `<h3 style="font-size:15px;font-weight:700;margin-bottom:8px;">📅 Calendar subscription</h3>`;
+  if (!feed?.enabled) return `
+    <div class="glass" style="padding:18px;" id="calFeedCard">
+      ${head}
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">A private link your calendar app subscribes to. Dose reminders, syringe units and vial runout dates stay current on their own as you log doses, switch vials or edit the planner — no re-exporting.</p>
+      <button class="btn btn-primary btn-sm" id="calFeedEnable" onclick="enableCalendarFeed()">Create calendar link</button>
+    </div>`;
+  const { https } = calendarFeedUrls(feed.token);
+  const synced = feed.updated_at ? `Last updated ${new Date(feed.updated_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Waiting for first update';
+  return `
+    <div class="glass" style="padding:18px;" id="calFeedCard">
+      ${head}
+      <p class="muted" style="font-size:12px;margin-bottom:10px;">Subscribed calendars refresh on their own (iPhone: Settings → Calendar → Accounts → Fetch sets how often). Anyone with this link can see your dosing schedule — reset it if it's ever shared.</p>
+      <input type="text" id="calFeedUrl" readonly value="${escHtml(https)}" onclick="this.select()" style="font-size:12px;margin-bottom:8px;" />
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <button class="btn btn-primary btn-sm" id="calFeedSubscribe" onclick="subscribeCalendarFeed()">Subscribe on this device</button>
+        <button class="btn btn-ghost btn-sm" id="calFeedCopy" onclick="copyCalendarFeed(this)">Copy link</button>
+        <button class="btn btn-ghost btn-sm" id="calFeedReset" onclick="enableCalendarFeed(true)">Reset link</button>
+        <button class="btn btn-ghost btn-sm" id="calFeedOff" onclick="disableCalendarFeed()">Turn off</button>
+      </div>
+      <p class="muted" style="font-size:11px;">${synced} · Google Calendar: Other calendars → From URL → paste the link · Units assume a U-100 syringe.</p>
+    </div>`;
 }
 
 // ── Task 12: Log Dose ──────────────────────────────────────────────────────────
@@ -5881,6 +5987,7 @@ function renderSettings() {
         <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Download CSV</button>
       </div>
 
+      ${calendarFeedSettingsHtml()}
       ${healthSettingsHtml()}
       <!-- Backup & Restore -->
       <div class="glass" style="padding:18px;">

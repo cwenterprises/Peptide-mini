@@ -26,6 +26,11 @@ export default {
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);
     }
+    // Private calendar subscription: /cal/<token>.ics (no auth — the token is the secret)
+    const cal = /^\/cal\/([A-Za-z0-9_-]{20,64})\.ics$/.exec(url.pathname);
+    if (cal && (request.method === 'GET' || request.method === 'HEAD')) {
+      return calendarFeedServe(env, cal[1]);
+    }
     const res = await env.ASSETS.fetch(request);
     if (res.headers.get('content-type')?.includes('text/html')) {
       const headers = new Headers(res.headers);
@@ -155,6 +160,12 @@ async function handleAPI(request, env, url) {
   if (path === '/peptides' && method === 'GET')    return peptidesList(request, env, origin);
   if (path === '/peptides' && method === 'POST')   return peptidesAdd(request, env, origin);
   if (path.match(/^\/peptides\/[^/]+$/) && method === 'DELETE') return peptidesDelete(request, env, origin, path);
+
+  // Calendar subscription
+  if (path === '/calendar-feed'     && method === 'GET')    return calendarFeedGet(request, env, origin);
+  if (path === '/calendar-feed'     && method === 'POST')   return calendarFeedRotate(request, env, origin);
+  if (path === '/calendar-feed'     && method === 'DELETE') return calendarFeedDelete(request, env, origin);
+  if (path === '/calendar-feed/ics' && method === 'PUT')    return calendarFeedUpload(request, env, origin);
 
   // Planner
   if (path === '/planner' && method === 'GET')    return plannerList(request, env, origin);
@@ -365,6 +376,71 @@ async function peptidesDelete(request, env, origin, path) {
 }
 
 // ── Planner ───────────────────────────────────────────────────────────────────
+
+// ── Calendar subscription ────────────────────────────────────────────────────
+const CAL_MAX_BYTES = 512 * 1024;
+
+function newFeedToken() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return base64urlEncode(bytes); // 32 chars, 192 bits
+}
+
+async function calendarFeedGet(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const row = await env.DB.prepare('SELECT token, updated_at, created_at FROM calendar_feeds WHERE user_id = ?').bind(userId).first();
+  return json(row ? { enabled: true, token: row.token, updated_at: row.updated_at, created_at: row.created_at } : { enabled: false }, 200, origin);
+}
+
+// Create the link, or replace it (old URL stops working immediately). Keeps the last snapshot.
+async function calendarFeedRotate(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const token = newFeedToken();
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    `INSERT INTO calendar_feeds (user_id, token, created_at) VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET token = excluded.token, created_at = excluded.created_at`
+  ).bind(userId, token, now).run();
+  return json({ enabled: true, token, created_at: now }, 200, origin);
+}
+
+async function calendarFeedDelete(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  await env.DB.prepare('DELETE FROM calendar_feeds WHERE user_id = ?').bind(userId).run();
+  return json({ enabled: false }, 200, origin);
+}
+
+async function calendarFeedUpload(request, env, origin) {
+  const userId = await requireAuth(request, env);
+  if (!userId) return err('unauthorized', 401, origin);
+  const b = await request.json().catch(() => ({}));
+  const ics = typeof b.ics === 'string' ? b.ics : '';
+  if (!ics.startsWith('BEGIN:VCALENDAR') || !ics.trimEnd().endsWith('END:VCALENDAR')) return err('invalid calendar', 400, origin);
+  if (new TextEncoder().encode(ics).length > CAL_MAX_BYTES) return err('calendar too large', 413, origin);
+  const now = new Date().toISOString();
+  const r = await env.DB.prepare('UPDATE calendar_feeds SET ics = ?, updated_at = ? WHERE user_id = ?').bind(ics, now, userId).run();
+  if (!r.meta?.changes) return err('calendar link is off', 404, origin);
+  return json({ ok: true, updated_at: now }, 200, origin);
+}
+
+async function calendarFeedServe(env, token) {
+  const notFound = () => new Response('Not found', { status: 404, headers: { 'Content-Type': 'text/plain', 'X-Robots-Tag': 'noindex' } });
+  const row = await env.DB.prepare('SELECT ics FROM calendar_feeds WHERE token = ?').bind(token).first();
+  if (!row) return notFound();
+  const body = row.ics || 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//PeptideOS//Dosing Schedule//EN\r\nX-WR-CALNAME:PeptideOS doses\r\nEND:VCALENDAR\r\n';
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'text/calendar; charset=utf-8',
+      'Content-Disposition': 'inline; filename="peptideos.ics"',
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'no-referrer',
+    },
+  });
+}
 
 async function plannerList(request, env, origin) {
   const userId = await requireAuth(request, env);
