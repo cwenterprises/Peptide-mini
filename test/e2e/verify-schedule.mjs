@@ -90,6 +90,9 @@ check('No-vial row: default 08:00, no units, open-ended', sema?.includes('DTSTAR
 const runoutEv = events.find(e => e.includes('runs out'));
 check(`Runout all-day event on ${exp.runout}`, runoutEv?.includes(`DTSTART;VALUE=DATE:${exp.runout.replace(/-/g, '')}`));
 check('Stable UIDs per planner row', (unfolded.match(/UID:plan-/g) || []).length === 5);
+const monId = await page.evaluate(() => App.getData().planner.find(p => p.peptide === 'BPC-157' && p.day === 1)?.id);
+check('Event links to Log Dose for that planner row', mon?.includes(`URL:https://peptideos.cwenterprises.net/?log=bpc157&plan=${monId}`), mon?.match(/URL:[^\r]+/)?.[0]);
+check('Event notes say "Tap to log this dose"', mon?.includes(`Tap to log this dose: https://peptideos.cwenterprises.net/?log=bpc157&plan=${monId}`));
 
 // ── 3. Week tab card + download ──
 await page.evaluate(() => { Tabs.switchTo('week'); renderWeek(); });
@@ -126,6 +129,25 @@ await page.evaluate(() => document.getElementById('printPlan').remove());
 // ── 5. Empty planner state ──
 const empty = await page.evaluate(() => { const real = App.getData().planner; App.getData().planner = []; const h = scheduleCardHtml(); App.getData().planner = real; return h; });
 check('Empty planner shows guidance', empty.includes('Add planner items in Settings'));
+
+// ── 6. Reminder link → Log Dose prefilled from the planner row (beats "same as last time") ──
+const tueId = await page.evaluate(async () => {
+  await API.post('/logs', { peptide: 'BPC-157', route: 'Intramuscular', dose_value: 200, dose_unit: 'mcg', dose_mcg: 200, taken_at: new Date(Date.now() - 86400000).toISOString(), site: 'abd-rl' });
+  await App.loadAll();
+  return App.getData().planner.find(p => p.peptide === 'BPC-157' && p.day === 2)?.id;
+});
+await page.goto(`http://localhost:8791/?log=bpc157&plan=${tueId}`, { waitUntil: 'networkidle' });
+await page.waitForFunction(() => document.getElementById('ldPeptide')?.value === 'BPC-157', null, { timeout: 15000 }).catch(() => {});
+const pre = await page.evaluate(() => ({ pep: document.getElementById('ldPeptide')?.value, dose: document.getElementById('ldDose')?.value,
+  unit: document.getElementById('ldUnit')?.value, route: document.getElementById('ldRoute')?.value, url: location.search }));
+check('Reminder link opens Log Dose for BPC-157', pre.pep === 'BPC-157', JSON.stringify(pre));
+check('Prefilled with the planned 250 mcg Subcutaneous (not last log 200 IM)', pre.dose === '250' && pre.unit === 'mcg' && pre.route === 'Subcutaneous', JSON.stringify(pre));
+check('Link params cleared from the address bar', !pre.url.includes('log=') && !pre.url.includes('plan='), pre.url);
+await page.goto('http://localhost:8791/?log=bpc157', { waitUntil: 'networkidle' });
+await page.waitForFunction(() => document.getElementById('ldPeptide')?.value === 'BPC-157', null, { timeout: 15000 }).catch(() => {});
+const qr = await page.evaluate(() => ({ dose: document.getElementById('ldDose')?.value, route: document.getElementById('ldRoute')?.value }));
+check('Plain vial-QR link still uses the last logged dose', qr.dose === '200' && qr.route === 'Intramuscular', JSON.stringify(qr));
+await page.evaluate(async () => { for (const l of App.getData().logs.filter(x => x.peptide === 'BPC-157')) await API.delete('/logs/' + l.id).catch(() => {}); await App.loadAll(); });
 
 // Cleanup seeded planner rows so other suites see their usual state
 await page.evaluate(async () => {

@@ -357,6 +357,16 @@
     .hl-stats > div { padding: 10px 12px; border-radius: 12px; background: var(--chip-bg); }
     .hl-stats .v { font-weight: 800; font-size: 16px; }
     .hl-stats .k { font-size: 11px; color: var(--text-muted); }
+    /* Needle size chart */
+    .needle-row { padding: 10px 0; border-top: 1px solid var(--glass-border); color: var(--text); transition: opacity .15s; }
+    .needle-row:first-child { border-top: none; }
+    .needle-row.dim { opacity: 0.28; }
+    .needle-top { display: flex; align-items: center; gap: 10px; }
+    .needle-g { font-weight: 800; font-size: 15px; min-width: 40px; }
+    .needle-svg { flex: 1; min-width: 0; max-width: 220px; height: 24px; }
+    .needle-od { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+    .needle-use { font-size: 12px; margin-top: 2px; line-height: 1.45; }
+    .needle-facts { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.45; }
     /* Printable dosing plan */
     #printPlan { position: fixed; inset: 0; z-index: 1002; background: rgba(0,0,0,0.55); overflow-y: auto; padding: 16px; }
     #printPlan .pp-sheet { max-width: 820px; margin: 0 auto; background: var(--bg); color: var(--text); border-radius: 16px; padding: 20px; }
@@ -453,10 +463,12 @@
 (function(){
   const slug = new URLSearchParams(location.search).get('log');
   if (slug) sessionStorage.setItem('pending_log', slug);
+  const plan = new URLSearchParams(location.search).get('plan'); // calendar reminder: which planner row
+  if (slug && plan) sessionStorage.setItem('pending_plan', plan);
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20261112-levels';
+  const APP_VERSION = 'v20261112-needles';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -664,8 +676,11 @@ function applyPendingLogLink() {
   const slug = sessionStorage.getItem('pending_log');
   if (!slug) return;
   sessionStorage.removeItem('pending_log');
+  const planId = sessionStorage.getItem('pending_plan');
+  sessionStorage.removeItem('pending_plan');
   const u = new URL(location.href);
   u.searchParams.delete('log');
+  u.searchParams.delete('plan');
   history.replaceState(null, '', u);
 
   const { peptides, vials, logs } = App.getData();
@@ -688,11 +703,14 @@ function applyPendingLogLink() {
   set('ldPeptide', name);
   const last = logs.filter(l => l.peptide === name)
                    .sort((a, b) => new Date(b.taken_at) - new Date(a.taken_at))[0];
-  if (last) {
-    set('ldRoute', last.route);
+  // From a calendar reminder: the planned row's dose beats "same as last time"
+  const plan = planId && (App.getData().planner || []).find(p => String(p.id) === String(planId) && p.peptide === name);
+  const src = plan ? { route: plan.route, dose_value: plan.dose, dose_unit: plan.unit } : last;
+  if (src) {
+    set('ldRoute', src.route);
     refreshUnitOptions();
-    set('ldDose', last.dose_value);
-    set('ldUnit', last.dose_unit);
+    set('ldDose', src.dose_value);
+    set('ldUnit', src.dose_unit);
   }
   refreshVialOptions();
   // Same vial as last time if it still exists, else the newest vial of this peptide
@@ -1911,6 +1929,12 @@ function icsFold(line) {
   out.push(cur);
   return out.join('\r\n');
 }
+// Reminder → Log Dose with that planner row filled in. Same ?log= slug rule as vial-label QRs
+// (lowercase alphanumerics); a Universal Link, so it opens the iOS app when installed.
+function planLogUrl(plan) {
+  const slug = String(plan.peptide || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return `https://peptideos.cwenterprises.net/?log=${encodeURIComponent(slug)}&plan=${encodeURIComponent(plan.id)}`;
+}
 function icsDate(d) { return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`; }
 function icsStamp(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
 
@@ -1940,11 +1964,11 @@ function buildScheduleIcs(data, now = new Date(), opts = {}) {
       `Route: ${plan.route}.`,
       plan.note ? `Note: ${plan.note}` : '',
       cycle ? `Cycle: ${cycle.start_date} → ${cycle.end_date}.` : '',
-      'Log it in PeptideOS: https://peptideos.cwenterprises.net',
+      `Tap to log this dose: ${planLogUrl(plan)}`,
       'Research/personal tracking only — not medical advice.',
     ].filter(Boolean).join('\n');
     L.push('BEGIN:VEVENT', `UID:plan-${plan.id}@peptideos.cwenterprises.net`, `DTSTAMP:${stamp}`,
-      `DTSTART:${icsDate(first)}T${hh}${mm}00`, 'DURATION:PT10M',
+      `DTSTART:${icsDate(first)}T${hh}${mm}00`, 'DURATION:PT10M', `URL:${planLogUrl(plan)}`,
       `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAYS[plan.day]}${cycle ? `;UNTIL=${cycle.end_date.replace(/-/g, '')}T235959` : ''}`,
       `SUMMARY:${icsEscape(summary)}`, `DESCRIPTION:${icsEscape(desc)}`, 'CATEGORIES:PeptideOS',
       'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(summary)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
@@ -5117,6 +5141,81 @@ function setSyringeCapacity(cap) {
   recalcActiveSyringe();
 }
 
+// ── Needle size (gauge) chart ─────────────────────────────────────────────────
+// Outer diameters: ISO 9626 nominal. Hub colours: ISO 6009 (detachable needles only —
+// insulin syringes have a fixed needle, pen needles aren't colour-coded).
+const NEEDLE_GAUGES = [
+  { g: 18, od: 1.270, hub: '#f9a8d4', hubName: 'pink',   len: '1–1½″ (fill needle)', use: 'Drawing up only — bac water or thick oil from a vial. Often blunt; switch to a fresh, finer needle to inject.', tags: ['draw'] },
+  { g: 20, od: 0.908, hub: '#facc15', hubName: 'yellow', len: '1–1½″', use: 'Drawing oil faster; deep IM (glute).', tags: ['draw', 'oil'] },
+  { g: 21, od: 0.819, hub: '#15803d', hubName: 'green',  len: '1–1½″', use: 'Drawing oil; IM in glute or thigh.', tags: ['draw', 'oil'] },
+  { g: 22, od: 0.718, hub: '#111827', hubName: 'black',  len: '1–1½″', use: 'IM — glute or thigh. Common for testosterone and other oils.', tags: ['oil'] },
+  { g: 23, od: 0.642, hub: '#1d4ed8', hubName: 'blue',   len: '1–1½″', use: 'IM — thigh, glute or deltoid. Common for testosterone.', tags: ['oil'] },
+  { g: 25, od: 0.515, hub: '#f97316', hubName: 'orange', len: '⅝–1″', use: 'Deltoid IM, or subcutaneous oils (TRT SC).', tags: ['oil'] },
+  { g: 26, od: 0.464, hub: '#92400e', hubName: 'brown',  len: '⅜–½″', use: 'Subcutaneous — thin oils or larger volumes.', tags: ['oil', 'pep'] },
+  { g: 27, od: 0.413, hub: '#9ca3af', hubName: 'grey',   len: '½″', use: 'Subcutaneous oils (TRT SC, HCG) — oil pushes slowly.', tags: ['oil', 'pep'] },
+  { g: 28, od: 0.362, kind: 'insulin', len: '½″ (12.7 mm)', use: 'Insulin syringe — subcutaneous, larger volumes.', tags: ['pep'] },
+  { g: 29, od: 0.337, kind: 'insulin', len: '½″ (12.7 mm)', use: 'Insulin syringe — subcutaneous peptides.', tags: ['pep'] },
+  { g: 30, od: 0.312, kind: 'insulin', len: '5⁄16″ (8 mm)', use: 'Insulin syringe — the usual pick for subcutaneous peptides.', tags: ['pep'] },
+  { g: 31, od: 0.261, kind: 'insulin', len: '6–8 mm', use: 'Thinnest common insulin syringe — least sting, slowest draw.', tags: ['pep'] },
+  { g: 32, od: 0.235, kind: 'pen',     len: '4–6 mm', use: 'Pen needles — GLP-1 and HGH pens.', tags: ['pen'] },
+];
+const NEEDLE_FILTERS = [['all', 'All'], ['pep', 'SC peptides'], ['oil', 'Oils & IM'], ['pen', 'Pens'], ['draw', 'Drawing up']];
+let _needleFilter = 'all';
+
+// Needle drawn at true relative thickness (shaft width ∝ outer diameter).
+function needleSvg(n) {
+  const w = (n.od * 7).toFixed(2), x0 = 30, x1 = 150;
+  const hub = n.kind === 'insulin'
+    ? `<rect x="2" y="4" width="28" height="16" rx="3" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-opacity="0.35"/><text x="16" y="15.5" text-anchor="middle" font-size="7" fill="currentColor" fill-opacity="0.6">fixed</text>`
+    : n.kind === 'pen'
+      ? `<rect x="6" y="5" width="24" height="14" rx="7" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-opacity="0.35"/><text x="18" y="15" text-anchor="middle" font-size="7" fill="currentColor" fill-opacity="0.6">pen</text>`
+      : `<rect x="4" y="5" width="26" height="14" rx="2" fill="${n.hub}" stroke="currentColor" stroke-opacity="0.25"/>`;
+  return `<svg class="needle-svg" viewBox="0 0 160 24" role="img" aria-label="${n.g} gauge needle, ${n.od} mm">
+    ${hub}
+    <line x1="${x0}" y1="12" x2="${x1 - 6}" y2="12" stroke="currentColor" stroke-opacity="0.75" stroke-width="${w}" stroke-linecap="butt"/>
+    <polygon points="${x1 - 6},${12 - w / 2} ${x1},12 ${x1 - 6},${12 + w / 2}" fill="currentColor" fill-opacity="0.75"/>
+  </svg>`;
+}
+
+function needleChartHtml() {
+  const rows = NEEDLE_GAUGES.map(n => {
+    const on = _needleFilter === 'all' || n.tags.includes(_needleFilter);
+    return `
+      <div class="needle-row${on ? '' : ' dim'}" data-g="${n.g}">
+        <div class="needle-top">
+          <span class="needle-g">${n.g}G</span>
+          ${needleSvg(n)}
+          <span class="needle-od">${n.od.toFixed(2)} mm · ${(n.od / 25.4).toFixed(3)}″</span>
+        </div>
+        <div class="muted needle-use"><strong>${escHtml(n.len)}</strong>${n.hubName ? ` · ${n.hubName} hub` : ''} — ${escHtml(n.use)}</div>
+      </div>`;
+  }).join('');
+  const chips = NEEDLE_FILTERS.map(([k, label]) =>
+    `<button class="btn btn-sm ${_needleFilter === k ? 'btn-primary' : 'btn-ghost'}" style="padding:3px 10px;font-size:12px;" onclick="setNeedleFilter('${k}')">${label}</button>`).join('');
+  return `
+    <div class="stack" id="needleChart">
+      <div class="glass" style="padding:14px 16px;">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:6px;">Reading needle sizes</h4>
+        <ul class="needle-facts">
+          <li><strong>Higher gauge = thinner.</strong> An 18G is about 5× wider than a 31G.</li>
+          <li><strong>Thinner stings less but flows slower</strong> — oils need a wider needle or patience.</li>
+          <li><strong>Length decides where it lands:</strong> ⅝″ or shorter for subcutaneous, 1–1½″ for intramuscular.</li>
+          <li><strong>Draw wide, inject fresh:</strong> pushing through a rubber stopper dulls the tip.</li>
+          <li>Insulin syringes have a fixed needle — the size is on the box, e.g. <strong>31G × 5⁄16″</strong>.</li>
+        </ul>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${chips}</div>
+      <div class="glass" style="padding:6px 14px;">${rows}</div>
+      <p class="muted" style="font-size:11px;">Outer diameters per ISO 9626; hub colours per ISO 6009. Typical uses are general reference only — not medical advice.</p>
+    </div>`;
+}
+
+function setNeedleFilter(f) {
+  _needleFilter = f;
+  const el = document.getElementById('calcNeedles');
+  if (el) el.innerHTML = needleChartHtml();
+}
+
 function renderCalc() {
   const { vials } = App.getData();
   const vialOpts = vials.map(v => `<option value="${v.id}" data-conc="${(parseFloat(v.mg)*1000/parseFloat(v.ml)).toFixed(1)}">${escHtml(v.peptide)} (${(parseFloat(v.mg)*1000/parseFloat(v.ml)).toFixed(0)} mcg/mL)</option>`).join('');
@@ -5152,6 +5251,7 @@ function renderCalc() {
           <button class="nav-tab ${_calcSubTab==='hgh'?'active':''}" data-ctab="hgh">HGH</button>
           <button class="nav-tab ${_calcSubTab==='nasal'?'active':''}" data-ctab="nasal">Nasal</button>
           <button class="nav-tab ${_calcSubTab==='protocols'?'active':''}" data-ctab="protocols">Protocols</button>
+          <button class="nav-tab ${_calcSubTab==='needles'?'active':''}" data-ctab="needles">Needles</button>
         </div>
 
         <div id="calcRecon" style="display:${_calcSubTab==='recon'?'block':'none'};">
@@ -5381,6 +5481,8 @@ function renderCalc() {
           </div>
         </div>
 
+        <div id="calcNeedles" style="display:${_calcSubTab==='needles'?'block':'none'};">${needleChartHtml()}</div>
+
         <div id="calcProtocols" style="display:${_calcSubTab==='protocols'?'block':'none'};">
           <div class="stack">
             <div class="glass" style="padding:18px;">
@@ -5422,7 +5524,7 @@ function renderCalc() {
     if (!btn) return;
     _calcSubTab = btn.dataset.ctab;
     document.querySelectorAll('#calcNav .nav-tab').forEach(b => b.classList.toggle('active', b.dataset.ctab === _calcSubTab));
-    ['recon','draw','cost','hl','conv','trt','hcg','hgh','nasal','protocols'].forEach(t => {
+    ['recon','draw','cost','hl','conv','trt','hcg','hgh','nasal','protocols','needles'].forEach(t => {
       const el = document.getElementById('calc' + t.charAt(0).toUpperCase() + t.slice(1));
       if (el) el.style.display = t === _calcSubTab ? 'block' : 'none';
     });
