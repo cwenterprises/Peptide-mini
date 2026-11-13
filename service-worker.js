@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v39';
-const APP_VERSION = 'v20261112-wpa-visuals';
+const CACHE_NAME = 'peptideos-v40';
+const APP_VERSION = 'v20261112-schedule';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
