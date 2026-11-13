@@ -11,3 +11,5 @@ node_modules
 test
 scripts
 .github
+*.sh
+.superpowers

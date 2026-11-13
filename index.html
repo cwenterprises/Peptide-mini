@@ -345,6 +345,18 @@
 
     /* Disclaimer */
     .disclaimer { font-size: 11px; color: var(--text-muted); padding: 10px 14px; text-align: center; opacity: 0.8; }
+    /* Visual syringe + half-life buildup chart */
+    .syringe-wrap { margin-top: 10px; color: var(--text); }
+    .syringe-svg { display: block; width: 100%; max-width: 420px; height: auto; }
+    .syringe-caption { font-size: 11px; margin-top: 2px; }
+    .hl-chart-wrap { position: relative; margin-top: 12px; color: var(--text); }
+    .hl-chart { display: block; width: 100%; height: auto; max-width: 560px; touch-action: pan-y; }
+    .hl-tip { position: absolute; top: 0; pointer-events: none; transform: translateX(-50%); font-size: 11px; font-weight: 700;
+      padding: 3px 8px; border-radius: 8px; background: var(--accent-indigo); color: #fff; white-space: nowrap; display: none; }
+    .hl-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-top: 12px; }
+    .hl-stats > div { padding: 10px 12px; border-radius: 12px; background: var(--chip-bg); }
+    .hl-stats .v { font-weight: 800; font-size: 16px; }
+    .hl-stats .k { font-size: 11px; color: var(--text-muted); }
 
     /* Application site body diagrams */
     /* Peptide info button + bottom sheet */
@@ -422,7 +434,7 @@
 })();
 // Version check — bust stale CDN cache; never interferes with /reset token links
 (function(){
-  const APP_VERSION = 'v20260928-hgh-iu';
+  const APP_VERSION = 'v20261112-wpa-visuals';
   // Skip entirely on /reset so token query param is never dropped
   if (location.pathname === '/reset') return;
   const stored = sessionStorage.getItem('app_version');
@@ -1900,7 +1912,7 @@ function updateDrawMath() {
       </div>
       <p class="muted" style="font-size:11px;margin-top:6px;">IU = amount of hormone. Syringe units = volume (1 unit = 0.01 mL on U-100). They only match at 100 IU/mL.</p>
       ${mgHint}
-      ${syringeOverflowWarning(result.volMl)}
+      ${syringeDrawHtml(result.volMl)}
     </div>`;
     return;
   }
@@ -1922,7 +1934,7 @@ function updateDrawMath() {
         <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${result.vol} mL</div></div>
         <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${result.iu} units</div></div>
       </div>
-      ${syringeOverflowWarning(result.volMl)}
+      ${syringeDrawHtml(result.volMl)}
     </div>`;
 }
 
@@ -4442,6 +4454,81 @@ function syringeOverflowWarning(volMl) {
   return `<div class="badge badge-pending" style="margin-top:8px;display:inline-flex;">⚠ Exceeds ${_syringeCapacityMl} mL syringe capacity</div>`;
 }
 
+// ── Visual syringe ────────────────────────────────────────────────────────────
+// Scale for the selected syringe: printed marks every `minor` units, labels every
+// 5 marks. Big syringes (3/5 mL) are printed in mL, so their labels are mL too.
+function syringeScale(type = _syringeType, capMl = _syringeCapacityMl) {
+  const maxUnits = capMl * type;
+  const minor = [0.5, 1, 2, 5, 10, 20, 50].find(s => maxUnits / s <= 50) || 50;
+  return { maxUnits, minor, major: minor * 5, labelInMl: capMl >= 3 };
+}
+
+// "Between the 12 and 14 marks" — helps read a dose that falls between printed ticks.
+function syringeReadingHint(units, scale = syringeScale()) {
+  if (!(units > 0) || units > scale.maxUnits) return '';
+  const lo = Math.floor(units / scale.minor + 1e-9) * scale.minor;
+  if (Math.abs(units - lo) < 1e-6) return `right on the ${fmtSyrMark(lo, scale)} mark`;
+  return `between the ${fmtSyrMark(lo, scale)} and ${fmtSyrMark(lo + scale.minor, scale)} marks`;
+}
+function fmtSyrMark(u, scale) {
+  return scale.labelInMl ? `${parseFloat((u / _syringeType).toFixed(2))} mL` : `${parseFloat(u.toFixed(1))}`;
+}
+
+let _syrSvgSeq = 0;
+function syringeSvg(volMl) {
+  const scale = syringeScale();
+  const units = volMl * _syringeType;
+  const over  = units > scale.maxUnits + 1e-9;
+  const X0 = 58, X1 = 300, BAR_T = 30, BAR_B = 64;            // barrel interior, viewBox units
+  const xAt = u => X0 + (Math.min(u, scale.maxUnits) / scale.maxUnits) * (X1 - X0);
+  const xFill = xAt(units);
+  const gid = `syrGrad${++_syrSvgSeq}`;
+  let ticks = '';
+  for (let u = 0; u <= scale.maxUnits + 1e-9; u += scale.minor) {
+    const isMajor = Math.abs(u / scale.major - Math.round(u / scale.major)) < 1e-6;
+    const x = xAt(u).toFixed(1);
+    ticks += `<line x1="${x}" y1="${BAR_T}" x2="${x}" y2="${BAR_T + (isMajor ? 12 : 6)}" stroke="currentColor" stroke-opacity="${isMajor ? 0.7 : 0.4}" stroke-width="${isMajor ? 1.1 : 0.7}"/>`;
+    if (isMajor) ticks += `<text x="${x}" y="${BAR_B + 13}" text-anchor="middle" font-size="9" fill="currentColor" fill-opacity="0.65">${scale.labelInMl ? parseFloat((u / _syringeType).toFixed(2)) : parseFloat(u.toFixed(1))}</text>`;
+  }
+  const badgeX = Math.max(X0 + 22, Math.min(X1 - 22, xFill));
+  const label  = over ? `> ${_syringeCapacityMl} mL` : `${units.toFixed(1)} u`;
+  const unitsTxt = units.toFixed(1);
+  return `
+    <svg class="syringe-svg" viewBox="0 0 360 92" role="img"
+         aria-label="Syringe drawn to ${unitsTxt} units (${volMl.toFixed(3)} mL) on a ${_syringeCapacityMl} mL U-${_syringeType} syringe">
+      <defs><linearGradient id="${gid}" x1="0" x2="1" y1="0" y2="0">
+        <stop offset="0" style="stop-color:${over ? '#f87171' : 'var(--accent-sky)'}"/>
+        <stop offset="1" style="stop-color:${over ? '#ef4444' : 'var(--accent-indigo)'}"/>
+      </linearGradient></defs>
+      <line x1="4" y1="47" x2="46" y2="47" stroke="currentColor" stroke-opacity="0.55" stroke-width="1.6" stroke-linecap="round"/>
+      <rect x="44" y="40" width="14" height="14" rx="2" fill="currentColor" fill-opacity="0.18"/>
+      <rect x="${X0}" y="${BAR_T}" width="${X1 - X0}" height="${BAR_B - BAR_T}" rx="4" fill="var(--input-bg)" stroke="currentColor" stroke-opacity="0.3"/>
+      ${units > 0 ? `<rect x="${X0}" y="${BAR_T + 1}" width="${(xFill - X0).toFixed(1)}" height="${BAR_B - BAR_T - 2}" rx="3" fill="url(#${gid})" fill-opacity="0.85"/>` : ''}
+      ${ticks}
+      <rect x="${xFill.toFixed(1)}" y="${BAR_T}" width="7" height="${BAR_B - BAR_T}" rx="1.5" fill="currentColor" fill-opacity="0.75"/>
+      <rect x="${(xFill + 7).toFixed(1)}" y="44" width="${Math.max(0, 342 - xFill - 7).toFixed(1)}" height="6" fill="currentColor" fill-opacity="0.35"/>
+      <rect x="${X1}" y="22" width="5" height="50" rx="2" fill="currentColor" fill-opacity="0.3"/>
+      <rect x="342" y="30" width="7" height="34" rx="2" fill="currentColor" fill-opacity="0.45"/>
+      <g transform="translate(${badgeX.toFixed(1)},0)">
+        <rect x="-24" y="4" width="48" height="17" rx="8.5" fill="${over ? '#ef4444' : 'var(--accent-indigo)'}"/>
+        <text x="0" y="16" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">${label}</text>
+      </g>
+    </svg>`;
+}
+
+// Draw-to visual + reading hint + overflow warning. Used by every syringe-units result.
+function syringeDrawHtml(volMl) {
+  if (!(volMl > 0) || !isFinite(volMl)) return '';
+  const units = volMl * _syringeType;
+  const hint  = syringeReadingHint(units);
+  return `
+    <div class="syringe-wrap">
+      ${syringeSvg(volMl)}
+      <div class="muted syringe-caption">U-${_syringeType} · ${_syringeCapacityMl} mL syringe${hint ? ` · ${hint}` : ''}</div>
+    </div>
+    ${syringeOverflowWarning(volMl)}`;
+}
+
 function recalcActiveSyringe() {
   if (_calcSubTab === 'recon') { calcRecon(); calcCustomRecon(); }
   else if (_calcSubTab === 'draw') calcDraw();
@@ -4586,6 +4673,25 @@ function renderCalc() {
                 </select>
               </label>
               <label>Half-life (hours)<input type="number" id="hlHours" min="0" step="any" placeholder="e.g. 4" oninput="calcHL()" /></label>
+            </div>
+            <div class="row3">
+              <label>Dose every
+                <select id="hlEvery" onchange="calcHL()">
+                  <option value="8">8 hours (3×/day)</option>
+                  <option value="12">12 hours (2×/day)</option>
+                  <option value="24" selected>Day</option>
+                  <option value="48">Other day</option>
+                  <option value="84">3.5 days (2×/week)</option>
+                  <option value="168">Week</option>
+                  <option value="336">2 weeks</option>
+                </select>
+              </label>
+              <label>Dose (optional)<input type="number" id="hlDose" min="0" step="any" placeholder="e.g. 250" oninput="calcHL()" /></label>
+              <label>Unit
+                <select id="hlDoseUnit" onchange="calcHL()">
+                  <option>mcg</option><option>mg</option><option>IU</option>
+                </select>
+              </label>
             </div>
             <div id="hlNotes" class="muted" style="display:none;"></div>
             <div id="hlResult" class="glass" style="padding:14px;display:none;"></div>
@@ -4785,7 +4891,7 @@ function calcRecon() {
   const volMl = doseMcg / concMcgMl;
   const iu    = volMl * _syringeType;
   drawRes.style.display = 'block';
-  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} units on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeOverflowWarning(volMl)}`;
+  drawRes.innerHTML = `Draw <strong>${volMl.toFixed(3)} mL</strong> (${iu.toFixed(1)} units on U-${_syringeType} syringe) for a ${doseMcg} mcg dose${syringeDrawHtml(volMl)}`;
 }
 
 function calcTRT() {
@@ -4812,7 +4918,7 @@ function calcTRT() {
       <div><div class="muted" style="font-size:11px;">Weekly Total</div><div style="font-weight:700;">${parseFloat(weekly.toPrecision(4))} mg (${weeklyMl.toFixed(3)} mL)</div></div>
       <div><div class="muted" style="font-size:11px;">${vialMl || 0} mL Vial Lasts</div><div style="font-weight:700;color:var(--accent-indigo);">${vialWeeks ? `~${vialWeeks.toFixed(1)} weeks (${Math.floor(vialInj)} injections)` : '—'}</div></div>
     </div>
-    ${syringeOverflowWarning(perInjMl)}`;
+    ${syringeDrawHtml(perInjMl)}`;
 }
 
 function calcHCG() {
@@ -4837,7 +4943,7 @@ function calcHCG() {
         <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${parseFloat(doseIU.toPrecision(6))} IU HCG</div></div>
         <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${dosesPerVial.toFixed(1)}</div></div>
       </div>
-      ${syringeOverflowWarning(volMl)}`;
+      ${syringeDrawHtml(volMl)}`;
   }
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -4868,7 +4974,7 @@ function calcHGH() {
         <div><div class="muted" style="font-size:11px;">Dose</div><div style="font-weight:700;">${parseFloat(doseIU.toPrecision(6))} IU (${(doseIU / HGH_IU_PER_MG).toFixed(2)} mg)</div></div>
         <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${(vialIU / doseIU).toFixed(1)}</div></div>
       </div>
-      ${syringeOverflowWarning(volMl)}`;
+      ${syringeDrawHtml(volMl)}`;
   }
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -4946,7 +5052,7 @@ function calcCustomRecon() {
       <div><div class="muted" style="font-size:11px;">Each Dose</div><div style="font-weight:700;color:var(--accent-indigo);">${units} units (${volMl.toFixed(3)} mL)</div></div>
       <div><div class="muted" style="font-size:11px;">Doses per Vial</div><div style="font-weight:700;">${dosesPerVial.toFixed(1)}</div></div>
     </div>
-    ${bigVialNote}${syringeOverflowWarning(volMl)}`;
+    ${bigVialNote}${syringeDrawHtml(volMl)}`;
 }
 
 function calcDraw() {
@@ -4964,7 +5070,7 @@ function calcDraw() {
       <div><div class="muted" style="font-size:11px;">Draw Volume</div><div style="font-weight:700;color:var(--accent-sky);">${volMl.toFixed(3)} mL</div></div>
       <div><div class="muted" style="font-size:11px;">U-${_syringeType} Units</div><div style="font-weight:700;color:var(--accent-indigo);">${iu.toFixed(1)} units</div></div>
     </div>
-    ${syringeOverflowWarning(volMl)}`;
+    ${syringeDrawHtml(volMl)}`;
 }
 
 function calcCost() {
@@ -4996,30 +5102,177 @@ function hlFromPeptide() {
   if (!name || !PEPTIDE_HALFLIFE[name]) { hlNotesEl.style.display='none'; document.getElementById('hlHours').value=''; return; }
   const data = PEPTIDE_HALFLIFE[name];
   document.getElementById('hlHours').value = data.halfLife;
+  const every = guessDoseIntervalH(data.notes);
+  if (every) document.getElementById('hlEvery').value = String(every);
   hlNotesEl.style.display = 'block';
   hlNotesEl.textContent = data.notes;
   calcHL();
 }
 
+// Typical cadence from the half-life notes ("once-weekly", "2–3× daily", …) so the
+// buildup chart opens on a realistic schedule. Returns hours, or null if unclear.
+function guessDoseIntervalH(notes) {
+  const n = (notes || '').toLowerCase();
+  if (/twice[- ]weekly|2×\/week/.test(n)) return 84;
+  if (/weekly/.test(n)) return 168;
+  if (/every[- ]other[- ]day|\beod\b/.test(n)) return 48;
+  if (/2–3× daily|3× daily|multiple (daily )?doses|multiple daily/.test(n)) return 8;
+  if (/am\/pm|twice daily|twice a day|2× daily|once or twice daily/.test(n)) return 12;
+  if (/daily|bedtime|before sleep/.test(n)) return 24;
+  return null;
+}
+
+// Repeated-dose model: one compartment, first-order elimination, a dose every
+// `intervalH`. Same assumption as the Active Levels card (estimateLevels).
+// Levels are in multiples of one dose.
+function buildupModel(halfLifeH, intervalH) {
+  const k = Math.LN2 / halfLifeH;
+  const r = Math.exp(-k * intervalH);                  // fraction left when the next dose lands
+  const ssPeak = 1 / (1 - r);                          // steady-state peak, × one dose
+  const ssTrough = ssPeak * r;
+  const noBuildup = r < 0.05;                          // clears before the next dose
+  const dosesToSS = noBuildup ? 1 : Math.ceil(Math.log(0.05) / Math.log(r)); // ≥95% of steady state
+  const doses = Math.min(60, Math.max(dosesToSS + 2, 4));
+  return { k, r, ssPeak, ssTrough, noBuildup, dosesToSS, doses, intervalH, halfLifeH, spanH: doses * intervalH };
+}
+
+// Level (× one dose) at `t` hours after the first dose; doses at 0, τ, 2τ … (doses−1)τ.
+function buildupLevel(m, t) {
+  if (t < 0) return 0;
+  const n = Math.min(Math.floor(t / m.intervalH + 1e-9), m.doses - 1);
+  return Math.exp(-m.k * (t - n * m.intervalH)) * (1 - Math.pow(m.r, n + 1)) / (1 - m.r);
+}
+
+function fmtHours(h) {
+  if (h < 1) return `${Math.round(h * 60)} min`;
+  if (h < 48) return `${parseFloat(h.toFixed(1))} hr`;
+  if (h < 24 * 21) return `${parseFloat((h / 24).toFixed(1))} days`;
+  return `${parseFloat((h / 168).toFixed(1))} weeks`;
+}
+
+function fmtLevel(x, dose, unit) {
+  if (dose > 0) return `${parseFloat((x * dose).toPrecision(3))} ${unit}`;
+  return `${x.toFixed(2)}×`;
+}
+
+const HL_BOX = { W: 400, H: 220, L: 40, R: 390, T: 30, B: 186 };
+
+function buildupChartSvg(m, dose, unit) {
+  const { W, H, L, R, T, B } = HL_BOX;
+  const yMax = Math.max(m.ssPeak, 1) * 1.12;
+  const X = t => L + (t / m.spanH) * (R - L);
+  const Y = v => B - (v / yMax) * (B - T);
+  // Path: rise at each dose, exponential decay between doses
+  const steps = 24;
+  let d = `M${X(0).toFixed(1)},${Y(0).toFixed(1)}`;
+  for (let i = 0; i < m.doses; i++) {
+    const t0 = i * m.intervalH;
+    d += ` L${X(t0).toFixed(1)},${Y(buildupLevel(m, t0)).toFixed(1)}`;
+    for (let s = 1; s <= steps; s++) {
+      const t = t0 + (s / steps) * m.intervalH - (s === steps ? 1e-6 : 0);
+      d += ` L${X(t).toFixed(1)},${Y(buildupLevel(m, t)).toFixed(1)}`;
+    }
+  }
+  const area = `${d} L${X(m.spanH).toFixed(1)},${B} L${L},${B} Z`;
+  // Gridlines (4) with level labels
+  let grid = '';
+  for (let g = 1; g <= 4; g++) {
+    const v = (yMax / 4) * g, y = Y(v).toFixed(1);
+    grid += `<line x1="${L}" x2="${R}" y1="${y}" y2="${y}" stroke="currentColor" stroke-opacity="0.08"/>
+      <text x="${L - 6}" y="${(+y + 3).toFixed(1)}" text-anchor="end" font-size="11" fill="currentColor" fill-opacity="0.55">${dose > 0 ? parseFloat((v * dose).toPrecision(3)) : v.toFixed(2) + "×"}</text>`;
+  }
+  // X axis: hours, days or weeks, ≤ 8 labels
+  const span = m.spanH;
+  const unitH = span <= 48 ? 1 : span <= 24 * 21 ? 24 : 168;
+  const unitLbl = unitH === 1 ? 'h' : unitH === 24 ? 'd' : 'wk';
+  const step = [1, 2, 3, 4, 6, 7, 12, 14, 24].find(s => span / (s * unitH) <= 8) || 24;
+  let xLabels = '';
+  for (let u = 0; u * unitH <= span + 1e-6; u += step) {
+    const x = X(u * unitH).toFixed(1);
+    xLabels += `<text x="${x}" y="${B + 16}" text-anchor="middle" font-size="11" fill="currentColor" fill-opacity="0.55">${u}${unitLbl}</text>`;
+  }
+  // 💉 markers (thinned past 20 doses)
+  const every = Math.ceil(m.doses / 20);
+  let marks = '';
+  for (let i = 0; i < m.doses; i += every) marks += `<text x="${X(i * m.intervalH).toFixed(1)}" y="${T - 10}" text-anchor="middle" font-size="13">💉</text>`;
+  const ssLine = m.ssPeak > 1.05 ? `
+    <line x1="${L}" x2="${R}" y1="${Y(m.ssPeak).toFixed(1)}" y2="${Y(m.ssPeak).toFixed(1)}" stroke="var(--accent-amber)" stroke-dasharray="5 4" stroke-width="1.2"/>
+    <text x="${R}" y="${(Y(m.ssPeak) - 5).toFixed(1)}" text-anchor="end" font-size="11" font-weight="700" fill="var(--accent-amber)">steady-state peak ${fmtLevel(m.ssPeak, dose, unit)}</text>` : '';
+  return `
+    <svg class="hl-chart" viewBox="0 0 ${W} ${H}" role="img"
+         aria-label="Buildup chart: dosing every ${fmtHours(m.intervalH)} with a ${fmtHours(m.halfLifeH)} half-life reaches a steady-state peak of ${m.ssPeak.toFixed(2)} times one dose"
+         onpointermove="hlChartMove(event,this)" onpointerleave="hlChartLeave(this)">
+      <defs><linearGradient id="hlArea" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0" style="stop-color:var(--accent-sky);stop-opacity:0.35"/>
+        <stop offset="1" style="stop-color:var(--accent-sky);stop-opacity:0.02"/>
+      </linearGradient></defs>
+      ${grid}
+      <line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="currentColor" stroke-opacity="0.25"/>
+      ${ssLine}
+      <path d="${area}" fill="url(#hlArea)"/>
+      <path d="${d}" fill="none" stroke="var(--accent-sky)" stroke-width="2" stroke-linejoin="round"/>
+      ${marks}${xLabels}
+      <line class="hl-guide" x1="0" x2="0" y1="${T}" y2="${B}" stroke="var(--accent-indigo)" stroke-width="1" style="display:none"/>
+    </svg>`;
+}
+
+let _hlModel = null, _hlDose = 0, _hlUnit = 'mcg';
+function hlChartMove(evt, svg) {
+  if (!_hlModel) return;
+  const { W, L, R } = HL_BOX;
+  const box = svg.getBoundingClientRect();
+  const vx = ((evt.clientX - box.left) / box.width) * W;
+  if (vx < L || vx > R) return hlChartLeave(svg);
+  const t = ((vx - L) / (R - L)) * _hlModel.spanH;
+  const guide = svg.querySelector('.hl-guide');
+  guide.setAttribute('x1', vx); guide.setAttribute('x2', vx); guide.style.display = '';
+  const tip = svg.parentElement.querySelector('.hl-tip');
+  tip.style.display = 'block';
+  tip.style.left = `${(vx / W) * 100}%`;
+  tip.textContent = `${fmtHours(t)} · ${fmtLevel(buildupLevel(_hlModel, t), _hlDose, _hlUnit)} in system`;
+}
+function hlChartLeave(svg) {
+  svg.querySelector('.hl-guide').style.display = 'none';
+  const tip = svg.parentElement.querySelector('.hl-tip');
+  if (tip) tip.style.display = 'none';
+}
+
 function calcHL() {
   const hours = parseFloat(document.getElementById('hlHours').value);
   const res   = document.getElementById('hlResult');
-  if (!hours || isNaN(hours) || hours <= 0) { res.style.display='none'; return; }
-  const t50  = hours;
-  const t25  = hours * 2;
-  const t125 = hours * 3;
-  function fmt(h) {
-    if (h < 1) return `${(h*60).toFixed(0)} min`;
-    if (h < 24) return `${h.toFixed(1)} hr`;
-    return `${(h/24).toFixed(1)} days`;
-  }
+  if (!hours || isNaN(hours) || hours <= 0) { res.style.display='none'; _hlModel = null; return; }
+  const every = parseFloat(document.getElementById('hlEvery')?.value) || 24;
+  const dose  = parseFloat(document.getElementById('hlDose')?.value) || 0;
+  const unit  = document.getElementById('hlDoseUnit')?.value || 'mcg';
+  const m = buildupModel(hours, every);
+  _hlModel = m; _hlDose = dose; _hlUnit = unit;
+
+  const swingPct = Math.round(m.r * 100);
+  const stats = m.noBuildup ? `
+      <div><div class="v">No buildup</div><div class="k">Each dose clears before the next (under 5% left)</div></div>
+      <div><div class="v">${fmtLevel(1, dose, unit)}</div><div class="k">Peak right after each dose</div></div>
+      <div><div class="v">Timing</div><div class="k">Matters more than buildup — level resets every dose</div></div>` : `
+      <div><div class="v">${fmtLevel(m.ssPeak, dose, unit)}</div><div class="k">Steady-state peak (${m.ssPeak.toFixed(2)}× one dose)</div></div>
+      <div><div class="v">≈ ${fmtHours(m.dosesToSS * every)}</div><div class="k">To steady state (${m.dosesToSS} doses, ≥95%)</div></div>
+      <div><div class="v">${fmtLevel(m.ssTrough, dose, unit)}</div><div class="k">Steady-state low, just before each dose (${swingPct}% of peak)</div></div>
+      <div><div class="v">${swingPct}%</div><div class="k">Of your usual low if you skip one dose</div></div>`;
+
   res.style.display = 'block';
   res.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
-      <div><div class="muted" style="font-size:11px;">50% remaining</div><div style="font-weight:700;color:var(--accent-green);">${fmt(t50)}</div></div>
-      <div><div class="muted" style="font-size:11px;">25% remaining</div><div style="font-weight:700;color:var(--accent-amber);">${fmt(t25)}</div></div>
-      <div><div class="muted" style="font-size:11px;">12.5% remaining</div><div style="font-weight:700;color:#ef4444;">${fmt(t125)}</div></div>
-    </div>`;
+      <div><div class="muted" style="font-size:11px;">50% remaining</div><div style="font-weight:700;color:var(--accent-green);">${fmtHours(hours)}</div></div>
+      <div><div class="muted" style="font-size:11px;">25% remaining</div><div style="font-weight:700;color:var(--accent-amber);">${fmtHours(hours * 2)}</div></div>
+      <div><div class="muted" style="font-size:11px;">12.5% remaining</div><div style="font-weight:700;color:#ef4444;">${fmtHours(hours * 3)}</div></div>
+    </div>
+    <hr class="divider" style="margin-top:12px;" />
+    <p style="font-size:13px;font-weight:700;margin-top:10px;">Buildup — dosing every ${fmtHours(every)}<span class="muted" style="font-weight:400;"> · ${dose > 0 ? `amounts in ${unit}` : "levels as multiples of one dose"}</span></p>
+    <p class="muted" style="font-size:12px;">Each 💉 is a dose. The line is roughly how much is in your system: it jumps at each dose and decays in between${m.noBuildup ? '.' : ', creeping up until intake equals clearance (steady state).'} Drag across the chart to read any point.</p>
+    <div class="hl-chart-wrap">
+      ${buildupChartSvg(m, dose, unit)}
+      <div class="hl-tip"></div>
+    </div>
+    <div class="hl-stats">${stats}</div>
+    <p class="muted" style="font-size:11px;margin-top:8px;">Educational model (single compartment, first-order clearance). Real-world levels vary by person, route and formulation.</p>`;
 }
 
 // ── Task 15: Library ───────────────────────────────────────────────────────────
