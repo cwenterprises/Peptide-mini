@@ -1,4 +1,4 @@
-const CACHE_NAME = 'peptideos-v38';
+const CACHE_NAME = 'peptideos-v39';
 const APP_VERSION = 'v20261112-wpa-visuals';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
