@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Rebuild the local D1 from all migrations. Fixes the recurring local drift
 # (migration bookkeeping is broken; wrangler's migrations apply chokes on 0001).
+# Clears ALL local state (D1 + KV/DO/cache): stale Durable Object storage from an older
+# workerd crashes `wrangler dev` ("_cf_ALARM has 3 columns but 2 values were supplied").
 set -euo pipefail
 cd "$(dirname "$0")/.."
-rm -rf .wrangler/state/v3/d1
+rm -rf .wrangler/state
 for f in migrations/*.sql; do
   echo "applying $f"
   npx wrangler d1 execute peptideos_db --local --file "$f" >/dev/null

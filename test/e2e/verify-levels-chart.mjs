@@ -32,7 +32,7 @@ check('Semaglutide (168h): 42 days back, 21 ahead (capped)', w[2].pastH === 1008
 //  Planner Semaglutide 0.25 mg on weekday(today+2) and weekday(today−3), 08:00.
 const seed = await page.evaluate(async () => {
   const d = App.getData();
-  for (const l of d.logs.filter(x => ['Semaglutide', 'BPC-157'].includes(x.peptide))) await API.delete('/logs/' + l.id).catch(() => {});
+  for (const l of d.logs) await API.delete('/logs/' + l.id).catch(() => {}); // test account: start from a clean slate (other suites leave doses)
   for (const p of d.planner) await API.delete('/planner/' + p.id).catch(() => {});
   for (const c of (d.cycles || []).filter(c => ['Semaglutide', 'BPC-157'].includes(c.peptide))) await API.delete('/cycles/' + c.id).catch(() => {});
   const now = Date.now();

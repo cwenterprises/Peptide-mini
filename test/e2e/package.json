@@ -1,0 +1,12 @@
+{
+  "name": "peptideos-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Playwright verification suites — run against local wrangler dev on :8791 (see README.md)",
+  "scripts": {
+    "test": "for s in verify-*.mjs; do echo \"== $s\"; node \"$s\" || exit 1; done"
+  },
+  "devDependencies": {
+    "playwright": "1.58.0"
+  }
+}
