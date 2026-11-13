@@ -1,5 +1,5 @@
-const CACHE_NAME = 'peptideos-v41';
-const APP_VERSION = 'v20261112-calfeed';
+const CACHE_NAME = 'peptideos-v42';
+const APP_VERSION = 'v20261112-levels';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/mini.svg'];
 const DB_NAME = 'peptideos_offline';
 const STORE_NAME = 'queue';
