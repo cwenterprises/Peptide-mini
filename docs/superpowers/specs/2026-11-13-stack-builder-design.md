@@ -183,6 +183,28 @@ Screen states:
    Ipamorelin), Cognitive (Semax + Selank), Mitochondrial (SS-31 + MOTS-C +
    NAD+), Anti-aging (Epithalon + GHK-Cu), Metabolic (MOTS-C + 5-amino-1mq).
 
+**Recommendations (added 2026-11-14 at user request).** Two places:
+
+- **Recommended stacks** section on the Stacks tab (above the user's own
+  stacks when they have none, below otherwise). The template set grows to the
+  well-known combos the library's `stack` text names — Wolverine
+  (BPC-157 + TB-500), Glow (+ GHK-Cu), Klow (+ KPV), GH pulse
+  (CJC-1295 + Ipamorelin), Sermorelin + Ipamorelin, Tesamorelin + Ipamorelin,
+  Cognitive (Semax + Selank), Mood (PE-22-28 + Semax + Selank), Mitochondrial
+  (SS-31 + MOTS-C + NAD+), Anti-aging (Epithalon + GHK-Cu + Pinealon),
+  Metabolic (MOTS-C + 5-amino-1mq + AICAR), Fat-loss support
+  (AOD-9604 + Lipo-C), Intimacy (PT-141 + Oxytocin), Immune
+  (Thymosin Alpha-1 + Epithalon + GHK-Cu). Each card shows goal, peptides,
+  the library sentence it comes from, and **"In stock: 2 of 3"** from the
+  user's inventory (qty > 0, name-matched like `resolvePeptideName`);
+  ranked in-stock-first. Tap → Builder prefilled.
+- **Suggested partners** in the Builder: for each item already in the
+  stack, chips for its known partners (from a structured `STACK_PAIRINGS`
+  map built from the same library text), e.g. adding BPC-157 suggests
+  TB-500 · GHK-Cu · KPV. Chips show "in stock" when qty > 0; one tap adds
+  the partner as a new item (route/unit prefilled from the library). Partners
+  that would trigger a `severe` clash are never suggested.
+
 **Settings planner list**: rows with `stack_id` show a small "📚 stack name"
 badge; deleting such a row individually is allowed (it comes back on the
 next activate/edit — the badge tooltip says so).

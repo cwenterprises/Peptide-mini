@@ -184,6 +184,25 @@
 
 ---
 
+### Task 7b: Recommendations (recommended stacks + suggested partners)
+
+**Files:**
+- Modify: `index.html`
+
+**Interfaces:**
+- Extend `STACK_TEMPLATES` (Task 6) to the 14 combos listed in the spec's "Recommendations" section; add `goal` and `source` (library entry name whose `stack` text names the combo) to each.
+- `STACK_PAIRINGS` — `{[libraryName]: string[]}` partners, symmetric (if A lists B, B lists A).
+- `inStockNames(inventory, userPeptides) -> Set<string>` — Peptide-category rows with `qty > 0`, names normalized through `resolvePeptideName`.
+- `recommendStacks(templates, inStock) -> Array<{template, have: number, total: number}>` sorted by `have/total` desc, then `have` desc.
+- `suggestPartners(items, inStock, activeStacks) -> Array<{peptide, inStock: boolean, because: string}>` — union of partners of current items, minus items already in the stack, minus any partner for which `checkStack([...items, partner])` yields a new `severe`; in-stock first.
+- Stacks tab renders "Recommended stacks" cards ("In stock: X of Y"); Builder renders partner chips; chip tap appends an item with route = first route in library entry, unit/dose from that entry's low-end protocol (same helper Task 6 uses for templates).
+
+- [ ] **Step 1: Failing e2e:** with inventory MOTS-C 10, SS-31 10, NAD+ 10 → Mitochondrial card shows "In stock: 3 of 3" and ranks first; builder with BPC-157 shows chips TB-500, GHK-CU, KPV; builder with Semaglutide never suggests Tirzepatide/Retatrutide; tapping a chip adds a row; `STACK_PAIRINGS` symmetry check (`every A→B has B→A`).
+- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS.
+- [ ] **Step 5:** Commit `feat(stacks): recommended stacks + suggested partners`.
+
+---
+
 ### Task 8: Release
 
 **Files:**
