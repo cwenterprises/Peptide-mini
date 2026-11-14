@@ -391,6 +391,66 @@ await page.evaluate(async () => {
   for (const i of await API.get('/inventory')) await API.delete('/inventory/' + i.id);
 });
 
+// ── Review fixes (UI) ─────────────────────────────────────────────────────────
+const ux = await page.evaluate(async () => {
+  const out = {};
+  const it = (peptide, extra = {}) => ({ peptide, route: 'Subcutaneous', dose: 1, unit: 'mg', days: [1], times: [], ...extra });
+  const activeSema = [{ id: 'a', name: 'Cut', status: 'active', items: [it('Semaglutide')] }];
+  out.crossStack = checkStack([it('Tirzepatide')], activeSema, null).some(c => c.level === 'severe');
+  out.handRows = checkStack([it('Retatrutide')], [], null, ['Semaglutide']).some(c => c.level === 'severe');
+  out.vialName = checkStack([it('Semaglutide'), it('Tirzepatide 10mg')], [], null).some(c => c.level === 'severe');
+  out.otherOnlyNoNoise = !checkStack([it('Semax')], [{ id: 'x', name: 'Two', status: 'active', items: [it('Semaglutide'), it('Tirzepatide')] }], null).some(c => c.level === 'severe');
+  // Templates follow their library course lengths
+  const immune = STACK_TEMPLATES.find(t => t.key === 'immune');
+  const aa = STACK_TEMPLATES.find(t => t.key === 'anti-aging');
+  out.immuneNoEpithalon = !immune.items.some(i => i.peptide === 'Epithalon');
+  out.pinealon10 = aa.items.find(i => i.peptide === 'Pinealon').days.length * aa.weeks === 10;
+  // Calendar cycle prefers the row's own stack
+  const cyc = [{ id: 'c1', peptide: 'KPV', start_date: '2026-01-01', end_date: '2099-01-10', stack_id: 'A' },
+               { id: 'c2', peptide: 'KPV', start_date: '2026-01-02', end_date: '2099-03-10', stack_id: 'B' }];
+  out.planCycleOwn = planCycle({ peptide: 'KPV', stack_id: 'B' }, cyc)?.id === 'c2';
+  out.planCycleLegacy = planCycle({ peptide: 'KPV', stack_id: null }, cyc)?.id === 'c1';
+  // Twice-daily rows: one log ticks only the first dose
+  const p8 = { id: 'r8', peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg', day: 1, time: '08:00' };
+  const p20 = { ...p8, id: 'r20', time: '20:00' };
+  const log = { peptide: 'BPC-157', route: 'Subcutaneous', dose_unit: 'mcg', dose_value: 250 };
+  out.firstDone = planMatched(p8, [log], [p20, p8]) === true;
+  out.secondPending = planMatched(p20, [log], [p20, p8]) === false;
+  out.bothDone = planMatched(p20, [log, log], [p20, p8]) === true;
+  out.legacyCall = planMatched(p20, [log]) === true;
+  // Double-tap Save creates one stack
+  const today = ymd(new Date());
+  for (const s of await API.get('/stacks?today=' + today)) await API.delete(`/stacks/${s.id}?today=${today}`);
+  await App.loadAll();
+  openStackBuilder(null);
+  _sb.name = 'Double save'; _sb.items = [sbItem({ peptide: 'Semax', route: 'Intranasal', dose: 200, unit: 'mcg' })];
+  renderStackBuilder();
+  await Promise.all([saveStackUI(false), saveStackUI(false)]);
+  out.oneStack = (await API.get('/stacks?today=' + today)).filter(s => s.name === 'Double save').length === 1;
+  // List path: a saved severe stack must need "Turn on anyway"
+  await API.post('/stacks', { name: 'Clash saved', weeks: 4, items: [it('Semaglutide', { dose: 0.25 }), it('Tirzepatide', { dose: 2.5 })] });
+  await App.loadAll(); _stackView = { mode: 'list' }; Tabs.switchTo('stacks'); renderStacks();
+  return out;
+});
+check('clash across two active stacks → severe', ux.crossStack);
+check('clash with hand-made planner peptides → severe', ux.handRows);
+check('vial-style name "Tirzepatide 10mg" still classed GLP-1', ux.vialName);
+check("other stacks' own clashes aren't reported on this stack", ux.otherOnlyNoNoise);
+check('Immune template has no Epithalon (library: 10-day course)', ux.immuneNoEpithalon);
+check('Anti-aging template schedules Pinealon exactly 10 doses', ux.pinealon10);
+check("calendar cycle prefers the row's own stack", ux.planCycleOwn);
+check('rows without a stack keep the old cycle pick', ux.planCycleLegacy);
+check('twice-daily: one log ticks the 08:00 dose', ux.firstDone);
+check('twice-daily: 20:00 dose stays pending after one log', ux.secondPending);
+check('twice-daily: two logs tick both', ux.bothDone);
+check('planMatched without day rows behaves as before', ux.legacyCall);
+check('double-tap Save creates one stack', ux.oneStack);
+const clashCard = await page.$('#stacks [data-stack-id]:has-text("Clash saved")');
+await clashCard.$eval('[data-act="activate"]', b => b.click());
+const goText = await page.evaluate(() => [...document.querySelectorAll('#stacks [data-stack-id]')]
+  .find(c => c.innerText.includes('Clash saved'))?.querySelector('[data-act="activate-go"]')?.textContent || '');
+check('list Turn on of a severe stack → "Turn on anyway"', /anyway/i.test(goText), goText);
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
