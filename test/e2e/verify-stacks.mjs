@@ -125,6 +125,14 @@ check('deleted stack no longer listed', api.deletedGone);
 check('export includes stacks', api.exportHasStacks);
 
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
+
+// Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
+await page.evaluate(async () => {
+  const today = ymd(new Date());
+  for (const s of await API.get('/stacks?today=' + today)) await API.delete(`/stacks/${s.id}?today=${today}`);
+  for (const p of await API.get('/planner')) await API.delete('/planner/' + p.id);
+  for (const c of await API.get('/cycles')) await API.delete('/cycles/' + c.id);
+});
 await browser.close();
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);
