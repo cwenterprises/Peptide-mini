@@ -6170,7 +6170,7 @@ function renderStacks() {
         </div>
       </div>
       ${mine.length ? mine.map(st => stackCardHtml(st, today)).join('') : ''}
-      ${recos}
+      ${recos || `<div class="glass" style="padding:16px;"><h4 style="font-size:14px;font-weight:700;margin-bottom:8px;">Start from a template</h4><div style="display:flex;gap:6px;flex-wrap:wrap;">${STACK_TEMPLATES.map(t => `<button class="btn btn-ghost btn-sm" onclick="openStackFromTemplate('${t.key}')">${escHtml(t.name)}</button>`).join('')}</div></div>`}
       ${!mine.length && !recos ? '<p class="muted" style="padding:8px 4px;">No stacks yet — tap + New stack.</p>' : ''}
       <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
     </div>`;
@@ -6221,6 +6221,253 @@ function stackToast(msg) {
 function openStackBuilder(idOrNull) {
   _stackView = { mode: 'builder', id: idOrNull };
   renderStacks();
+}
+
+// ── Stack builder ─────────────────────────────────────────────────────────────
+const STACK_ROUTES = ['Subcutaneous', 'Intramuscular', 'Intranasal', 'Oral', 'Topical', 'Intravenous'];
+const DAY_PRESETS = { daily: [0, 1, 2, 3, 4, 5, 6], weekdays: [1, 2, 3, 4, 5], mwf: [1, 3, 5], monthu: [1, 4] };
+const DAY_PRESET_LABELS = { daily: 'Daily', weekdays: 'Mon–Fri', mwf: 'Mon / Wed / Fri', monthu: 'Mon / Thu', weekly: 'Once a week', custom: 'Pick days' };
+const ALL_DAYS = DAY_PRESETS.daily;
+
+// Starter protocols. Each combo is named in the cited library entry's `stack` text;
+// doses are the low end of that peptide's library `protocols` text.
+const STACK_TEMPLATES = [
+  { key: 'wolverine', name: 'Wolverine (BPC-157 + TB-500)', goal: 'Injury & soft-tissue recovery', source: 'BPC-157', weeks: 6, items: [
+    { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg', days: ALL_DAYS, times: ['08:00', '20:00'] },
+    { peptide: 'TB-500', route: 'Subcutaneous', dose: 2, unit: 'mg', days: [1, 4], times: ['08:00'] } ] },
+  { key: 'gh-pulse', name: 'GH pulse (CJC-1295 + Ipamorelin)', goal: 'Growth-hormone optimisation', source: 'CJC-1295', weeks: 12, items: [
+    { peptide: 'CJC-1295', route: 'Subcutaneous', dose: 100, unit: 'mcg', days: ALL_DAYS, times: ['07:00', '22:00'] },
+    { peptide: 'Ipamorelin', route: 'Subcutaneous', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['07:00', '22:00'] } ] },
+  { key: 'cognitive', name: 'Cognitive (Semax + Selank)', goal: 'Focus with calm', source: 'Semax', weeks: 3, items: [
+    { peptide: 'Semax', route: 'Intranasal', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['08:00', '13:00'] },
+    { peptide: 'Selank', route: 'Intranasal', dose: 250, unit: 'mcg', days: ALL_DAYS, times: ['08:00', '20:00'] } ] },
+  { key: 'mito', name: 'Mitochondrial (SS-31 + MOTS-C + NAD+)', goal: 'Mitochondrial health & energy', source: 'SS-31', weeks: 6, items: [
+    { peptide: 'SS-31', route: 'Subcutaneous', dose: 10, unit: 'mg', days: [1, 2, 3, 4, 5], times: ['08:00'] },
+    { peptide: 'MOTS-C', route: 'Subcutaneous', dose: 5, unit: 'mg', days: [1, 3, 5], times: ['08:00'] },
+    { peptide: 'NAD+', route: 'Subcutaneous', dose: 100, unit: 'mg', days: ALL_DAYS, times: ['08:00'] } ] },
+  { key: 'anti-aging', name: 'Anti-aging (Epithalon + GHK-Cu)', goal: 'Longevity & skin', source: 'Epithalon', weeks: 2, items: [
+    { peptide: 'Epithalon', route: 'Subcutaneous', dose: 5, unit: 'mg', days: ALL_DAYS, times: ['21:00'], note: '10-day course' },
+    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['21:00'] } ] },
+  { key: 'metabolic', name: 'Metabolic (MOTS-C + 5-amino-1mq)', goal: 'Fat loss & insulin sensitivity', source: '5-amino-1mq', weeks: 8, items: [
+    { peptide: 'MOTS-C', route: 'Subcutaneous', dose: 5, unit: 'mg', days: [1, 3, 5], times: ['08:00'] },
+    { peptide: '5-amino-1mq', route: 'Subcutaneous', dose: 50, unit: 'mg', days: ALL_DAYS, times: ['08:00'] } ] },
+];
+
+let _sb = null; // builder state: { id, name, weeks, template, items: [...] }
+
+const pepNorm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+function libraryEntry(name) {
+  const n = pepNorm(name);
+  return PEPTIDE_LIBRARY.find(l => pepNorm(l.name) === n || (l.aliases || []).some(a => pepNorm(a) === n)) || null;
+}
+
+// Map whatever was typed or templated to the name the user already tracks, so vials,
+// prices, Log Dose and planner matching (all exact-name) line up. Library-only →
+// the library's name; unknown → as typed.
+function resolvePeptideName(name, userPeptides) {
+  const typed = String(name || '').trim();
+  const n = pepNorm(typed);
+  const lib = libraryEntry(typed);
+  const keys = new Set([n, ...(lib ? [pepNorm(lib.name), ...(lib.aliases || []).map(pepNorm)] : [])]);
+  const mine = (userPeptides || []).find(p => pepNorm(p.name) === n) || (userPeptides || []).find(p => keys.has(pepNorm(p.name)));
+  if (mine) return mine.name;
+  return lib ? lib.name : typed;
+}
+
+function libraryDefaults(name) {
+  const lib = libraryEntry(name);
+  const route = (lib && STACK_ROUTES.find(r => (lib.route || '').startsWith(r))) || 'Subcutaneous';
+  const unit = /\bIU\b/.test(lib?.doseRange || '') && !/mg|mcg/.test(lib?.doseRange || '') ? 'IU' : (/\bmcg\b/.test(lib?.doseRange || '') ? 'mcg' : 'mg');
+  const dose = parseFloat((lib?.doseRange || '').match(/[\d.]+/)?.[0]) || '';
+  return { route, unit, dose };
+}
+
+// Same contract as worker/stacks.js expandItems (worker/ isn't served to the page).
+function expandItemsClient(items) {
+  const rows = [];
+  for (const it of items) for (const day of it.days) for (const time of ((it.times || []).length ? it.times : [null])) {
+    rows.push({ peptide: it.peptide, day, time, route: it.route, dose: Number(it.dose), unit: it.unit, note: it.note || '' });
+  }
+  return rows;
+}
+
+function presetFor(days) {
+  const k = Object.keys(DAY_PRESETS).find(k => JSON.stringify(DAY_PRESETS[k]) === JSON.stringify([...days].sort()));
+  return k || (days.length === 1 ? 'weekly' : 'custom');
+}
+
+function sbItem(src = {}) {
+  const days = src.days ? [...src.days] : [...ALL_DAYS];
+  return { peptide: src.peptide || '', route: src.route || 'Subcutaneous', dose: src.dose ?? '', unit: src.unit || 'mcg',
+    days, times: src.times ? [...src.times] : ['08:00'], note: src.note || '', preset: presetFor(days) };
+}
+
+function openStackBuilder(idOrNull, template = null) {
+  const { stacks = [], peptides = [] } = App.getData();
+  const st = idOrNull ? stacks.find(s => s.id === idOrNull) : null;
+  const t = template ? STACK_TEMPLATES.find(x => x.key === template) : null;
+  const src = st || t;
+  const weeksDefault = items => Math.max(0, ...items.map(i => libraryEntry(i.peptide)?.cycleLength ? parseCycleWeeks(libraryEntry(i.peptide).cycleLength) : 0)) || 8;
+  _sb = src
+    ? { id: st?.id || null, name: st ? st.name : t.name.split(' (')[0], weeks: src.weeks ?? null, template: st ? st.template : t.key,
+        items: src.items.map(i => sbItem({ ...i, peptide: resolvePeptideName(i.peptide, peptides) })) }
+    : { id: null, name: '', weeks: 8, template: null, items: [sbItem()] };
+  if (!src) _sb.weeks = weeksDefault(_sb.items) || 8;
+  _sb.starting = false;
+  _stackView = { mode: 'builder', id: idOrNull };
+  renderStacks();
+}
+function openStackFromTemplate(key) { openStackBuilder(null, key); }
+
+function sbSet(i, field, value) {
+  const it = _sb.items[i];
+  if (field === 'peptide') {
+    const name = resolvePeptideName(value, App.getData().peptides);
+    const fresh = !it.peptide || pepNorm(it.peptide) !== pepNorm(name);
+    it.peptide = name;
+    if (fresh) { const d = libraryDefaults(name); it.route = d.route; it.unit = d.unit; if (it.dose === '' || it.dose == null) it.dose = d.dose; }
+  } else if (field === 'dose') it.dose = value === '' ? '' : Number(value);
+  else if (field === 'preset') {
+    it.preset = value;
+    if (DAY_PRESETS[value]) it.days = [...DAY_PRESETS[value]];
+    else if (value === 'weekly') it.days = [it.days[0] ?? 1];
+  } else if (field === 'weekday') it.days = [Number(value)];
+  else if (field === 'day') { const d = Number(value); it.days = it.days.includes(d) ? it.days.filter(x => x !== d) : [...it.days, d].sort(); }
+  else if (field.startsWith('time:')) it.times[Number(field.slice(5))] = value;
+  else it[field] = value;
+  if (field === 'route' && !doseUnitsForRoute(value).concat('mL').includes(it.unit)) it.unit = doseUnitsForRoute(value)[0];
+  renderStackBuilder();
+}
+function sbAddTime(i) { const t = _sb.items[i].times; if (t.length < 4) t.push(t.length ? '20:00' : '08:00'); renderStackBuilder(); }
+function sbRemoveTime(i, j) { _sb.items[i].times.splice(j, 1); renderStackBuilder(); }
+function sbAddItem(src) { if (_sb.items.length < 12) _sb.items.push(sbItem(src)); renderStackBuilder(); }
+function sbRemoveItem(i) { _sb.items.splice(i, 1); if (!_sb.items.length) _sb.items.push(sbItem()); renderStackBuilder(); }
+
+function stackItemsForSave() {
+  return _sb.items.filter(i => i.peptide).map(({ preset, ...it }) => ({ ...it, dose: Number(it.dose), times: it.times.filter(Boolean) }));
+}
+
+// Weekly cost from the cheapest price/mg on file; mcg/mg doses only.
+function stackWeeklyCost(item, prices) {
+  const best = (prices || []).filter(p => pepNorm(p.peptide) === pepNorm(item.peptide)).sort((a, b) => a.price_per_mg - b.price_per_mg)[0];
+  const perDoseMg = item.unit === 'mg' ? Number(item.dose) : item.unit === 'mcg' ? Number(item.dose) / 1000 : null;
+  if (!best || !perDoseMg) return null;
+  return perDoseMg * item.days.length * Math.max(1, item.times.filter(Boolean).length) * Number(best.price_per_mg);
+}
+
+function stackPreviewHtml(items) {
+  const { vials = [], logs = [], prices = [] } = App.getData();
+  const named = items.filter(i => i.peptide);
+  if (!named.length) return '<p class="muted" style="font-size:13px;">Add a peptide to see the weekly plan.</p>';
+  const lines = named.map(it => {
+    const n = it.days.length * Math.max(1, it.times.filter(Boolean).length);
+    const cost = stackWeeklyCost(it, prices);
+    return `<div style="padding:4px 0;font-size:13px;"><strong>${escHtml(it.peptide)}</strong> · ${n} doses/week · ${it.dose || '—'} ${escHtml(it.unit)}${cost != null ? ` · ≈ $${cost.toFixed(2)}/week` : ''}</div>`;
+  }).join('');
+  const total = named.reduce((s, it) => s + (stackWeeklyCost(it, prices) || 0), 0);
+  const planner = expandItemsClient(named.filter(i => Number(i.dose) > 0)).map((r, k) => ({ ...r, id: 'preview-' + k }));
+  let runouts = [];
+  try { runouts = vialRunouts({ planner, vials, logs }); } catch { runouts = []; }
+  return `${lines}
+    ${total ? `<div style="padding:4px 0;font-size:13px;font-weight:700;">≈ $${total.toFixed(2)}/week total</div>` : ''}
+    ${runouts.length ? `<div style="margin-top:6px;">${runouts.map(runoutLineHtml).join('')}</div>` : '<p class="muted" style="font-size:12px;margin-top:6px;">Vial runout shows once you have a mixed vial for these peptides.</p>'}`;
+}
+
+function stackItemRowHtml(it, i, listId) {
+  const units = [...new Set(doseUnitsForRoute(it.route).concat('mL', it.unit))];
+  const days = it.preset === 'custom' ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${DOW_SHORT.map((d, k) =>
+      `<button type="button" class="btn btn-sm ${it.days.includes(k) ? 'btn-primary' : 'btn-ghost'}" style="padding:4px 8px;" onclick="sbSet(${i},'day',${k})">${d}</button>`).join('')}</div>`
+    : it.preset === 'weekly' ? `<label style="margin-top:6px;">Day<select data-sb="weekday" onchange="sbSet(${i},'weekday',this.value)">${DOW_SHORT.map((d, k) => `<option value="${k}" ${it.days[0] === k ? 'selected' : ''}>${d}</option>`).join('')}</select></label>` : '';
+  return `
+    <div data-sb-item="${i}" style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+      <div style="display:flex;gap:8px;align-items:flex-end;">
+        <label style="flex:1;min-width:0;">Peptide<input data-sb="peptide" list="${listId}" value="${escHtml(it.peptide)}" placeholder="Start typing…" onchange="sbSet(${i},'peptide',this.value)" /></label>
+        ${it.peptide ? peptideInfoBtn(it.peptide) : ''}
+        <button type="button" class="btn btn-ghost btn-sm" aria-label="Remove ${escHtml(it.peptide || 'peptide')}" onclick="sbRemoveItem(${i})">×</button>
+      </div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.9fr);gap:8px;margin-top:8px;">
+        <label>Route<select data-sb="route" onchange="sbSet(${i},'route',this.value)">${STACK_ROUTES.map(r => `<option ${r === it.route ? 'selected' : ''}>${r}</option>`).join('')}</select></label>
+        <label>Dose<input data-sb="dose" type="number" min="0" step="any" inputmode="decimal" value="${it.dose}" onchange="sbSet(${i},'dose',this.value)" /></label>
+        <label>Unit<select data-sb="unit" onchange="sbSet(${i},'unit',this.value)">${units.map(u => `<option ${u === it.unit ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
+      </div>
+      <label style="margin-top:8px;">Days<select data-sb="preset" onchange="sbSet(${i},'preset',this.value)">${Object.entries(DAY_PRESET_LABELS).map(([k, l]) => `<option value="${k}" ${k === it.preset ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${days}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-top:8px;">
+        ${it.times.map((t, j) => `<span style="display:inline-flex;align-items:center;gap:2px;"><input type="time" data-sb="time" value="${t}" style="width:auto;" aria-label="Dose time ${j + 1}" onchange="sbSet(${i},'time:${j}',this.value)" /><button type="button" class="btn btn-ghost btn-sm" style="padding:2px 6px;" aria-label="Remove time" onclick="sbRemoveTime(${i},${j})">×</button></span>`).join('')}
+        ${it.times.length < 4 ? `<button type="button" class="btn btn-ghost btn-sm" onclick="sbAddTime(${i})">+ time</button>` : ''}
+        ${!it.times.length ? '<span class="muted" style="font-size:12px;">No set time</span>' : ''}
+      </div>
+    </div>`;
+}
+
+function renderStackBuilder() {
+  const el = document.getElementById('stacks');
+  if (!el || !_sb) return;
+  const { peptides = [], stacks = [] } = App.getData();
+  const listId = 'sbPeptideList';
+  const options = [...new Set([...peptides.map(p => p.name), ...PEPTIDE_LIBRARY.map(l => l.name)])].sort((a, b) => a.localeCompare(b));
+  const checks = typeof stackChecksHtml === 'function' ? stackChecksHtml(_sb.items, stacks, _sb.id) : '';
+  const partners = typeof stackPartnersHtml === 'function' ? stackPartnersHtml(_sb.items, stacks) : '';
+  const severe = typeof checkStack === 'function' && checkStack(_sb.items.filter(i => i.peptide), stacks, _sb.id).some(c => c.level === 'severe');
+  const today = ymd(new Date());
+  el.innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <h3 style="font-size:16px;font-weight:700;">${_sb.id ? 'Edit stack' : 'New stack'}</h3>
+          <button class="btn btn-ghost btn-sm" onclick="_sb=null;_stackView={mode:'list'};renderStacks()">Cancel</button>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:8px;margin-top:10px;">
+          <label>Name<input id="sbName" maxlength="60" value="${escHtml(_sb.name)}" placeholder="e.g. Wolverine" onchange="_sb.name=this.value" /></label>
+          <label>Cycle (weeks)<input id="sbWeeks" type="number" min="1" max="104" step="1" value="${_sb.weeks ?? ''}" placeholder="none" onchange="_sb.weeks=this.value===''?null:Math.round(Number(this.value));renderStackBuilder()" /></label>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:6px;">${_sb.weeks ? `Turns itself off after ${_sb.weeks} week${_sb.weeks === 1 ? '' : 's'}.` : 'No cycle length — runs until you turn it off.'}</p>
+      </div>
+      <datalist id="${listId}">${options.map(o => `<option value="${escHtml(o)}"></option>`).join('')}</datalist>
+      <div class="glass" style="padding:16px;">
+        <div class="stack" style="gap:10px;">${_sb.items.map((it, i) => stackItemRowHtml(it, i, listId)).join('')}</div>
+        ${_sb.items.length < 12 ? '<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="sbAddItem()">+ Add peptide</button>' : ''}
+        ${partners}
+      </div>
+      ${checks}
+      <div class="glass" style="padding:16px;">
+        <h4 style="font-size:14px;font-weight:700;margin-bottom:6px;">Preview</h4>
+        <div id="sbPreview">${stackPreviewHtml(_sb.items)}</div>
+      </div>
+      <div class="glass" style="padding:16px;">
+        ${_sb.starting ? `
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+            <label style="flex:1;min-width:150px;">Start date<input type="date" id="sbStartDate" value="${today}" /></label>
+            <button class="btn btn-primary btn-sm" id="sbStartGo" onclick="saveStackUI(true)">${severe ? 'Turn on anyway' : 'Start'}</button>
+            <button class="btn btn-ghost btn-sm" onclick="_sb.starting=false;renderStackBuilder()">Back</button>
+          </div>
+          ${severe ? '<p style="font-size:12px;color:#ef4444;margin-top:6px;">This stack has a serious clash (see Checks above).</p>' : ''}` : `
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" id="sbSaveOn" onclick="_sb.name=document.getElementById('sbName').value;_sb.starting=true;renderStackBuilder()">Save &amp; turn on</button>
+            <button class="btn btn-ghost btn-sm" id="sbSave" onclick="saveStackUI(false)">Save</button>
+          </div>`}
+        <div id="sbError" role="alert" style="font-size:12px;color:#ef4444;margin-top:6px;"></div>
+      </div>
+    </div>`;
+}
+
+async function saveStackUI(turnOn) {
+  const nameEl = document.getElementById('sbName');
+  if (nameEl) _sb.name = nameEl.value;
+  const body = { name: (_sb.name || '').trim(), weeks: _sb.weeks || null, items: stackItemsForSave(), template: _sb.template, today: ymd(new Date()) };
+  const errEl = document.getElementById('sbError');
+  const start = document.getElementById('sbStartDate')?.value || ymd(new Date());
+  try {
+    const st = _sb.id ? await API.put('/stacks/' + _sb.id, body) : await API.post('/stacks', body);
+    if (turnOn && st.status !== 'active' && st.status !== 'scheduled') {
+      await API.post(`/stacks/${st.id}/activate`, { start_date: start, today: ymd(new Date()), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    }
+    _sb = null;
+    _stackView = { mode: 'list' };
+    await refreshAfterStackChange();
+  } catch (e) {
+    if (errEl) errEl.textContent = e.message || 'Could not save';
+  }
 }
 
 function renderLibrary() {

@@ -213,6 +213,61 @@ await page.waitForTimeout(1500);
 const afterOff = await page.evaluate(() => App.getData().stacks.every(s => s.status === 'inactive') && !App.getData().planner.some(p => p.stack_id));
 check('Deactivate button turns the stack off', afterOff);
 
+// ── UI: builder, preview, templates ───────────────────────────────────────────
+const names = await page.evaluate(() => ({
+  spaced: resolvePeptideName('bpc 157', [{ name: 'BPC-157' }]),
+  caseOnly: resolvePeptideName('ghk-cu', [{ name: 'GHK-CU' }]),
+  alias: resolvePeptideName('Mod GRF 1-29', [{ name: 'CJC-1295' }]),
+  libraryOnly: resolvePeptideName('mots-c', []),
+  unknown: resolvePeptideName('My Custom Blend', []),
+}));
+check("resolvePeptideName: 'bpc 157' → user's BPC-157", names.spaced === 'BPC-157', names.spaced);
+check("resolvePeptideName: case-only difference → user's name", names.caseOnly === 'GHK-CU', names.caseOnly);
+check("resolvePeptideName: library alias → user's name", names.alias === 'CJC-1295', names.alias);
+check('resolvePeptideName: not tracked → library name', names.libraryOnly === 'MOTS-C', names.libraryOnly);
+check('resolvePeptideName: unknown stays as typed', names.unknown === 'My Custom Blend');
+const tplOk = await page.evaluate(() => STACK_TEMPLATES.every(t => t.items.every(i => PEPTIDE_LIBRARY.some(l => l.name === i.peptide))) && STACK_TEMPLATES.length >= 6);
+check('every template peptide exists in the library', tplOk);
+check('expandItemsClient matches the server contract', await page.evaluate(() =>
+  expandItemsClient([{ peptide: 'X', route: 'Subcutaneous', dose: 1, unit: 'mg', days: [1, 2], times: ['08:00', '20:00'] }]).length === 4 &&
+  expandItemsClient([{ peptide: 'X', route: 'Subcutaneous', dose: 1, unit: 'mg', days: [1, 2], times: [] }]).every(r => r.time === null)));
+
+await page.evaluate(() => { Tabs.switchTo('stacks'); openStackFromTemplate('wolverine'); });
+const tpl = await page.evaluate(() => ({
+  rows: [...document.querySelectorAll('#stacks [data-sb-item]')].map(r => r.querySelector('[data-sb="peptide"]').value),
+  name: document.getElementById('sbName')?.value,
+}));
+check('Wolverine template opens builder with 2 rows', tpl.rows.length === 2 && tpl.rows.includes('BPC-157') && tpl.rows.includes('TB-500'), JSON.stringify(tpl));
+const tbIdx = tpl.rows.indexOf('TB-500');
+await page.selectOption(`#stacks [data-sb-item="${tbIdx}"] [data-sb="preset"]`, 'mwf');
+const preview = await page.evaluate(() => document.getElementById('sbPreview')?.innerText || '');
+check('preset M/W/F → preview "TB-500 · 3 doses/week"', /TB-500[^\n]*3 doses\/week/.test(preview), preview.slice(0, 200));
+await page.setViewportSize({ width: 390, height: 900 });
+await page.waitForTimeout(300);
+check('builder has no horizontal scroll at 390px', await page.evaluate(() => document.documentElement.scrollWidth <= 390));
+await page.setViewportSize({ width: 430, height: 930 });
+await page.click('#sbSaveOn');
+await page.click('#sbStartGo');
+await page.waitForTimeout(1500);
+const saved = await page.evaluate(() => {
+  const st = App.getData().stacks.find(s => s.template === 'wolverine');
+  return st && { status: st.status, view: _stackView.mode, tb: st.items.find(i => i.peptide === 'TB-500')?.days };
+});
+check('Save & turn on → Wolverine active, back to list', saved?.status === 'active' && saved.view === 'list', JSON.stringify(saved));
+check('saved TB-500 days are M/W/F', JSON.stringify(saved?.tb) === '[1,3,5]');
+
+await page.evaluate(() => openStackBuilder(null));
+await page.fill('#sbName', 'No times');
+await page.fill('#stacks [data-sb-item="0"] [data-sb="peptide"]', 'Semax');
+await page.dispatchEvent('#stacks [data-sb-item="0"] [data-sb="peptide"]', 'change');
+await page.fill('#stacks [data-sb-item="0"] [data-sb="dose"]', '200');
+await page.dispatchEvent('#stacks [data-sb-item="0"] [data-sb="dose"]', 'change');
+await page.evaluate(() => { _sb.items[0].times = []; renderStackBuilder(); });
+await page.click('#sbSave');
+await page.waitForTimeout(1500);
+const nt = await page.evaluate(() => App.getData().stacks.find(s => s.name === 'No times'));
+check('builder saves a stack with no dose times', nt && nt.status === 'inactive' && nt.items[0].times.length === 0 && nt.items[0].route === 'Intranasal', JSON.stringify(nt?.items?.[0]));
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
