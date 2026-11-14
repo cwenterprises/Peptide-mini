@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   validateStack, addDays, stackEndDate, localDateIn, expandItems,
   rewritePlannerRows, transitionFor, cycleOps, endStackCycles, coarseBounds,
+  reminderDue, applyTransitions, dueStackReminders,
 } from '../../worker/stacks.js';
 
 const bpc = { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg',
@@ -131,4 +132,78 @@ test('endStackCycles: started → end today; unstarted → removed; ended → un
 
 test('coarseBounds: one day past the UTC date covers every zone ahead of UTC', () => {
   assert.deepEqual(coarseBounds(new Date('2026-11-14T03:00:00Z')), { startMax: '2026-11-15', endMax: '2026-11-15' });
+});
+
+// ── Review fixes ──────────────────────────────────────────────────────────────
+test('reminderDue: stack times are local wall-clock in the stack zone', () => {
+  const mon8amCST = new Date('2026-11-16T14:00:00Z');
+  assert.equal(reminderDue({ day: 1, time: '08:00' }, 'America/Chicago', mon8amCST), '2026-11-16');
+  assert.equal(reminderDue({ day: 1, time: '08:00' }, 'UTC', mon8amCST), null);
+});
+
+test('reminderDue: ±5 minute window, inclusive', () => {
+  const now = new Date('2026-11-16T14:00:00Z');
+  assert.equal(reminderDue({ day: 1, time: '08:05' }, 'America/Chicago', now), '2026-11-16');
+  assert.equal(reminderDue({ day: 1, time: '07:55' }, 'America/Chicago', now), '2026-11-16');
+  assert.equal(reminderDue({ day: 1, time: '08:06' }, 'America/Chicago', now), null);
+  assert.equal(reminderDue({ day: 2, time: '08:00' }, 'America/Chicago', now), null);
+  assert.equal(reminderDue({ day: 1, time: null }, 'America/Chicago', now), null);
+});
+
+test('reminderDue: window crossing local midnight uses the next day and date', () => {
+  const mon2358CST = new Date('2026-11-17T05:58:00Z');
+  assert.equal(reminderDue({ day: 2, time: '00:02' }, 'America/Chicago', mon2358CST), '2026-11-17');
+  assert.equal(reminderDue({ day: 1, time: '23:55' }, 'America/Chicago', mon2358CST), '2026-11-16');
+});
+
+test('validateStack rejects non-string fields and nested or non-finite values', () => {
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, route: {} }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, unit: ['mg'] }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, note: { x: 1 } }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, peptide: 'x'.repeat(81) }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, times: [['08:00']] }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, dose: Infinity }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, dose: '250' }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, days: [1, 1] }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, times: ['08:00', '08:00'] }] }), null);
+  assert.notEqual(validateStack({ ...valid, items: [{ ...bpc, times: ['25:00'] }] }), null);
+});
+
+// Minimal D1 stand-in: enough for applyTransitions → startStmts.
+function fakeEnv(stacks, failId) {
+  const batches = [];
+  const stmt = sql => ({ sql, args: [], bind(...a) { this.args = a; return this; },
+    async all() { return { results: sql.startsWith('SELECT * FROM stacks') ? stacks : [] }; },
+    async first() { return null; }, async run() { return { meta: { changes: 1 } }; } });
+  return { batches, DB: { prepare: stmt, async batch(stmts) {
+    if (stmts.some(s => s.args.includes(failId))) throw new Error('D1_TYPE_ERROR');
+    batches.push(stmts);
+  } } };
+}
+
+test('applyTransitions: one failing stack does not stop the others', async () => {
+  const item = JSON.stringify([bpc]);
+  const rows = [
+    { id: 'bad', user_id: 'u1', status: 'scheduled', start_date: '2026-11-01', items: item, tz: 'UTC' },
+    { id: 'good', user_id: 'u2', status: 'scheduled', start_date: '2026-11-01', items: item, tz: 'UTC' },
+  ];
+  const env = fakeEnv(rows, 'bad');
+  const origError = console.error; console.error = () => {};
+  try {
+    const changed = await applyTransitions(env, { now: new Date('2026-11-14T12:00:00Z') });
+    assert.equal(changed, 1);
+    assert.equal(env.batches.length, 1);
+  } finally { console.error = origError; }
+});
+
+test('dueStackReminders: picks active-stack rows due in each stack\'s own zone', async () => {
+  const rows = [
+    { id: 'p1', user_id: 'u1', peptide: 'BPC-157', dose: 250, unit: 'mcg', day: 1, time: '08:00', tz: 'America/Chicago' },
+    { id: 'p2', user_id: 'u2', peptide: 'TB-500', dose: 2, unit: 'mg', day: 1, time: '08:00', tz: 'Europe/London' },
+  ];
+  let seenSql = '';
+  const env = { DB: { prepare: sql => ({ bind() { return this; }, async all() { seenSql = sql; return { results: rows }; } }) } };
+  const due = await dueStackReminders(env, new Date('2026-11-16T14:00:00Z'));
+  assert.deepEqual(due.map(d => [d.id, d.sentDate]), [['p1', '2026-11-16']]);
+  assert.match(seenSql, /status = 'active'/);
 });

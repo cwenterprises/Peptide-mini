@@ -1,4 +1,4 @@
-import { stackHandlers, applyTransitions } from './stacks.js';
+import { stackHandlers, applyTransitions, dueStackReminders, importableStack } from './stacks.js';
 const AASA = {
   applinks: {
     details: [{
@@ -1131,6 +1131,7 @@ async function importAll(request, env, origin) {
   for (const t of EXPORT_TABLES) {
     const rows = Array.isArray(b[t]) ? b[t] : [];
     for (const row of rows) {
+      if (t === 'stacks' && !importableStack(row)) continue; // malformed stack would break the cron/UI
       const cols = Object.keys(row).filter(k => k !== 'user_id');
       if (!cols.length) continue;
       // INSERT OR REPLACE keyed on original ids/PKs — importing your own backup
@@ -1200,14 +1201,17 @@ async function handleCron(env) {
   const { results: dueItems } = await env.DB.prepare(
     `SELECT p.id, p.user_id, p.peptide, p.dose, p.unit, p.time
      FROM planner p
-     WHERE p.day = ? AND p.time >= ? AND p.time <= ?`
+     WHERE p.stack_id IS NULL AND p.day = ? AND p.time >= ? AND p.time <= ?`
   ).bind(dayOfWeek, wsHHMM, weHHMM).all();
+  // Stack rows: local wall-clock times, matched in each stack's own zone.
+  let stackDue = [];
+  try { stackDue = await dueStackReminders(env, now); } catch (e) { console.error('stack reminders failed', e); }
 
-  for (const item of dueItems) {
+  for (const item of [...dueItems.map(i => ({ ...i, sentDate: todayDate })), ...stackDue]) {
     // Deduplication check
     const alreadySent = await env.DB.prepare(
       'SELECT id FROM notifications_sent WHERE user_id = ? AND planner_id = ? AND sent_date = ?'
-    ).bind(item.user_id, item.id, todayDate).first();
+    ).bind(item.user_id, item.id, item.sentDate).first();
     if (alreadySent) continue;
 
     const { results: subs } = await env.DB.prepare(
@@ -1231,7 +1235,7 @@ async function handleCron(env) {
     // Record as sent (INSERT OR IGNORE handles race conditions)
     await env.DB.prepare(
       'INSERT OR IGNORE INTO notifications_sent (id, user_id, planner_id, sent_date) VALUES (?,?,?,?)'
-    ).bind(crypto.randomUUID(), item.user_id, item.id, todayDate).run();
+    ).bind(crypto.randomUUID(), item.user_id, item.id, item.sentDate).run();
   }
 }
 

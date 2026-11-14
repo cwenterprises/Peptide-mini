@@ -124,6 +124,46 @@ check('delete ends its started cycles today', api.deletedCycleEnded);
 check('deleted stack no longer listed', api.deletedGone);
 check('export includes stacks', api.exportHasStacks);
 
+// ── Review fixes (server): shared-peptide cycles, double-activate, import ─────
+const rf = await page.evaluate(async () => {
+  const out = {};
+  const today = ymd(new Date());
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  for (const s of await API.get('/stacks?today=' + today)) await API.delete(`/stacks/${s.id}?today=${today}`);
+  for (const c of await API.get('/cycles')) await API.delete('/cycles/' + c.id);
+  for (const p of await API.get('/planner')) await API.delete('/planner/' + p.id);
+  const kpv = { peptide: 'KPV', route: 'Subcutaneous', dose: 100, unit: 'mcg', days: [0,1,2,3,4,5,6], times: ['08:00'] };
+  const A = await API.post('/stacks', { name: 'KPV A', weeks: 4, items: [kpv] });
+  const B = await API.post('/stacks', { name: 'KPV B', weeks: 8, items: [{ ...kpv, times: ['20:00'] }] });
+  await API.post(`/stacks/${A.id}/activate`, { start_date: today, today, tz });
+  await API.post(`/stacks/${B.id}/activate`, { start_date: today, today, tz });
+  let cycles = await API.get('/cycles');
+  out.bOwnCycle = cycles.some(c => c.stack_id === B.id && c.peptide === 'KPV');
+  // Double-tap: two concurrent activates of a fresh stack
+  const C = await API.post('/stacks', { name: 'Double tap', weeks: 4, items: [{ ...kpv, peptide: 'LL-37' }] });
+  await Promise.all([
+    API.post(`/stacks/${C.id}/activate`, { start_date: today, today, tz }),
+    API.post(`/stacks/${C.id}/activate`, { start_date: today, today, tz }),
+  ]);
+  out.cRows = (await API.get('/planner')).filter(p => p.stack_id === C.id).length;
+  out.cCycles = (await API.get('/cycles')).filter(c => c.stack_id === C.id).length;
+  // Import: a malformed stack in a backup is skipped, a good one restored
+  const good = { id: crypto.randomUUID(), name: 'Imported ok', items: JSON.stringify([kpv]), weeks: 4, status: 'inactive', created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  const bad = { ...good, id: crypto.randomUUID(), name: 'Imported bad', items: JSON.stringify([{ ...kpv, route: { x: 1 }, days: [9] }]) };
+  await API.post('/import', { version: 1, stacks: [good, bad] });
+  const names = (await API.get('/stacks?today=' + today)).map(s => s.name);
+  out.importGood = names.includes('Imported ok');
+  out.importBadSkipped = !names.includes('Imported bad');
+  for (const s of await API.get('/stacks?today=' + today)) await API.delete(`/stacks/${s.id}?today=${today}`);
+  for (const c of await API.get('/cycles')) await API.delete('/cycles/' + c.id);
+  return out;
+});
+check('second stack sharing a peptide gets its own cycle', rf.bOwnCycle);
+check('two concurrent activates → planner rows not doubled', rf.cRows === 7, rf.cRows);
+check('two concurrent activates → one cycle', rf.cCycles === 1, rf.cCycles);
+check('import restores a valid stack', rf.importGood);
+check('import skips a malformed stack', rf.importBadSkipped);
+
 // ── Transitions: scheduled → active, active → completed (GET ?today=) ────────
 const tr = await page.evaluate(async () => {
   const out = {};
