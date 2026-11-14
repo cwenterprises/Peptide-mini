@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   validateStack, addDays, stackEndDate, localDateIn, expandItems,
-  rewritePlannerRows, transitionFor, cycleOps, endStackCycles,
+  rewritePlannerRows, transitionFor, cycleOps, endStackCycles, coarseBounds,
 } from '../../worker/stacks.js';
 
 const bpc = { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg',
@@ -127,4 +127,8 @@ test('endStackCycles: started → end today; unstarted → removed; ended → un
   ], T);
   assert.deepEqual(r.update, [{ id: 'started', end_date: T }]);
   assert.deepEqual(r.remove, ['unstarted']);
+});
+
+test('coarseBounds: one day past the UTC date covers every zone ahead of UTC', () => {
+  assert.deepEqual(coarseBounds(new Date('2026-11-14T03:00:00Z')), { startMax: '2026-11-15', endMax: '2026-11-15' });
 });

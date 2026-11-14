@@ -1,4 +1,4 @@
-import { stackHandlers } from './stacks.js';
+import { stackHandlers, applyTransitions } from './stacks.js';
 const AASA = {
   applinks: {
     details: [{
@@ -51,7 +51,7 @@ export default {
 };
 
 // Function declarations below are hoisted, so they can be handed over here.
-const STACKS = stackHandlers({ requireAuth, json, err });
+const STACKS = stackHandlers({ requireAuth, json, err, applyTransitions });
 
 // Fix 2: module-scope toHex helper
 const toHex = (buf) => Array.from(new Uint8Array(buf))
@@ -1184,6 +1184,8 @@ TODAY: ${new Date().toISOString().slice(0, 10)}`;
 
 async function handleCron(env) {
   const now = new Date();
+  // Stacks first: a stack starting today must have its planner rows before reminders go out.
+  try { await applyTransitions(env, { now }); } catch (e) { console.error('stack transitions failed', e); }
   const todayDate = now.toISOString().slice(0, 10);
   const dayOfWeek = now.getUTCDay();
 

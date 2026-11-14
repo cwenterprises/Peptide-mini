@@ -76,6 +76,14 @@ export function transitionFor(stack, localToday) {
   return null;
 }
 
+// SQL pre-filter for the cron: a stack's local date is at most one day past the UTC
+// date, so anything due anywhere has start_date / end_date below utcToday + 1.
+// The exact per-stack check is transitionFor() with that stack's own local date.
+export function coarseBounds(now) {
+  const next = addDays(now.toISOString().slice(0, 10), 1);
+  return { startMax: next, endMax: next };
+}
+
 const overlaps = (c, S, E) => !(c.end_date < S || (E && c.start_date > E));
 
 export function cycleOps({ stackCycles, otherCycles, peptides, S, E, today }) {
@@ -297,4 +305,26 @@ export function stackHandlers({ requireAuth, json, err, applyTransitions }) {
       return json(await getStack(env, userId, stack.id), 200, origin);
     }),
   };
+}
+
+// Start scheduled stacks whose day has come and complete active stacks past their
+// end date. Called by GET /stacks (one user, client's local date) and by the cron
+// (everyone, each stack's own time zone). Returns how many stacks changed.
+export async function applyTransitions(env, { userId = null, now = new Date(), todayOverride = null } = {}) {
+  const { startMax, endMax } = coarseBounds(now);
+  const due = todayOverride
+    ? "(status = 'scheduled') OR (status = 'active' AND end_date IS NOT NULL)"
+    : "(status = 'scheduled' AND start_date <= ?) OR (status = 'active' AND end_date IS NOT NULL AND end_date < ?)";
+  const sql = `SELECT * FROM stacks WHERE (${due})` + (userId ? ' AND user_id = ?' : '');
+  const binds = [...(todayOverride ? [] : [startMax, endMax]), ...(userId ? [userId] : [])];
+  const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  let changed = 0;
+  for (const row of results) {
+    const stack = parseStack(row);
+    const t = transitionFor(stack, todayOverride || localDateIn(stack.tz, now));
+    if (!t) continue;
+    await env.DB.batch(t === 'start' ? await startStmts(env, stack.user_id, stack) : await completeStmts(env, stack.user_id, stack));
+    changed++;
+  }
+  return changed;
 }

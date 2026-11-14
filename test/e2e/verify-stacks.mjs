@@ -124,6 +124,54 @@ check('delete ends its started cycles today', api.deletedCycleEnded);
 check('deleted stack no longer listed', api.deletedGone);
 check('export includes stacks', api.exportHasStacks);
 
+// ── Transitions: scheduled → active, active → completed (GET ?today=) ────────
+const tr = await page.evaluate(async () => {
+  const out = {};
+  const today = ymd(new Date());
+  const plus = n => { const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const item = { peptide: 'Ipamorelin', route: 'Subcutaneous', dose: 200, unit: 'mcg', days: [0,1,2,3,4,5,6], times: ['22:00'] };
+  const later = await API.post('/stacks', { name: 'Starts later', weeks: 4, items: [item] });
+  await API.post(`/stacks/${later.id}/activate`, { start_date: plus(3), today, tz });
+  let list = await API.get('/stacks?today=' + plus(2));
+  out.stillScheduled = list.find(s => s.id === later.id).status === 'scheduled';
+  list = await API.get('/stacks?today=' + plus(3));
+  out.startedOnDay = list.find(s => s.id === later.id).status === 'active' &&
+    (await API.get('/planner')).filter(p => p.stack_id === later.id).length === 7;
+
+  const short = await API.post('/stacks', { name: 'Short', weeks: 1, items: [{ ...item, peptide: 'Sermorelin' }] });
+  await API.post(`/stacks/${short.id}/activate`, { start_date: plus(-10), today, tz });
+  const cyclesBefore = (await API.get('/cycles')).filter(c => c.stack_id === short.id);
+  list = await API.get('/stacks?today=' + today);
+  out.completed = list.find(s => s.id === short.id).status === 'completed' &&
+    !(await API.get('/planner')).some(p => p.stack_id === short.id);
+  const cyclesAfter = (await API.get('/cycles')).filter(c => c.stack_id === short.id);
+  out.cyclesUntouched = JSON.stringify(cyclesBefore) === JSON.stringify(cyclesAfter) && cyclesAfter.length === 1;
+
+  const open = await API.post('/stacks', { name: 'Ongoing', weeks: null, items: [{ ...item, peptide: 'Tesamorelin' }] });
+  await API.post(`/stacks/${open.id}/activate`, { start_date: today, today, tz });
+  list = await API.get('/stacks?today=' + plus(400));
+  out.openEndedStays = list.find(s => s.id === open.id).status === 'active';
+  return out;
+});
+check('scheduled stays scheduled the day before', tr.stillScheduled);
+check('scheduled → active on its start date, rows written', tr.startedOnDay);
+check('active → completed after end date, rows removed', tr.completed);
+check('completing leaves cycles as they were', tr.cyclesUntouched);
+check('open-ended stack never completes', tr.openEndedStays);
+
+// ── Cron path: each stack's own zone, no client date ─────────────────────────
+const cronId = await page.evaluate(async () => {
+  const today = ymd(new Date());
+  const d = new Date(today + 'T00:00:00'); d.setDate(d.getDate() - 10);
+  const s = await API.post('/stacks', { name: 'Cron expiry', weeks: 1, items: [{ peptide: 'DSIP', route: 'Subcutaneous', dose: 100, unit: 'mcg', days: [1], times: [] }] });
+  await API.post(`/stacks/${s.id}/activate`, { start_date: ymd(d), today, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  return s.id;
+});
+const cronRes = await fetch('http://localhost:8791/__scheduled?cron=*/5+*+*+*+*');
+const cronStatus = await page.evaluate(async id => (await API.get('/export')).stacks.find(s => s.id === id)?.status, cronId);
+check('cron completes an expired stack', cronRes.status === 200 && cronStatus === 'completed', `${cronRes.status} ${cronStatus}`);
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
