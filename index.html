@@ -6245,12 +6245,43 @@ const STACK_TEMPLATES = [
     { peptide: 'SS-31', route: 'Subcutaneous', dose: 10, unit: 'mg', days: [1, 2, 3, 4, 5], times: ['08:00'] },
     { peptide: 'MOTS-C', route: 'Subcutaneous', dose: 5, unit: 'mg', days: [1, 3, 5], times: ['08:00'] },
     { peptide: 'NAD+', route: 'Subcutaneous', dose: 100, unit: 'mg', days: ALL_DAYS, times: ['08:00'] } ] },
-  { key: 'anti-aging', name: 'Anti-aging (Epithalon + GHK-Cu)', goal: 'Longevity & skin', source: 'Epithalon', weeks: 2, items: [
+  { key: 'anti-aging', name: 'Anti-aging (Epithalon + GHK-Cu + Pinealon)', goal: 'Longevity & skin', source: 'Epithalon', weeks: 2, items: [
     { peptide: 'Epithalon', route: 'Subcutaneous', dose: 5, unit: 'mg', days: ALL_DAYS, times: ['21:00'], note: '10-day course' },
-    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['21:00'] } ] },
-  { key: 'metabolic', name: 'Metabolic (MOTS-C + 5-amino-1mq)', goal: 'Fat loss & insulin sensitivity', source: '5-amino-1mq', weeks: 8, items: [
+    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['21:00'] },
+    { peptide: 'Pinealon', route: 'Subcutaneous', dose: 5, unit: 'mg', days: ALL_DAYS, times: ['21:00'], note: '10-day course' } ] },
+  { key: 'metabolic', name: 'Metabolic (MOTS-C + 5-amino-1mq + AICAR)', goal: 'Fat loss & insulin sensitivity', source: 'MOTS-C', weeks: 8, items: [
     { peptide: 'MOTS-C', route: 'Subcutaneous', dose: 5, unit: 'mg', days: [1, 3, 5], times: ['08:00'] },
-    { peptide: '5-amino-1mq', route: 'Subcutaneous', dose: 50, unit: 'mg', days: ALL_DAYS, times: ['08:00'] } ] },
+    { peptide: '5-amino-1mq', route: 'Subcutaneous', dose: 50, unit: 'mg', days: ALL_DAYS, times: ['08:00'] },
+    { peptide: 'AICAR', route: 'Subcutaneous', dose: 50, unit: 'mg', days: ALL_DAYS, times: ['08:00'] } ] },
+  { key: 'glow', name: 'Glow (BPC-157 + TB-500 + GHK-Cu)', goal: 'Recovery plus skin & tissue regeneration', source: 'GHK-CU', weeks: 6, items: [
+    { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg', days: ALL_DAYS, times: ['08:00', '20:00'] },
+    { peptide: 'TB-500', route: 'Subcutaneous', dose: 2, unit: 'mg', days: [1, 4], times: ['08:00'] },
+    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['20:00'] } ] },
+  { key: 'klow', name: 'Klow (BPC-157 + TB-500 + GHK-Cu + KPV)', goal: 'Recovery plus gut & inflammation', source: 'KPV', weeks: 6, items: [
+    { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg', days: ALL_DAYS, times: ['08:00', '20:00'] },
+    { peptide: 'TB-500', route: 'Subcutaneous', dose: 2, unit: 'mg', days: [1, 4], times: ['08:00'] },
+    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['20:00'] },
+    { peptide: 'KPV', route: 'Subcutaneous', dose: 100, unit: 'mcg', days: ALL_DAYS, times: ['08:00'] } ] },
+  { key: 'serm-ipa', name: 'Sermorelin + Ipamorelin', goal: 'Gentle GH support at night', source: 'Sermorelin', weeks: 12, items: [
+    { peptide: 'Sermorelin', route: 'Subcutaneous', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['22:00'] },
+    { peptide: 'Ipamorelin', route: 'Subcutaneous', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['22:00'] } ] },
+  { key: 'tesa-ipa', name: 'Tesamorelin + Ipamorelin', goal: 'GH support, visceral fat', source: 'Tesamorelin', weeks: 12, items: [
+    { peptide: 'Tesamorelin', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['08:00'] },
+    { peptide: 'Ipamorelin', route: 'Subcutaneous', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['22:00'] } ] },
+  { key: 'mood', name: 'Mood (PE-22-28 + Semax + Selank)', goal: 'Mood and cognition', source: 'PE-22-28', weeks: 4, items: [
+    { peptide: 'PE-22-28', route: 'Intranasal', dose: 100, unit: 'mcg', days: ALL_DAYS, times: ['08:00'] },
+    { peptide: 'Semax', route: 'Intranasal', dose: 200, unit: 'mcg', days: ALL_DAYS, times: ['08:00'] },
+    { peptide: 'Selank', route: 'Intranasal', dose: 250, unit: 'mcg', days: ALL_DAYS, times: ['20:00'] } ] },
+  { key: 'fat-loss', name: 'Fat-loss support (AOD-9604 + Lipo-C)', goal: 'Fat metabolism', source: 'Lipo-C', weeks: 8, items: [
+    { peptide: 'AOD-9604', route: 'Subcutaneous', dose: 300, unit: 'mcg', days: ALL_DAYS, times: ['07:00'] },
+    { peptide: 'Lipo-C', route: 'Subcutaneous', dose: 1, unit: 'mL', days: [1, 3, 5], times: ['07:00'] } ] },
+  { key: 'intimacy', name: 'Intimacy (PT-141 + Oxytocin)', goal: 'Libido and bonding (as needed)', source: 'PT-141', weeks: null, items: [
+    { peptide: 'PT-141', route: 'Subcutaneous', dose: 0.5, unit: 'mg', days: [6], times: ['18:00'], note: 'As needed — max once per 72 h' },
+    { peptide: 'Oxytocin', route: 'Intranasal', dose: 8, unit: 'IU', days: [6], times: ['18:00'], note: 'As needed' } ] },
+  { key: 'immune', name: 'Immune (Thymosin Alpha-1 + Epithalon + GHK-Cu)', goal: 'Immune support', source: 'Thymosin Alpha-1', weeks: 4, items: [
+    { peptide: 'Thymosin Alpha-1', route: 'Subcutaneous', dose: 1.6, unit: 'mg', days: [1, 4], times: ['08:00'] },
+    { peptide: 'Epithalon', route: 'Subcutaneous', dose: 5, unit: 'mg', days: ALL_DAYS, times: ['21:00'], note: '10-day course — remove after day 10' },
+    { peptide: 'GHK-CU', route: 'Subcutaneous', dose: 1, unit: 'mg', days: ALL_DAYS, times: ['21:00'] } ] },
 ];
 
 let _sb = null; // builder state: { id, name, weeks, template, items: [...] }
@@ -6555,6 +6586,104 @@ function stackChecksHtml(items, stacks, editingId) {
           ${style[c.level][0]} ${escHtml(c.message)}${c.source ? ` <span class="muted" style="font-size:11px;">— from the ${escHtml(c.source)} entry</span>` : ''}
         </div>`).join('') : '<p class="muted" style="font-size:13px;">No known clashes between these peptides.</p>'}
       <p class="muted" style="font-size:11px;margin-top:8px;">Checks restate notes in the app's peptide library. They're not medical advice and won't catch everything.</p>
+    </div>`;
+}
+
+// ── Recommendations ───────────────────────────────────────────────────────────
+// Known partners, each pair named in one of the two entries' library `stack` text.
+const STACK_PAIR_LIST = [
+  ['BPC-157', 'TB-500'], ['BPC-157', 'GHK-CU'], ['BPC-157', 'KPV'], ['BPC-157', 'LL-37'], ['TB-500', 'GHK-CU'],
+  ['CJC-1295', 'Ipamorelin'], ['Sermorelin', 'Ipamorelin'], ['Tesamorelin', 'Ipamorelin'],
+  ['Semax', 'Selank'], ['PE-22-28', 'Semax'], ['PE-22-28', 'Selank'], ['Semax', 'Cerebrolysin'], ['Semax', 'Dihexa'],
+  ['SS-31', 'MOTS-C'], ['SS-31', 'NAD+'], ['MOTS-C', 'NAD+'], ['MOTS-C', '5-amino-1mq'], ['MOTS-C', 'AICAR'],
+  ['5-amino-1mq', 'NAD+'], ['SLU-PP-332', 'MOTS-C'], ['SLU-PP-332', 'AICAR'], ['NAD+', 'Glutathione'],
+  ['Epithalon', 'GHK-CU'], ['Epithalon', 'Pinealon'], ['Epithalon', 'Thymosin Alpha-1'], ['GHK-CU', 'Thymosin Alpha-1'],
+  ['AOD-9604', 'Lipo-C'], ['Semaglutide', 'AOD-9604'], ['Tirzepatide', 'AOD-9604'], ['Retatrutide', 'AOD-9604'],
+  ['Semaglutide', 'Lipo-C'], ['Tirzepatide', 'Lipo-C'], ['Retatrutide', 'Lipo-C'], ['PT-141', 'Oxytocin'],
+];
+const STACK_PAIRINGS = STACK_PAIR_LIST.reduce((m, [a, b]) => {
+  (m[a] = m[a] || []).includes(b) || m[a].push(b);
+  (m[b] = m[b] || []).includes(a) || m[b].push(a);
+  return m;
+}, {});
+
+// Canonical key so "BPC 157", "bpc-157" and an alias all compare equal.
+const pepKey = name => pepNorm(libraryEntry(name)?.name || name);
+
+function inStockNames(inventory, userPeptides) {
+  return new Set((inventory || []).filter(i => i.category === 'Peptide' && Number(i.qty) > 0)
+    .map(i => pepKey(resolvePeptideName(i.name, userPeptides))));
+}
+
+function recommendStacks(templates, inStock) {
+  return templates.map(template => {
+    const total = template.items.length;
+    const have = template.items.filter(i => inStock.has(pepKey(i.peptide))).length;
+    return { template, have, total };
+  }).sort((a, b) => (b.have / b.total) - (a.have / a.total) || b.have - a.have);
+}
+
+function suggestPartners(items, inStock, stacks) {
+  const named = items.filter(i => i.peptide);
+  const present = new Set(named.map(i => pepKey(i.peptide)));
+  const severeNow = checkStack(named, stacks, null).filter(c => c.level === 'severe').length;
+  const seen = new Map();
+  for (const it of named) {
+    for (const partner of (STACK_PAIRINGS[libraryEntry(it.peptide)?.name] || [])) {
+      const key = pepKey(partner);
+      if (present.has(key) || seen.has(key)) continue;
+      const trial = [...named, { peptide: partner, route: 'Subcutaneous', dose: 1, unit: 'mg', days: [1], times: [] }];
+      if (checkStack(trial, [], null).filter(c => c.level === 'severe').length > severeNow) continue;
+      seen.set(key, { peptide: resolvePeptideName(partner, App.getData().peptides), inStock: inStock.has(key), because: it.peptide });
+    }
+  }
+  return [...seen.values()].sort((a, b) => Number(b.inStock) - Number(a.inStock));
+}
+
+function stackPartnersHtml(items, stacks) {
+  const { inventory = [], peptides = [] } = App.getData();
+  const sugg = suggestPartners(items, inStockNames(inventory, peptides), stacks);
+  if (!sugg.length) return '';
+  return `
+    <div style="margin-top:12px;">
+      <div class="muted" style="font-size:12px;font-weight:700;margin-bottom:6px;">Often paired with</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${sugg.map(p => `<button type="button" class="btn btn-ghost btn-sm" data-partner="${escHtml(p.peptide)}" title="Pairs with ${escHtml(p.because)}" onclick="addPartnerUI(this.dataset.partner)">+ ${escHtml(p.peptide)}${p.inStock ? ' <span class="badge badge-done" style="font-size:10px;margin-left:4px;">in stock</span>' : ''}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function addPartnerUI(name) {
+  const d = libraryDefaults(name);
+  sbAddItem({ peptide: name, route: d.route, unit: d.unit, dose: d.dose, days: [...ALL_DAYS], times: ['08:00'] });
+}
+
+function recommendedStacksHtml() {
+  const { inventory = [], peptides = [] } = App.getData();
+  const ranked = recommendStacks(STACK_TEMPLATES, inStockNames(inventory, peptides));
+  return `
+    <div class="glass" style="padding:16px;">
+      <h4 style="font-size:14px;font-weight:700;">Recommended stacks</h4>
+      <p class="muted" style="font-size:12px;margin:2px 0 10px;">Well-known combinations from the peptide library, ranked by what you have in stock.</p>
+      <div class="stack" style="gap:8px;">
+        ${ranked.map(({ template: t, have, total }) => `
+          <div data-reco="${t.key}" style="padding:12px;border-radius:12px;background:var(--chip-bg);border:1px solid var(--glass-border);">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+              <div style="min-width:0;">
+                <div style="font-weight:700;font-size:14px;">${escHtml(t.name.split(' (')[0])}</div>
+                <div class="muted" style="font-size:12px;">${escHtml(t.goal)}</div>
+              </div>
+              <span class="badge ${have === total ? 'badge-done' : have ? 'badge-info' : 'badge-pending'}" style="white-space:nowrap;">In stock: ${have} of ${total}</span>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+              ${t.items.map(i => `<span class="chip" style="font-size:12px;">${escHtml(resolvePeptideName(i.peptide, peptides))}</span>`).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;">
+              <span class="muted" style="font-size:11px;">From the ${escHtml(t.source)} library entry</span>
+              <button class="btn btn-primary btn-sm" data-act="use" onclick="openStackFromTemplate('${t.key}')">Use this</button>
+            </div>
+          </div>`).join('')}
+      </div>
     </div>`;
 }
 

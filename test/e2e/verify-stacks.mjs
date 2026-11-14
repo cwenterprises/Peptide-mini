@@ -310,6 +310,47 @@ await page.click('#sbSaveOn');
 check('severe clash → "Turn on anyway"', (await page.textContent('#sbStartGo')).includes('anyway'));
 await page.evaluate(() => { _sb = null; _stackView = { mode: 'list' }; renderStacks(); });
 
+// ── Recommendations: recommended stacks + suggested partners ─────────────────
+await page.evaluate(async () => {
+  for (const i of await API.get('/inventory')) await API.delete('/inventory/' + i.id);
+  for (const name of ['MOTS-C', 'SS-31', 'NAD+']) await API.post('/inventory', { name, category: 'Peptide', size: null, qty: 10 });
+  await API.post('/inventory', { name: 'TB-500', category: 'Peptide', size: null, qty: 2 });
+  await App.loadAll(); renderAllTabs(); Tabs.switchTo('stacks');
+});
+const rec = await page.evaluate(() => {
+  const inStock = inStockNames(App.getData().inventory, App.getData().peptides);
+  const ranked = recommendStacks(STACK_TEMPLATES, inStock);
+  const cards = [...document.querySelectorAll('#stacks [data-reco]')].map(c => ({ key: c.dataset.reco, text: c.innerText }));
+  const sym = Object.entries(STACK_PAIRINGS).every(([a, bs]) => bs.every(b => (STACK_PAIRINGS[b] || []).includes(a)));
+  const allLib = Object.entries(STACK_PAIRINGS).every(([a, bs]) => [a, ...bs].every(n => PEPTIDE_LIBRARY.some(l => l.name === n)));
+  return { count: STACK_TEMPLATES.length, first: ranked[0]?.template.key, firstHave: ranked[0] && `${ranked[0].have}/${ranked[0].total}`,
+    cards, sym, allLib, sourcesOk: STACK_TEMPLATES.every(t => t.goal && PEPTIDE_LIBRARY.some(l => l.name === t.source)) };
+});
+check('14 recommended stacks, each with goal + library source', rec.count === 14 && rec.sourcesOk, rec.count);
+check('Mitochondrial ranks first with 3/3 in stock', rec.first === 'mito' && rec.firstHave === '3/3', `${rec.first} ${rec.firstHave}`);
+check('Recommended cards render, first shows "In stock: 3 of 3"', rec.cards[0]?.key === 'mito' && /In stock: 3 of 3/.test(rec.cards[0].text), rec.cards[0]?.text?.slice(0, 80));
+check('STACK_PAIRINGS is symmetric', rec.sym);
+check('STACK_PAIRINGS uses library names only', rec.allLib);
+await page.click('#stacks [data-reco="mito"] [data-act="use"]');
+check('tapping a recommendation opens the builder prefilled', await page.evaluate(() => _stackView.mode === 'builder' && _sb.items.length === 3 && _sb.template === 'mito'));
+
+await page.evaluate(() => { openStackBuilder(null); _sb.items = [sbItem({ peptide: 'BPC-157', dose: 250, unit: 'mcg' })]; renderStackBuilder(); });
+const chips = await page.evaluate(() => [...document.querySelectorAll('#stacks [data-partner]')].map(c => ({ p: c.dataset.partner, t: c.innerText })));
+check('BPC-157 suggests TB-500, GHK-CU and KPV', ['TB-500', 'GHK-CU', 'KPV'].every(n => chips.some(c => c.p === n)), JSON.stringify(chips.map(c => c.p)));
+check('in-stock partner is listed first and marked', chips[0]?.p === 'TB-500' && /in stock/i.test(chips[0].t));
+await page.click('#stacks [data-partner="TB-500"]');
+const added = await page.evaluate(() => _sb.items.map(i => i.peptide));
+check('tapping a partner chip adds it as a row', added.includes('TB-500') && added.length === 2, JSON.stringify(added));
+const glpChips = await page.evaluate(() => {
+  _sb.items = [sbItem({ peptide: 'Semaglutide', dose: 0.25, unit: 'mg' })]; renderStackBuilder();
+  return suggestPartners(_sb.items, inStockNames(App.getData().inventory, App.getData().peptides), App.getData().stacks).map(s => s.peptide);
+});
+check('Semaglutide never suggests another GLP-1', !glpChips.some(n => ['Tirzepatide', 'Retatrutide'].includes(n)) && glpChips.length > 0, JSON.stringify(glpChips));
+await page.evaluate(async () => {
+  _sb = null; _stackView = { mode: 'list' };
+  for (const i of await API.get('/inventory')) await API.delete('/inventory/' + i.id);
+});
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
