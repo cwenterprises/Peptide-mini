@@ -1097,7 +1097,7 @@ async function checkinsPut(request, env, origin) {
 
 // ── Full-account export / import ──────────────────────────────────────────────
 
-const EXPORT_TABLES = ['peptides','planner','vials','logs','cycles','vendors','prices','orders','inventory','peptide_notes','checkins','user_settings'];
+const EXPORT_TABLES = ['peptides','planner','vials','logs','cycles','stacks','vendors','prices','orders','inventory','peptide_notes','checkins','user_settings'];
 
 async function exportAll(request, env, origin) {
   const userId = await requireAuth(request, env);
