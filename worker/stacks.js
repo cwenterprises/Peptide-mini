@@ -101,3 +101,200 @@ export function endStackCycles(stackCycles, today) {
   }
   return { update, remove };
 }
+
+// ── HTTP handlers ─────────────────────────────────────────────────────────────
+
+const normName = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+const uniq = a => [...new Set(a)];
+const parseStack = r => r && ({ ...r, items: (() => { try { return JSON.parse(r.items || '[]'); } catch { return []; } })() });
+
+async function getStack(env, userId, id) {
+  return parseStack(await env.DB.prepare('SELECT * FROM stacks WHERE id = ? AND user_id = ?').bind(id, userId).first());
+}
+
+async function stackCycles(env, userId, stackId) {
+  const { results } = await env.DB.prepare('SELECT * FROM cycles WHERE user_id = ? AND stack_id = ?').bind(userId, stackId).all();
+  return results;
+}
+
+async function otherCycles(env, userId, stackId) {
+  const { results } = await env.DB.prepare('SELECT * FROM cycles WHERE user_id = ? AND (stack_id IS NULL OR stack_id != ?)').bind(userId, stackId).all();
+  return results;
+}
+
+// Insert any stack peptide the user doesn't track yet — vials, prices, Log Dose and
+// planner matching all compare by exact name, so the stack must use the user's names.
+async function ensurePeptideStmts(env, userId, names) {
+  const { results } = await env.DB.prepare('SELECT name FROM peptides WHERE user_id = ?').bind(userId).all();
+  const have = new Set(results.map(r => normName(r.name)));
+  const stmts = [];
+  for (const n of uniq(names)) {
+    if (have.has(normName(n))) continue;
+    have.add(normName(n));
+    stmts.push(env.DB.prepare('INSERT INTO peptides (id, user_id, name) VALUES (?, ?, ?)').bind(crypto.randomUUID(), userId, n));
+  }
+  return stmts;
+}
+
+// Planner rows for this stack, rewritten in place (unchanged rows keep their ids so
+// notifications_sent dedupe for today survives an edit).
+async function plannerStmts(env, userId, stack) {
+  const { results } = await env.DB.prepare('SELECT * FROM planner WHERE user_id = ? AND stack_id = ?').bind(userId, stack.id).all();
+  const { remove, add } = rewritePlannerRows(results, expandItems(stack.items));
+  const stmts = remove.map(id => env.DB.prepare('DELETE FROM planner WHERE id = ? AND user_id = ?').bind(id, userId));
+  for (const r of add) {
+    stmts.push(env.DB.prepare(
+      'INSERT INTO planner (id, user_id, peptide, day, time, route, dose, unit, note, stack_id) VALUES (?,?,?,?,?,?,?,?,?,?)'
+    ).bind(crypto.randomUUID(), userId, r.peptide, r.day, r.time, r.route, r.dose, r.unit, r.note || null, stack.id));
+  }
+  return stmts;
+}
+
+function cycleStmts(env, userId, stackId, ops) {
+  const now = new Date().toISOString();
+  return [
+    ...(ops.remove || []).map(id => env.DB.prepare('DELETE FROM cycles WHERE id = ? AND user_id = ?').bind(id, userId)),
+    ...(ops.update || []).map(u => env.DB.prepare('UPDATE cycles SET end_date = ? WHERE id = ? AND user_id = ?').bind(u.end_date, u.id, userId)),
+    ...(ops.insert || []).map(c => env.DB.prepare(
+      'INSERT INTO cycles (id, user_id, peptide, start_date, end_date, created_at, stack_id) VALUES (?,?,?,?,?,?,?)'
+    ).bind(crypto.randomUUID(), userId, c.peptide, c.start_date, c.end_date, now, stackId)),
+  ];
+}
+
+// Start a stack now: write its planner rows and mark it active. Reused by the
+// on-load/cron transitions when a scheduled stack reaches its start date.
+export async function startStmts(env, userId, stack) {
+  return [
+    ...await plannerStmts(env, userId, stack),
+    env.DB.prepare("UPDATE stacks SET status = 'active', updated_at = ? WHERE id = ? AND user_id = ?").bind(new Date().toISOString(), stack.id, userId),
+  ];
+}
+
+export async function completeStmts(env, userId, stack) {
+  return [
+    env.DB.prepare('DELETE FROM planner WHERE user_id = ? AND stack_id = ?').bind(userId, stack.id),
+    env.DB.prepare("UPDATE stacks SET status = 'completed', updated_at = ? WHERE id = ? AND user_id = ?").bind(new Date().toISOString(), stack.id, userId),
+  ];
+}
+
+async function deactivateStmts(env, userId, stack, today) {
+  const ops = endStackCycles(await stackCycles(env, userId, stack.id), today);
+  return [
+    env.DB.prepare('DELETE FROM planner WHERE user_id = ? AND stack_id = ?').bind(userId, stack.id),
+    ...cycleStmts(env, userId, stack.id, ops),
+    env.DB.prepare("UPDATE stacks SET status = 'inactive', updated_at = ? WHERE id = ? AND user_id = ?").bind(new Date().toISOString(), stack.id, userId),
+  ];
+}
+
+const todayFrom = (v, fallback) => (typeof v === 'string' && YMD.test(v)) ? v : fallback;
+
+export function stackHandlers({ requireAuth, json, err, applyTransitions }) {
+  const authed = fn => async (request, env, origin, path) => {
+    const userId = await requireAuth(request, env);
+    if (!userId) return err('unauthorized', 401, origin);
+    return fn(request, env, origin, path, userId);
+  };
+  const idFrom = path => path.split('/')[2];
+  const body = request => request.json().catch(() => ({}));
+
+  return {
+    list: authed(async (request, env, origin, path, userId) => {
+      if (applyTransitions) {
+        const q = new URL(request.url).searchParams.get('today');
+        await applyTransitions(env, { userId, now: new Date(), todayOverride: todayFrom(q, null) });
+      }
+      const { results } = await env.DB.prepare('SELECT * FROM stacks WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
+      return json(results.map(parseStack), 200, origin);
+    }),
+
+    create: authed(async (request, env, origin, path, userId) => {
+      const b = await body(request);
+      const bad = validateStack(b);
+      if (bad) return err(bad, 400, origin);
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      await env.DB.prepare(
+        "INSERT INTO stacks (id, user_id, name, items, weeks, status, template, created_at, updated_at) VALUES (?,?,?,?,?,'inactive',?,?,?)"
+      ).bind(id, userId, b.name.trim(), JSON.stringify(b.items), b.weeks ?? null, b.template || null, now, now).run();
+      return json(await getStack(env, userId, id), 201, origin);
+    }),
+
+    update: authed(async (request, env, origin, path, userId) => {
+      const stack = await getStack(env, userId, idFrom(path));
+      if (!stack) return err('not found', 404, origin);
+      const b = await body(request);
+      const bad = validateStack(b);
+      if (bad) return err(bad, 400, origin);
+      const today = todayFrom(b.today, new Date().toISOString().slice(0, 10));
+      const next = { ...stack, name: b.name.trim(), items: b.items, weeks: b.weeks ?? null };
+      const running = stack.status === 'active' || stack.status === 'scheduled';
+      next.end_date = running ? stackEndDate(stack.start_date, next.weeks) : stack.end_date;
+      const stmts = [];
+      if (running) {
+        const before = uniq(stack.items.map(i => i.peptide));
+        const after = uniq(next.items.map(i => i.peptide));
+        const removed = before.filter(p => !after.includes(p));
+        const added = after.filter(p => !before.includes(p));
+        const kept = after.filter(p => before.includes(p));
+        const mine = await stackCycles(env, userId, stack.id);
+        stmts.push(...cycleStmts(env, userId, stack.id, endStackCycles(mine.filter(c => removed.includes(c.peptide)), today)));
+        if (next.weeks) {
+          const others = await otherCycles(env, userId, stack.id);
+          const live = mine.filter(c => !removed.includes(c.peptide));
+          const addS = stack.status === 'active' && today > stack.start_date ? today : stack.start_date;
+          stmts.push(...cycleStmts(env, userId, stack.id, cycleOps({ stackCycles: live, otherCycles: others, peptides: added, S: addS, E: next.end_date, today })));
+          stmts.push(...cycleStmts(env, userId, stack.id, cycleOps({ stackCycles: live, otherCycles: others, peptides: kept, S: stack.start_date, E: next.end_date, today })));
+        }
+        stmts.push(...await ensurePeptideStmts(env, userId, after));
+        if (stack.status === 'active') stmts.push(...await plannerStmts(env, userId, next));
+      }
+      stmts.push(env.DB.prepare('UPDATE stacks SET name = ?, items = ?, weeks = ?, end_date = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+        .bind(next.name, JSON.stringify(next.items), next.weeks, next.end_date, new Date().toISOString(), stack.id, userId));
+      await env.DB.batch(stmts);
+      return json(await getStack(env, userId, stack.id), 200, origin);
+    }),
+
+    remove: authed(async (request, env, origin, path, userId) => {
+      const stack = await getStack(env, userId, idFrom(path));
+      if (!stack) return err('not found', 404, origin);
+      const today = todayFrom(new URL(request.url).searchParams.get('today'), new Date().toISOString().slice(0, 10));
+      const stmts = (stack.status === 'active' || stack.status === 'scheduled') ? await deactivateStmts(env, userId, stack, today) : [];
+      stmts.push(env.DB.prepare('DELETE FROM stacks WHERE id = ? AND user_id = ?').bind(stack.id, userId));
+      await env.DB.batch(stmts);
+      return json({ ok: true }, 200, origin);
+    }),
+
+    activate: authed(async (request, env, origin, path, userId) => {
+      const stack = await getStack(env, userId, idFrom(path));
+      if (!stack) return err('not found', 404, origin);
+      const b = await body(request);
+      if (!YMD.test(b.start_date || '')) return err('start_date required (YYYY-MM-DD)', 400, origin);
+      const today = todayFrom(b.today, new Date().toISOString().slice(0, 10));
+      const S = b.start_date, E = stackEndDate(S, stack.weeks);
+      const startsNow = S <= today;
+      const peptides = uniq(stack.items.map(i => i.peptide));
+      const stmts = [...await ensurePeptideStmts(env, userId, peptides)];
+      if (stack.weeks) {
+        stmts.push(...cycleStmts(env, userId, stack.id, cycleOps({
+          stackCycles: await stackCycles(env, userId, stack.id), otherCycles: await otherCycles(env, userId, stack.id),
+          peptides, S, E, today,
+        })));
+      }
+      stmts.push(env.DB.prepare('UPDATE stacks SET start_date = ?, end_date = ?, tz = ?, status = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+        .bind(S, E, typeof b.tz === 'string' ? b.tz.slice(0, 64) : null, startsNow ? 'active' : 'scheduled', new Date().toISOString(), stack.id, userId));
+      if (startsNow) stmts.push(...await plannerStmts(env, userId, stack));
+      else stmts.push(env.DB.prepare('DELETE FROM planner WHERE user_id = ? AND stack_id = ?').bind(userId, stack.id));
+      await env.DB.batch(stmts);
+      return json(await getStack(env, userId, stack.id), 200, origin);
+    }),
+
+    deactivate: authed(async (request, env, origin, path, userId) => {
+      const stack = await getStack(env, userId, idFrom(path));
+      if (!stack) return err('not found', 404, origin);
+      const b = await body(request);
+      const today = todayFrom(b.today, new Date().toISOString().slice(0, 10));
+      await env.DB.batch(await deactivateStmts(env, userId, stack, today));
+      return json(await getStack(env, userId, stack.id), 200, origin);
+    }),
+  };
+}

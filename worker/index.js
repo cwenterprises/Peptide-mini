@@ -1,3 +1,4 @@
+import { stackHandlers } from './stacks.js';
 const AASA = {
   applinks: {
     details: [{
@@ -48,6 +49,9 @@ export default {
     ctx.waitUntil(handleCron(env));
   }
 };
+
+// Function declarations below are hoisted, so they can be handed over here.
+const STACKS = stackHandlers({ requireAuth, json, err });
 
 // Fix 2: module-scope toHex helper
 const toHex = (buf) => Array.from(new Uint8Array(buf))
@@ -171,6 +175,14 @@ async function handleAPI(request, env, url) {
   if (path === '/planner' && method === 'GET')    return plannerList(request, env, origin);
   if (path === '/planner' && method === 'POST')   return plannerAdd(request, env, origin);
   if (path.match(/^\/planner\/[^/]+$/) && method === 'DELETE') return plannerDelete(request, env, origin, path);
+
+  // Stacks (worker/stacks.js)
+  if (path === '/stacks' && method === 'GET')  return STACKS.list(request, env, origin, path);
+  if (path === '/stacks' && method === 'POST') return STACKS.create(request, env, origin, path);
+  if (path.match(/^\/stacks\/[^/]+$/) && method === 'PUT')    return STACKS.update(request, env, origin, path);
+  if (path.match(/^\/stacks\/[^/]+$/) && method === 'DELETE') return STACKS.remove(request, env, origin, path);
+  if (path.match(/^\/stacks\/[^/]+\/activate$/) && method === 'POST')   return STACKS.activate(request, env, origin, path);
+  if (path.match(/^\/stacks\/[^/]+\/deactivate$/) && method === 'POST') return STACKS.deactivate(request, env, origin, path);
 
   // Vials
   if (path === '/vials' && method === 'GET')    return vialsList(request, env, origin);
