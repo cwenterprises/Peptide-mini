@@ -268,6 +268,48 @@ await page.waitForTimeout(1500);
 const nt = await page.evaluate(() => App.getData().stacks.find(s => s.name === 'No times'));
 check('builder saves a stack with no dose times', nt && nt.status === 'inactive' && nt.items[0].times.length === 0 && nt.items[0].route === 'Intranasal', JSON.stringify(nt?.items?.[0]));
 
+// ── Checks: clashes and pairings ──────────────────────────────────────────────
+const ck = await page.evaluate(() => {
+  const it = (peptide) => ({ peptide, route: 'Subcutaneous', dose: 1, unit: 'mg', days: [1], times: [] });
+  const lv = (items, stacks = [], id = null) => checkStack(items.map(it), stacks, id);
+  const glp = lv(['Semaglutide', 'Tirzepatide']);
+  const gh = lv(['CJC-1295', 'Ipamorelin']);
+  const blend = lv(['Wolverine', 'BPC-157']);
+  const fine = lv(['Semax', 'Selank']);
+  const active = [{ id: 'other', name: 'Recovery', status: 'active', items: [it('BPC-157')] }];
+  const overlap = lv(['BPC 157'], active);
+  const selfEdit = lv(['BPC-157'], active, 'other');
+  const igf = lv(['HGH', 'IGF-1 LR3']);
+  return {
+    glpSevere: glp.filter(c => c.level === 'severe').length === 1,
+    ghTip: gh.some(c => c.level === 'tip'),
+    blendCaution: blend.some(c => c.level === 'caution' && /Wolverine/.test(c.message)),
+    fineNoWarnings: !fine.some(c => c.level !== 'tip'),
+    overlap: overlap.some(c => c.level === 'caution' && /Recovery/.test(c.message)),
+    noSelfOverlap: !selfEdit.some(c => /Recovery/.test(c.message)),
+    igfSevere: igf.some(c => c.level === 'severe'),
+    rulesCited: STACK_RULES.every(r => PEPTIDE_LIBRARY.some(l => l.name === r.source)),
+  };
+});
+check('Semaglutide + Tirzepatide → one severe clash', ck.glpSevere);
+check('CJC-1295 + Ipamorelin → synergy tip', ck.ghTip);
+check('Wolverine blend + BPC-157 → duplicate-dosing caution', ck.blendCaution);
+check('Semax + Selank → no warnings', ck.fineNoWarnings);
+check('peptide already in another active stack → caution naming it', ck.overlap);
+check("editing a stack doesn't warn about itself", ck.noSelfOverlap);
+check('HGH + IGF-1 LR3 → severe (library: hypoglycemia risk)', ck.igfSevere);
+check('every rule cites a library entry', ck.rulesCited);
+await page.evaluate(() => {
+  openStackBuilder(null);
+  _sb.items = [sbItem({ peptide: 'Semaglutide', dose: 0.25, unit: 'mg' }), sbItem({ peptide: 'Tirzepatide', dose: 2.5, unit: 'mg' })];
+  _sb.name = 'Clash'; renderStackBuilder();
+});
+const panel = await page.evaluate(() => document.getElementById('sbChecks')?.innerText || '');
+check('builder shows the clash in a Checks panel', /GLP-1/.test(panel), panel.slice(0, 120));
+await page.click('#sbSaveOn');
+check('severe clash → "Turn on anyway"', (await page.textContent('#sbStartGo')).includes('anyway'));
+await page.evaluate(() => { _sb = null; _stackView = { mode: 'list' }; renderStacks(); });
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.

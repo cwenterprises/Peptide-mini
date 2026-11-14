@@ -6470,6 +6470,94 @@ async function saveStackUI(turnOn) {
   }
 }
 
+// ── Stack checks: clashes and pairings ────────────────────────────────────────
+// Every rule restates a sentence from the cited library entry's text — the app
+// doesn't invent interactions. Classes are keyed by library name (or a common
+// name for compounds not in the library); lookups go through libraryEntry().
+const PEPTIDE_CLASSES = {
+  'Semaglutide': ['glp1'], 'Tirzepatide': ['glp1'], 'Retatrutide': ['glp1'],
+  'PT-141': ['melanocortin'], 'Melanotan II': ['melanocortin'], 'Melanotan 1': ['melanocortin'],
+  'CJC-1295': ['ghrh'], 'Sermorelin': ['ghrh'], 'Tesamorelin': ['ghrh'],
+  'Ipamorelin': ['ghrp'], 'GhRIP': ['ghrp'],
+  'HGH': ['gh'], 'IGF-1 LR3': ['igf'],
+  'BPC-157': ['bpc157'], 'TB-500': ['tb500'], 'GHK-CU': ['ghkcu'], 'KPV': ['kpv'],
+  'Wolverine': ['blend:wolverine'], 'Glow': ['blend:glow'], 'Klow': ['blend:klow'], 'CJC-195/IPA': ['blend:cjcipa'],
+  'Super Shred': ['lipotropic'], 'Lipo-C': ['lipotropic'],
+};
+
+const STACK_RULES = [
+  { level: 'severe', kind: 'same-class', classes: ['glp1'], source: 'Semaglutide',
+    message: 'Two GLP-1 agents together — the library says not to stack GLP-1s with each other.' },
+  { level: 'severe', kind: 'same-class', classes: ['melanocortin'], source: 'PT-141',
+    message: 'Two melanocortins together — the library says PT-141 is not stacked with other melanocortins.' },
+  { level: 'severe', kind: 'pair', classes: ['gh', 'igf'], source: 'HGH',
+    message: 'HGH with IGF-1 LR3 — the library flags a hypoglycemia (low blood sugar) risk; avoid unless supervised.' },
+  { level: 'caution', kind: 'blend-overlap', blend: 'blend:wolverine', parts: ['bpc157', 'tb500'], source: 'Wolverine',
+    message: 'Wolverine already contains BPC-157 and TB-500 — taking them separately as well doubles those doses.' },
+  { level: 'caution', kind: 'blend-overlap', blend: 'blend:glow', parts: ['bpc157', 'tb500', 'ghkcu'], source: 'Glow',
+    message: 'Glow already contains BPC-157, TB-500 and GHK-Cu — taking them separately as well doubles those doses.' },
+  { level: 'caution', kind: 'blend-overlap', blend: 'blend:klow', parts: ['bpc157', 'tb500', 'ghkcu', 'kpv'], source: 'Klow',
+    message: 'Klow already contains BPC-157, TB-500, GHK-Cu and KPV — taking them separately as well doubles those doses.' },
+  { level: 'caution', kind: 'blend-overlap', blend: 'blend:cjcipa', parts: ['ghrh', 'ghrp'], source: 'CJC-195/IPA',
+    message: 'CJC-195/IPA is already CJC-1295 + Ipamorelin — adding either separately doubles that part.' },
+  { level: 'caution', kind: 'same-class', classes: ['lipotropic'], source: 'Super Shred',
+    message: 'Super Shred and Lipo-C overlap (both lipotropic) — count both toward your L-carnitine/B-vitamin totals.' },
+  { level: 'tip', kind: 'synergy', classes: ['ghrh', 'ghrp'], source: 'CJC-1295',
+    message: 'GHRH + GHRP pairing — the library describes this combination as producing amplified GH pulses.' },
+  { level: 'tip', kind: 'synergy', classes: ['bpc157', 'tb500'], source: 'BPC-157',
+    message: 'BPC-157 + TB-500 — the library calls this the gold-standard soft-tissue repair stack.' },
+];
+
+function peptideClasses(name) {
+  const lib = libraryEntry(name);
+  const key = lib ? lib.name : Object.keys(PEPTIDE_CLASSES).find(k => pepNorm(k) === pepNorm(name));
+  return PEPTIDE_CLASSES[key] || [];
+}
+
+function checkStack(items, stacks, editingId) {
+  const named = items.filter(i => i.peptide);
+  const tagged = named.map(i => ({ name: i.peptide, classes: peptideClasses(i.peptide) }));
+  const withClass = c => tagged.filter(t => t.classes.includes(c));
+  const out = [];
+  for (const r of STACK_RULES) {
+    let hit = null;
+    if (r.kind === 'same-class') { const m = withClass(r.classes[0]); if (m.length >= 2) hit = m; }
+    else if (r.kind === 'pair' || r.kind === 'synergy') {
+      const a = withClass(r.classes[0]), b = withClass(r.classes[1]);
+      if (a.length && b.length) hit = [...a, ...b];
+    } else if (r.kind === 'blend-overlap') {
+      const blend = withClass(r.blend), parts = tagged.filter(t => t.classes.some(c => r.parts.includes(c)));
+      if (blend.length && parts.length) hit = [...blend, ...parts];
+    }
+    if (hit) out.push({ level: r.level, message: r.message, source: r.source, peptides: [...new Set(hit.map(h => h.name))] });
+  }
+  for (const st of (stacks || [])) {
+    if (st.id === editingId || !(st.status === 'active' || st.status === 'scheduled')) continue;
+    const shared = named.filter(i => st.items.some(x => pepNorm(x.peptide) === pepNorm(i.peptide) ||
+      (libraryEntry(x.peptide) && libraryEntry(x.peptide) === libraryEntry(i.peptide))));
+    for (const i of shared) out.push({ level: 'caution', peptides: [i.peptide],
+      message: `${i.peptide} is already in your ${st.status === 'active' ? 'active' : 'scheduled'} stack "${st.name}" — both would schedule it.` });
+  }
+  const rank = { severe: 0, caution: 1, tip: 2 };
+  return out.sort((a, b) => rank[a.level] - rank[b.level]);
+}
+
+function stackChecksHtml(items, stacks, editingId) {
+  const named = items.filter(i => i.peptide);
+  if (!named.length) return '';
+  const checks = checkStack(named, stacks, editingId);
+  const style = { severe: ['⛔', 'rgba(239,68,68,0.12)', 'rgba(239,68,68,0.4)'], caution: ['⚠️', 'rgba(245,158,11,0.10)', 'rgba(245,158,11,0.35)'], tip: ['💡', 'rgba(14,165,233,0.10)', 'rgba(14,165,233,0.3)'] };
+  return `
+    <div class="glass" style="padding:16px;" id="sbChecks">
+      <h4 style="font-size:14px;font-weight:700;margin-bottom:6px;">Checks</h4>
+      ${checks.length ? checks.map(c => `
+        <div style="margin-top:6px;padding:8px 12px;border-radius:10px;background:${style[c.level][1]};border:1px solid ${style[c.level][2]};font-size:13px;">
+          ${style[c.level][0]} ${escHtml(c.message)}${c.source ? ` <span class="muted" style="font-size:11px;">— from the ${escHtml(c.source)} entry</span>` : ''}
+        </div>`).join('') : '<p class="muted" style="font-size:13px;">No known clashes between these peptides.</p>'}
+      <p class="muted" style="font-size:11px;margin-top:8px;">Checks restate notes in the app's peptide library. They're not medical advice and won't catch everything.</p>
+    </div>`;
+}
+
 function renderLibrary() {
   const query = _libSearch.toLowerCase();
   const filtered = PEPTIDE_LIBRARY.filter(p =>
