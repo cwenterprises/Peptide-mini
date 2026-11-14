@@ -128,7 +128,7 @@ await page.evaluate(() => document.getElementById('printPlan').remove());
 
 // ── 5. Empty planner state ──
 const empty = await page.evaluate(() => { const real = App.getData().planner; App.getData().planner = []; const h = scheduleCardHtml(); App.getData().planner = real; return h; });
-check('Empty planner shows guidance', empty.includes('Add planner items in Settings'));
+check('Empty planner shows guidance', empty.includes('Build a stack in the Stacks tab'));
 
 // ── 6. Reminder link → Log Dose prefilled from the planner row (beats "same as last time") ──
 const tueId = await page.evaluate(async () => {
