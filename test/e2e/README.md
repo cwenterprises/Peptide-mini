@@ -13,3 +13,7 @@ Set `SHOTS=/some/dir` to save screenshots from suites that take them.
 
 `.wrangler/` is local-only (gitignored). If `wrangler dev` dies with
 `_cf_ALARM has 3 columns but 2 values were supplied`, run `scripts/reset-local-db.sh`.
+
+Unit tests (pure stack logic, no server needed), from the repo root:
+
+    node --test test/unit/*.test.mjs
