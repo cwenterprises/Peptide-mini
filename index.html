@@ -427,6 +427,7 @@
         <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
         <button class="nav-tab" data-tab="today">Today</button>
         <button class="nav-tab" data-tab="week">Week</button>
+        <button class="nav-tab" data-tab="stacks">Stacks</button>
         <button class="nav-tab" data-tab="logdose">Log Dose</button>
         <button class="nav-tab" data-tab="history">History</button>
         <button class="nav-tab" data-tab="vials">Vials</button>
@@ -444,6 +445,7 @@
       <div id="dashboard" class="tab-content active"></div>
       <div id="today"     class="tab-content"></div>
       <div id="week"      class="tab-content"></div>
+      <div id="stacks"    class="tab-content"></div>
       <div id="logdose"   class="tab-content"></div>
       <div id="history"   class="tab-content"></div>
       <div id="vials"     class="tab-content"></div>
@@ -554,6 +556,8 @@ const App = (() => {
   }
 
   async function loadAll() {
+    // Stacks first: GET /stacks applies due start/complete transitions, which rewrite planner rows.
+    const stacks = await API.get('/stacks?today=' + ymd(new Date())).catch(() => []);
     let [peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins, calendarFeed] = await Promise.all([
       API.get('/peptides'),
       API.get('/planner'),
@@ -576,7 +580,7 @@ const App = (() => {
     if (settings && settings.auto_cycles) {
       cycles = cycles.concat(await autoTrackCycles(logs, cycles).catch(() => []));
     }
-    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins, calendarFeed };
+    _data = { peptides, planner, vials, logs, settings, vendors, prices, orders, cycles, inventory, peptideNotes, checkins, calendarFeed, stacks };
     applyTheme(settings.theme || 'system');
     queueCalendarFeedSync();
     return _data;
@@ -733,6 +737,7 @@ function renderAllTabs() {
   renderDashboard();
   renderToday();
   renderWeek();
+  renderStacks();
   renderLogDose();
   renderHistory();
   renderVials();
@@ -1654,7 +1659,7 @@ function renderToday() {
 
   let doseRows = '';
   if (todayPlans.length === 0) {
-    doseRows = '<p class="muted" style="padding:8px 0;">Add planner items in Settings.</p>';
+    doseRows = '<p class="muted" style="padding:8px 0;">Build a stack in the <a href="#" onclick="Tabs.switchTo(\'stacks\');return false;" style="color:var(--accent-sky);">Stacks</a> tab to schedule doses.</p>';
   } else {
     for (const plan of todayPlans) {
       const done = planMatched(plan, todayLogs);
@@ -1988,7 +1993,7 @@ function buildScheduleIcs(data, now = new Date(), opts = {}) {
 
 async function exportScheduleIcs() {
   const data = App.getData();
-  if (!data.planner?.length) { alert('Add planner items in Settings first.'); return; }
+  if (!data.planner?.length) { alert('Build a stack in the Stacks tab first.'); return; }
   const name = 'peptideos-schedule.ics';
   const file = new File([buildScheduleIcs(data)], name, { type: 'text/calendar' });
   // The iOS app's web view ignores downloads — hand the file to the share sheet instead.
@@ -2019,7 +2024,7 @@ function scheduleCardHtml() {
   if (!data.planner?.length) return `
     <div class="glass" style="padding:20px;">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:6px;">📅 Dosing schedule</h3>
-      <p class="muted" style="font-size:13px;">Add planner items in Settings to get calendar reminders, a printable plan and vial runout dates.</p>
+      <p class="muted" style="font-size:13px;">Build a stack in the Stacks tab to get calendar reminders, a printable plan and vial runout dates.</p>
     </div>`;
   const runouts = vialRunouts(data);
   const native = !!window.Capacitor?.isNativePlatform?.();
@@ -6083,6 +6088,140 @@ function showPeptideInfo(name) {
 }
 
 let _libSearch = '';
+
+// ── Stacks ────────────────────────────────────────────────────────────────────
+// A stack is a saved multi-peptide protocol; turning it on writes tagged planner
+// rows + cycles server-side (worker/stacks.js). This tab is the planner editor.
+let _stackView = { mode: 'list' };      // list | builder
+let _stackConfirm = null;               // `${action}:${id}` awaiting a second tap
+const DOW_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function stackDosesPerWeek(items) {
+  return items.reduce((n, it) => n + it.days.length * Math.max(1, (it.times || []).length), 0);
+}
+
+function stackStatusLabel(stack, today) {
+  const nice = d => new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  if (stack.status === 'active') {
+    if (!stack.end_date) return 'Active · Ongoing';
+    const total = stack.weeks || Math.round((new Date(stack.end_date) - new Date(stack.start_date)) / 604800000);
+    const wk = Math.min(total, Math.floor((new Date(today + 'T00:00:00') - new Date(stack.start_date + 'T00:00:00')) / 604800000) + 1);
+    return `Active · week ${Math.max(1, wk)} of ${total}`;
+  }
+  if (stack.status === 'scheduled') return `Starts ${nice(stack.start_date)}`;
+  if (stack.status === 'completed') return `Completed ${nice(stack.end_date)}`;
+  return 'Off';
+}
+
+function stackCardHtml(st, today) {
+  const badgeCls = st.status === 'active' ? 'badge-done' : st.status === 'scheduled' ? 'badge-info' : 'badge-pending';
+  const on = st.status === 'active' || st.status === 'scheduled';
+  const confirming = a => _stackConfirm === `${a}:${st.id}`;
+  const startRow = confirming('activate') ? `
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <label style="flex:1;min-width:150px;">Start date<input type="date" id="stStart-${st.id}" value="${today}" /></label>
+        <button class="btn btn-primary btn-sm" data-act="activate-go" onclick="activateStackUI('${st.id}')">Start</button>
+        <button class="btn btn-ghost btn-sm" onclick="_stackConfirm=null;renderStacks()">Cancel</button>
+      </div>` : '';
+  return `
+    <div class="glass" style="padding:16px;" data-stack-id="${st.id}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700;font-size:15px;">${escHtml(st.name)}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px;">${stackDosesPerWeek(st.items)} doses/week${st.weeks ? ` · ${st.weeks}-week cycle` : ' · no cycle length'}</div>
+        </div>
+        <span class="badge ${badgeCls}" style="white-space:nowrap;">${escHtml(stackStatusLabel(st, today))}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
+        ${st.items.map(it => `<span class="chip">${escHtml(it.peptide)}${peptideInfoBtn(it.peptide)} <span class="muted" style="margin-left:4px;">${it.dose} ${escHtml(it.unit)}</span></span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+        ${on
+          ? `<button class="btn btn-ghost btn-sm" data-act="deactivate" onclick="deactivateStackUI('${st.id}')">Turn off</button>`
+          : `<button class="btn btn-primary btn-sm" data-act="activate" onclick="_stackConfirm='activate:${st.id}';renderStacks()">${st.status === 'completed' ? 'Run again' : 'Turn on'}</button>`}
+        <button class="btn btn-ghost btn-sm" data-act="edit" onclick="openStackBuilder('${st.id}')">Edit</button>
+        ${confirming('delete')
+          ? `<button class="btn btn-danger btn-sm" data-act="delete-go" onclick="deleteStackUI('${st.id}')">Delete for good</button>
+             <button class="btn btn-ghost btn-sm" onclick="_stackConfirm=null;renderStacks()">Keep</button>`
+          : `<button class="btn btn-danger btn-sm" data-act="delete" onclick="_stackConfirm='delete:${st.id}';renderStacks()">Delete</button>`}
+      </div>
+      ${startRow}
+    </div>`;
+}
+
+function renderStacks() {
+  const el = document.getElementById('stacks');
+  if (!el) return;
+  if (_stackView.mode === 'builder' && typeof renderStackBuilder === 'function') { renderStackBuilder(); return; }
+  const { stacks = [] } = App.getData();
+  const today = ymd(new Date());
+  const order = { active: 0, scheduled: 1, inactive: 2, completed: 3 };
+  const mine = [...stacks].sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  const recos = typeof recommendedStacksHtml === 'function' ? recommendedStacksHtml() : '';
+  el.innerHTML = `
+    <div class="stack">
+      <div class="glass" style="padding:18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div>
+            <h3 style="font-size:16px;font-weight:700;">Stacks</h3>
+            <p class="muted" style="font-size:12px;margin-top:2px;">Build a protocol once. Turning it on fills Today, Week, reminders and your calendar; it switches itself off when the cycle ends.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" data-act="new" onclick="openStackBuilder(null)">+ New stack</button>
+        </div>
+      </div>
+      ${mine.length ? mine.map(st => stackCardHtml(st, today)).join('') : ''}
+      ${recos}
+      ${!mine.length && !recos ? '<p class="muted" style="padding:8px 4px;">No stacks yet — tap + New stack.</p>' : ''}
+      <p class="disclaimer">For research and personal tracking purposes only. Not medical advice.</p>
+    </div>`;
+}
+
+async function refreshAfterStackChange() {
+  await App.loadAll();
+  renderAllTabs();
+}
+
+async function activateStackUI(id) {
+  const start = document.getElementById('stStart-' + id)?.value || ymd(new Date());
+  try {
+    await API.post(`/stacks/${id}/activate`, { start_date: start, today: ymd(new Date()), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    _stackConfirm = null;
+    await refreshAfterStackChange();
+  } catch (e) { stackToast('Could not turn on: ' + (e.message || 'error')); }
+}
+
+async function deactivateStackUI(id) {
+  try {
+    await API.post(`/stacks/${id}/deactivate`, { today: ymd(new Date()) });
+    await refreshAfterStackChange();
+  } catch (e) { stackToast('Could not turn off: ' + (e.message || 'error')); }
+}
+
+async function deleteStackUI(id) {
+  try {
+    await API.delete(`/stacks/${id}?today=${ymd(new Date())}`);
+    _stackConfirm = null;
+    await refreshAfterStackChange();
+  } catch (e) { stackToast('Could not delete: ' + (e.message || 'error')); }
+}
+
+// Inline message at the top of the Stacks tab — never a browser dialog.
+function stackToast(msg) {
+  const el = document.getElementById('stacks');
+  if (!el) return;
+  const n = document.createElement('div');
+  n.className = 'glass';
+  n.setAttribute('role', 'status');
+  n.style.cssText = 'padding:10px 14px;margin-bottom:10px;border-color:rgba(239,68,68,0.4);font-size:13px;';
+  n.textContent = msg;
+  el.prepend(n);
+  setTimeout(() => n.remove(), 6000);
+}
+
+function openStackBuilder(idOrNull) {
+  _stackView = { mode: 'builder', id: idOrNull };
+  renderStacks();
+}
 
 function renderLibrary() {
   const query = _libSearch.toLowerCase();

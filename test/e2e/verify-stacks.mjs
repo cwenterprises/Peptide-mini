@@ -172,6 +172,47 @@ const cronRes = await fetch('http://localhost:8791/__scheduled?cron=*/5+*+*+*+*'
 const cronStatus = await page.evaluate(async id => (await API.get('/export')).stacks.find(s => s.id === id)?.status, cronId);
 check('cron completes an expired stack', cronRes.status === 200 && cronStatus === 'completed', `${cronRes.status} ${cronStatus}`);
 
+// ── UI: Stacks tab list ───────────────────────────────────────────────────────
+await page.evaluate(async () => {
+  const today = ymd(new Date());
+  for (const s of await API.get('/stacks?today=' + today)) await API.delete(`/stacks/${s.id}?today=${today}`);
+  const item = { peptide: 'BPC-157', route: 'Subcutaneous', dose: 250, unit: 'mcg', days: [0,1,2,3,4,5,6], times: ['08:00'] };
+  const on = await API.post('/stacks', { name: 'UI active', weeks: 6, items: [item] });
+  await API.post(`/stacks/${on.id}/activate`, { start_date: today, today, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  await API.post('/stacks', { name: 'UI off', weeks: null, items: [{ ...item, peptide: 'TB-500', dose: 2, unit: 'mg' }] });
+  await App.loadAll(); renderAllTabs();
+});
+const navHasStacks = await page.evaluate(() => {
+  const tabs = [...document.querySelectorAll('.nav-tab')].map(b => b.dataset.tab);
+  return tabs.indexOf('stacks') === tabs.indexOf('week') + 1;
+});
+check('Stacks tab sits right after Week', navHasStacks);
+await page.click('[data-tab="stacks"]');
+const ui = await page.evaluate(() => {
+  const el = document.getElementById('stacks');
+  return { visible: el.classList.contains('active'), cards: el.querySelectorAll('[data-stack-id]').length, text: el.innerText,
+    dataLoaded: Array.isArray(App.getData().stacks) };
+});
+check('Stacks tab visible', ui.visible);
+check('stacks loaded into App data', ui.dataLoaded);
+check('one card per stack', ui.cards === 2, ui.cards);
+check('active card shows "week 1 of 6"', /week 1 of 6/i.test(ui.text));
+check('inactive card shows Off', /\bOff\b/.test(ui.text));
+const todayHas = await page.evaluate(() => { renderToday(); return document.getElementById('today').innerText.includes('BPC-157'); });
+check("Today shows the active stack's peptide", todayHas);
+const hintFixed = await page.evaluate(() => {
+  const saved = App.getData().planner; App.getData().planner = [];
+  renderToday(); const t = document.getElementById('today').innerText;
+  App.getData().planner = saved; renderToday();
+  return t.includes('Stacks') && !t.includes('in Settings');
+});
+check('empty Today points to the Stacks tab', hintFixed);
+// Deactivate from the card (inline, no dialog)
+await page.click('[data-stack-id] [data-act="deactivate"]');
+await page.waitForTimeout(1500);
+const afterOff = await page.evaluate(() => App.getData().stacks.every(s => s.status === 'inactive') && !App.getData().planner.some(p => p.stack_id));
+check('Deactivate button turns the stack off', afterOff);
+
 check('no page errors', pageErrors.length === 0, pageErrors.join(' | '));
 
 // Leave no stack state behind: later suites seed BPC-157 and read cycles/planner.
